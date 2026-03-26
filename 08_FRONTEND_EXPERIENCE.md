@@ -1,10 +1,19 @@
 # 08 Frontend Experience
 
+> Status: Finalisiert fuer V1-Buildstart
+> Stand: 2026-03-18
+> Geltung: Verbindliche Arbeitsgrundlage
+
+
 ## Erlebnisziele
 - Tracking fuehlt sich sofort, leicht und robust an.
 - Rankings wirken belastbar und fair.
 - Community wirkt lebendig, ohne den Trainingsflow zu stoeren.
 - XP-/Level-Fortschritt wirkt motivierend und nachvollziehbar.
+
+## Technologischer Rahmen (verbindlich)
+- Frontend wird mit Flutter (Dart) als gemeinsamer iOS- und Android-Codepfad umgesetzt.
+- Supabase ist der Standard-Backendpfad fuer Auth, Datenzugriff und Sync.
 
 ## Pflichtverhalten
 - Offline: workout-kritische Funktionen bleiben nutzbar.
@@ -24,6 +33,7 @@
 - `sync_pending`: Event ist in Queue und wartet auf Uebertragung.
 - `sync_confirmed`: Server hat Event akzeptiert.
 - `sync_failed`: serverseitiger Fehler, Benutzer kann gezielt erneut senden.
+- Statuswechsel sind fuer den Nutzer klar unterscheidbar und ohne Log-Interpretation verstaendlich.
 
 ## Performance-Budgets (V1)
 - App-Start bis interaktive Home-Ansicht: p95 < 2.0s.
@@ -43,3 +53,4 @@
 - Lokale Queue-Eintraege fuer kritische Writes sind idempotent und reihenfolge-stabil.
 - Jeder Fehlerzustand bietet eine eindeutige Wiederholungsaktion.
 - Konfliktfaelle zwischen lokalem und serverseitigem Zustand werden nachvollziehbar angezeigt.
+- Keine blockierenden Dialoge ohne direkte Handlungsoption fuer den Nutzer.

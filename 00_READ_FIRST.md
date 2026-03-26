@@ -1,11 +1,17 @@
 # 00 Read First
 
+> Status: Finalisiert fuer V1-Buildstart
+> Stand: 2026-03-18
+> Geltung: Verbindliche Arbeitsgrundlage
+
+
 ## Zweck
-Dieses Dokumentpaket ist die verbindliche Produkt-, Architektur- und Liefergrundlage fuer die Greenfield-Neuentwicklung von Tap'em.
+Dieses Dokumentpaket ist die verbindliche Produkt-, Architektur-, Sicherheits- und Liefergrundlage fuer die Greenfield-Neuentwicklung von Tap'em.
+Alle Build-, Review- und Release-Entscheidungen leiten sich aus diesen Spezifikationen ab.
 
 ## Normative Sprache
 - `MUSS`: zwingende Anforderung.
-- `SOLLTE`: starke Empfehlung; Abweichung nur mit begruendetem Decision-Log-Eintrag.
+- `SOLLTE`: starke Empfehlung; Abweichung nur mit begruendetem Decision-Log-Eintrag und benanntem Risiko.
 - `KANN`: optionale Ausgestaltung ohne Scope-Verletzung.
 
 ## Verbindliche Begriffe
@@ -24,10 +30,11 @@ Dieses Dokumentpaket ist die verbindliche Produkt-, Architektur- und Liefergrund
 ## Nicht verhandelbare Leitlinien
 - Kein Rueckgriff auf Altcode, alte Datenmodelle oder historische Architekturentscheidungen.
 - V1 bleibt fokussiert: schneller und robuster Trainingsnutzen vor Feature-Breite.
+- Frontend ist Flutter-first (Dart) als einheitlicher Mobile-Stack fuer iOS und Android.
 - Backend ist Supabase-first mit Postgres als Source of Truth.
 - Geschaeftskritische Logik liegt serverseitig, nicht im Client.
 - Privilegierte Writes erfolgen nur ueber kontrollierte serverseitige Pfade.
-- Jede kritische Write-Operation ist idempotent.
+- Jede kritische Write-Operation MUSS idempotent sein.
 - Security, Testbarkeit, Observability und Betriebsfaehigkeit sind Muss-Kriterien.
 
 ## Produktleitplanken
@@ -43,6 +50,7 @@ Dieses Dokumentpaket ist die verbindliche Produkt-, Architektur- und Liefergrund
 - Identitaet und Personalisierung sind V1-Pflicht: eindeutiger Username und waehlbares Theme.
 
 ## Technische Leitplanken
+- Mobile-App-Implementierung erfolgt in Flutter (Dart) als gemeinsamer Codepfad fuer iOS und Android.
 - Supabase Postgres + RLS + Edge Functions ist der Standardpfad.
 - Datenregion fuer den initialen Betrieb: EU, bevorzugt Frankfurt (sofern verfuegbar).
 - Fehlertoleranz fuer Offline, Retry, Teil-Ausfaelle und App-Neustarts ist Pflicht.
@@ -60,6 +68,7 @@ Dieses Dokumentpaket ist die verbindliche Produkt-, Architektur- und Liefergrund
 - Annahmen, Risiken und Trade-offs explizit dokumentieren.
 - Klare Grenzen zwischen Domain, Application, Infrastruktur und UI einhalten.
 - Keine kurzfristigen Abkuerzungen auf Kosten langfristiger Wartbarkeit.
+- Jede release-relevante Aussage muss auf ein messbares Abnahmekriterium aus `14_ACCEPTANCE_CRITERIA.md` verweisen.
 
 ## Definition von Enterprise-Niveau
 - Sicher, testbar, beobachtbar und skalierbar.

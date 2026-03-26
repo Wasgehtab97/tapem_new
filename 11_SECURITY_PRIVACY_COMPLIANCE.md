@@ -1,5 +1,10 @@
 # 11 Security Privacy Compliance
 
+> Status: Finalisiert fuer V1-Buildstart
+> Stand: 2026-03-18
+> Geltung: Verbindliche Arbeitsgrundlage
+
+
 ## Security-Grundsaetze
 - Zero Trust zwischen Client und Backend.
 - Prinzip der minimalen Rechte.
@@ -10,7 +15,7 @@
 - RLS ist fuer alle produktiven Fachtabellen aktiv.
 - Zugriff aus Clients nur ueber `anon`/User-Context mit gueltigen Policies.
 - Service-Role-Keys nur in Edge Functions oder geschuetzter Server-Infrastruktur.
-- Kein Service-Role-Key in Mobile- oder Web-Clients.
+- Kein Service-Role-Key in Mobile- oder Web-Clients (einschliesslich Flutter-App-Client).
 - JWT-Claims, Rollen und Membership-Pruefungen sind konsistent mit Domainregeln.
 
 ## Produktkritische Security-Faelle
@@ -28,12 +33,14 @@
 - Secrets-Rotation mindestens quartalsweise oder sofort bei Vorfall.
 - Security-Alerts fuer Auth-Anomalien, RLS-Verletzungsversuche und Error-Spikes.
 - Jede Policy-Aenderung verlangt Vier-Augen-Review und automatisierte Policy-Tests.
+- Kritische Security-Events haben definierte Eskalationspfade inkl. Reaktionszeit.
 
 ## Datenschutz
 - Privacy by default und Datensparsamkeit.
 - Transparente Einwilligungen fuer optionale Tracking- und Community-Funktionen.
 - Operative Prozesse fuer Auskunft, Export und Loeschung.
 - Klare Controls fuer Trainingstags- und Aktivitaetssichtbarkeit.
+- Privacy-Defaults duerfen nur per dokumentierter Produktentscheidung geaendert werden.
 
 ## Privacy-Level fuer Freundesaktivitaet (V1)
 - `private`: keine Aktivitaet sichtbar.
@@ -52,3 +59,4 @@ Default ist `friends_training_days`.
 - Sicherheitsvorfall-Prozess mit klaren Verantwortlichkeiten.
 - Nachweisbare technische und organisatorische Massnahmen.
 - Region EU/Frankfurt fuer Deutschland-Start, sofern verfuegbar.
+- Compliance-Evidenz ist releasebezogen versioniert und revisionssicher archiviert.

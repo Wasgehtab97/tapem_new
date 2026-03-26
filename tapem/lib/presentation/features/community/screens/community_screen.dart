@@ -1,0 +1,2537 @@
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
+
+import '../../../../core/services/gym_service.dart';
+import '../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/app_text_styles.dart';
+import '../../../../core/utils/l10n_extension.dart';
+import '../../../../l10n/generated/app_localizations.dart';
+import '../../progress/widgets/training_heatmap.dart';
+import '../../../widgets/common/user_avatar.dart';
+import '../providers/community_provider.dart';
+
+// ─── Root screen ──────────────────────────────────────────────────────────────
+
+class CommunityScreen extends StatelessWidget {
+  const CommunityScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(l10n.communityTitle),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.person_add_outlined),
+            onPressed: () => _showFindFriends(context),
+            tooltip: l10n.findFriendsTooltip,
+          ),
+        ],
+      ),
+      body: DefaultTabController(
+        length: 2,
+        child: Column(
+          children: [
+            TabBar(
+              indicatorColor: AppColors.neonCyan,
+              labelColor: AppColors.neonCyan,
+              unselectedLabelColor: AppColors.textSecondary,
+              labelStyle: AppTextStyles.labelMd,
+              tabs: [
+                Tab(text: l10n.friendsTab),
+                Tab(text: l10n.rankingsTab),
+              ],
+            ),
+            const Expanded(
+              child: TabBarView(children: [_FriendsTab(), _RankingsTab()]),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showFindFriends(BuildContext context) {
+    unawaited(
+      showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: AppColors.surface800,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+        ),
+        builder: (_) => const _FindFriendsSheet(),
+      ),
+    );
+  }
+}
+
+// ─── Friends tab ──────────────────────────────────────────────────────────────
+
+class _FriendsTab extends ConsumerWidget {
+  const _FriendsTab();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final friendsAsync = ref.watch(friendsProvider);
+    final l10n = context.l10n;
+
+    return RefreshIndicator(
+      onRefresh: () async => ref.refresh(friendsProvider),
+      child: friendsAsync.when(
+        data: (friends) {
+          if (friends.isEmpty) {
+            return _EmptyFriends(
+              onFindFriends: () => _showFindFriendsSheet(context),
+            );
+          }
+
+          final pending = friends
+              .where((f) => f.status == 'pending_received')
+              .toList();
+          final accepted = friends
+              .where((f) => f.status == 'accepted')
+              .toList();
+          final acceptedSameGym = accepted
+              .where((f) => f.sharesActiveGym)
+              .toList();
+          final acceptedOtherGyms = accepted
+              .where((f) => !f.sharesActiveGym)
+              .toList();
+          final sent = friends
+              .where((f) => f.status == 'pending_sent')
+              .toList();
+
+          return ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              if (pending.isNotEmpty) ...[
+                _SectionLabel(
+                  l10n.requestsSection(pending.length),
+                  color: AppColors.neonYellow,
+                ),
+                const SizedBox(height: 8),
+                ...pending.map((f) => _FriendRequestTile(friend: f)),
+                const SizedBox(height: 16),
+              ],
+              if (acceptedSameGym.isNotEmpty) ...[
+                _SectionLabel(
+                  l10n.friendsSameGymSection(acceptedSameGym.length),
+                ),
+                const SizedBox(height: 8),
+                ...acceptedSameGym.map((f) => _FriendTile(friend: f)),
+                const SizedBox(height: 16),
+              ],
+              if (acceptedOtherGyms.isNotEmpty) ...[
+                _SectionLabel(
+                  l10n.friendsOtherGymsSection(acceptedOtherGyms.length),
+                ),
+                const SizedBox(height: 8),
+                ...acceptedOtherGyms.map((f) => _FriendTile(friend: f)),
+                const SizedBox(height: 16),
+              ],
+              if (sent.isNotEmpty) ...[
+                _SectionLabel(l10n.pendingSection(sent.length)),
+                const SizedBox(height: 8),
+                ...sent.map(
+                  (f) => _FriendTile(friend: f, showPendingBadge: true),
+                ),
+              ],
+            ],
+          );
+        },
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (e, _) => Center(child: Text(e.toString())),
+      ),
+    );
+  }
+
+  void _showFindFriendsSheet(BuildContext context) {
+    unawaited(
+      showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: AppColors.surface800,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+        ),
+        builder: (_) => const _FindFriendsSheet(),
+      ),
+    );
+  }
+}
+
+class _SectionLabel extends StatelessWidget {
+  const _SectionLabel(this.text, {this.color});
+  final String text;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text,
+      style: AppTextStyles.labelSm.copyWith(
+        color: color ?? AppColors.textSecondary,
+      ),
+    );
+  }
+}
+
+class _EmptyFriends extends StatelessWidget {
+  const _EmptyFriends({required this.onFindFriends});
+  final VoidCallback onFindFriends;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.people_outline,
+            size: 56,
+            color: AppColors.textSecondary.withAlpha(100),
+          ),
+          const SizedBox(height: 20),
+          Text(l10n.noFriendsYet, style: AppTextStyles.h3),
+          const SizedBox(height: 8),
+          Text(
+            l10n.findGymMembers,
+            style: AppTextStyles.bodyMd.copyWith(
+              color: AppColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 24),
+          TextButton.icon(
+            onPressed: onFindFriends,
+            icon: const Icon(Icons.person_add_outlined),
+            label: Text(l10n.findFriendsBtn),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Friend request tile (incoming) ───────────────────────────────────────────
+
+class _FriendRequestTile extends ConsumerWidget {
+  const _FriendRequestTile({required this.friend});
+  final FriendUser friend;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = context.l10n;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.surface800,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.neonYellow.withAlpha(60)),
+      ),
+      child: Row(
+        children: [
+          _Avatar(username: friend.username, avatarUrl: friend.avatarUrl),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('@${friend.username}', style: AppTextStyles.bodyMd),
+                if (friend.displayName != null)
+                  Text(
+                    friend.displayName!,
+                    style: AppTextStyles.bodySm.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          IconButton(
+            onPressed: () => ref
+                .read(friendActionsProvider.notifier)
+                .acceptRequest(friend.friendshipId),
+            icon: const Icon(
+              Icons.check_circle_outline,
+              color: AppColors.success,
+            ),
+            tooltip: l10n.acceptTooltip,
+          ),
+          IconButton(
+            onPressed: () => ref
+                .read(friendActionsProvider.notifier)
+                .declineRequest(friend.friendshipId),
+            icon: Icon(
+              Icons.cancel_outlined,
+              color: AppColors.textSecondary.withAlpha(180),
+            ),
+            tooltip: l10n.declineTooltip,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Friend tile (accepted / pending_sent) ────────────────────────────────────
+
+class _FriendTile extends ConsumerWidget {
+  const _FriendTile({required this.friend, this.showPendingBadge = false});
+  final FriendUser friend;
+  final bool showPendingBadge;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = context.l10n;
+
+    return GestureDetector(
+      onTap: friend.status == 'accepted'
+          ? () => _openProfileSheet(context)
+          : null,
+      onLongPress: friend.status == 'accepted'
+          ? () => _showRemoveDialog(context, ref, l10n)
+          : friend.status == 'pending_sent'
+          ? () => _showCancelDialog(context, ref, l10n)
+          : null,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: AppColors.surface800,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: AppColors.surface500),
+        ),
+        child: Row(
+          children: [
+            _Avatar(username: friend.username, avatarUrl: friend.avatarUrl),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('@${friend.username}', style: AppTextStyles.bodyMd),
+                  Text(
+                    friend.sharesActiveGym
+                        ? l10n.friendInYourGym
+                        : l10n.friendFromOtherGyms(friend.sharedGymCount),
+                    style: AppTextStyles.bodySm.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                  if (friend.lastTrainingDay != null)
+                    Text(
+                      _formatLastTraining(friend.lastTrainingDay!, l10n),
+                      style: AppTextStyles.bodySm.copyWith(
+                        color: AppColors.neonCyan.withAlpha(180),
+                      ),
+                    )
+                  else if (friend.status == 'accepted')
+                    Text(
+                      l10n.privacyPrivate,
+                      style: AppTextStyles.bodySm.copyWith(
+                        color: AppColors.textDisabled,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            if (showPendingBadge)
+              _Badge(label: l10n.pendingBadge)
+            else if (friend.status == 'accepted')
+              const Icon(
+                Icons.chevron_right_rounded,
+                color: AppColors.textDisabled,
+                size: 22,
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _formatLastTraining(String dateStr, AppLocalizations l10n) {
+    try {
+      final date = DateTime.parse(dateStr);
+      final today = DateTime.now();
+      final diff = DateTime(
+        today.year,
+        today.month,
+        today.day,
+      ).difference(DateTime(date.year, date.month, date.day)).inDays;
+      if (diff == 0) return l10n.lastTrainedToday;
+      if (diff == 1) return l10n.lastTrainedYesterday;
+      return l10n.lastTrainedDaysAgo(diff);
+    } catch (_) {
+      return dateStr;
+    }
+  }
+
+  void _openProfileSheet(BuildContext context) {
+    unawaited(
+      showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: AppColors.surface800,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+        ),
+        builder: (_) => _FriendProfileSheet(friend: friend),
+      ),
+    );
+  }
+
+  Future<void> _showCancelDialog(
+    BuildContext context,
+    WidgetRef ref,
+    AppLocalizations l10n,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surface800,
+        title: Text(l10n.cancelRequestTitle, style: AppTextStyles.h3),
+        content: Text(
+          l10n.cancelRequestContent(friend.username),
+          style: AppTextStyles.bodyMd,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(l10n.cancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(
+              l10n.cancelRequestBtn,
+              style: const TextStyle(color: AppColors.error),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    if (!context.mounted) return;
+    await ref
+        .read(friendActionsProvider.notifier)
+        .removeFriend(friend.friendshipId);
+  }
+
+  Future<void> _showRemoveDialog(
+    BuildContext context,
+    WidgetRef ref,
+    AppLocalizations l10n,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surface800,
+        title: Text(l10n.removeFriendTitle, style: AppTextStyles.h3),
+        content: Text(
+          l10n.removeFriendContent(friend.username),
+          style: AppTextStyles.bodyMd,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(l10n.cancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(
+              l10n.removeFriendBtn,
+              style: const TextStyle(color: AppColors.error),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    if (!context.mounted) return;
+    await ref
+        .read(friendActionsProvider.notifier)
+        .removeFriend(friend.friendshipId);
+  }
+}
+
+class _Badge extends StatelessWidget {
+  const _Badge({required this.label});
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: AppColors.surface600,
+        borderRadius: BorderRadius.circular(3),
+      ),
+      child: Text(
+        label,
+        style: AppTextStyles.labelSm.copyWith(color: AppColors.textSecondary),
+      ),
+    );
+  }
+}
+
+class _FriendProfileSheet extends ConsumerStatefulWidget {
+  const _FriendProfileSheet({required this.friend});
+  final FriendUser friend;
+
+  @override
+  ConsumerState<_FriendProfileSheet> createState() =>
+      _FriendProfileSheetState();
+}
+
+class _FriendProfileSheetState extends ConsumerState<_FriendProfileSheet> {
+  late int _year;
+
+  @override
+  void initState() {
+    super.initState();
+    _year = DateTime.now().year;
+  }
+
+  void _prevYear() => setState(() => _year--);
+
+  void _nextYear() {
+    if (_year < DateTime.now().year) {
+      setState(() => _year++);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final friend = widget.friend;
+    final daysAsync = ref.watch(
+      friendTrainingDaysProvider(
+        FriendCalendarQuery(friendUserId: friend.userId, year: _year),
+      ),
+    );
+    final summaryAsync = ref.watch(
+      friendLastSessionSummaryProvider(
+        FriendSessionSummaryQuery(friendUserId: friend.userId),
+      ),
+    );
+
+    return FractionallySizedBox(
+      heightFactor: 0.92,
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      l10n.friendProfileTitle,
+                      style: AppTextStyles.h3,
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Expanded(
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Center(
+                        child: UserAvatar(
+                          username: friend.username,
+                          radius: 38,
+                          avatarUrl: friend.avatarUrl,
+                          borderColor: friend.sharesActiveGym
+                              ? AppColors.neonCyan
+                              : AppColors.neonYellow,
+                          borderWidth: 2,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Center(
+                        child: Text(
+                          '@${friend.username}',
+                          style: AppTextStyles.h3,
+                        ),
+                      ),
+                      if (friend.displayName != null) ...[
+                        const SizedBox(height: 4),
+                        Center(
+                          child: Text(
+                            friend.displayName!,
+                            style: AppTextStyles.bodyMd.copyWith(
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 12),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          _Badge(
+                            label: friend.sharesActiveGym
+                                ? l10n.friendTagSameGym
+                                : l10n.friendTagOtherGym,
+                          ),
+                          _Badge(
+                            label: l10n.sharedGymsCount(friend.sharedGymCount),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: AppColors.surface700,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: AppColors.surface500),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    l10n.friendTrainingCalendar,
+                                    style: AppTextStyles.labelMd,
+                                  ),
+                                ),
+                                IconButton(
+                                  onPressed: _prevYear,
+                                  icon: const Icon(Icons.chevron_left_rounded),
+                                ),
+                                Text('$_year', style: AppTextStyles.monoSm),
+                                IconButton(
+                                  onPressed: _year < DateTime.now().year
+                                      ? _nextYear
+                                      : null,
+                                  icon: const Icon(Icons.chevron_right_rounded),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            daysAsync.when(
+                              data: (days) => Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  TrainingHeatmap(
+                                    year: _year,
+                                    trainingDays: days,
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Row(
+                                    children: [
+                                      Text(
+                                        l10n.friendTrainingDaysCount(
+                                          days.length,
+                                          _year,
+                                        ),
+                                        style: AppTextStyles.bodySm.copyWith(
+                                          color: AppColors.textSecondary,
+                                        ),
+                                      ),
+                                      const Spacer(),
+                                      TextButton(
+                                        onPressed: days.isEmpty
+                                            ? null
+                                            : () => _openHeatmapDialog(
+                                                context,
+                                                days,
+                                              ),
+                                        child: Text(l10n.openCalendarBtn),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                              loading: () => const Padding(
+                                padding: EdgeInsets.symmetric(vertical: 20),
+                                child: LinearProgressIndicator(
+                                  color: AppColors.neonCyan,
+                                  backgroundColor: AppColors.surface600,
+                                ),
+                              ),
+                              error: (_, __) => Text(
+                                l10n.friendCalendarUnavailable,
+                                style: AppTextStyles.bodySm.copyWith(
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: AppColors.surface700,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: AppColors.surface500),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              l10n.friendLastSessionSummary,
+                              style: AppTextStyles.labelMd,
+                            ),
+                            const SizedBox(height: 8),
+                            summaryAsync.when(
+                              data: (summary) {
+                                if (summary == null) {
+                                  return Text(
+                                    l10n.friendSessionSummaryHidden,
+                                    style: AppTextStyles.bodySm.copyWith(
+                                      color: AppColors.textSecondary,
+                                    ),
+                                  );
+                                }
+                                return Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      l10n.friendSessionDay(summary.sessionDay),
+                                      style: AppTextStyles.bodySm.copyWith(
+                                        color: AppColors.textSecondary,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            l10n.friendExerciseCount(
+                                              summary.exerciseCount,
+                                            ),
+                                            style: AppTextStyles.bodyMd,
+                                          ),
+                                        ),
+                                        Expanded(
+                                          child: Text(
+                                            l10n.friendSetCount(
+                                              summary.setCount,
+                                            ),
+                                            style: AppTextStyles.bodyMd,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                );
+                              },
+                              loading: () => const Padding(
+                                padding: EdgeInsets.symmetric(vertical: 8),
+                                child: LinearProgressIndicator(
+                                  color: AppColors.neonYellow,
+                                  backgroundColor: AppColors.surface600,
+                                ),
+                              ),
+                              error: (_, __) => Text(
+                                l10n.friendSessionSummaryUnavailable,
+                                style: AppTextStyles.bodySm.copyWith(
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (friend.status == 'accepted') ...[
+                        const SizedBox(height: 14),
+                        OutlinedButton.icon(
+                          onPressed: () => _removeFriend(context, friend),
+                          icon: const Icon(Icons.person_remove_alt_1_rounded),
+                          label: Text(l10n.removeFriendBtn),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppColors.error,
+                            side: const BorderSide(color: AppColors.error),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _openHeatmapDialog(BuildContext context, Set<String> days) {
+    unawaited(
+      showDialog<void>(
+        context: context,
+        builder: (_) => TrainingHeatmapDialog(year: _year, trainingDays: days),
+      ),
+    );
+  }
+
+  Future<void> _removeFriend(BuildContext context, FriendUser friend) async {
+    final l10n = context.l10n;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surface800,
+        title: Text(l10n.removeFriendTitle, style: AppTextStyles.h3),
+        content: Text(
+          l10n.removeFriendContent(friend.username),
+          style: AppTextStyles.bodyMd,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(l10n.cancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(
+              l10n.removeFriendBtn,
+              style: const TextStyle(color: AppColors.error),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    await ref
+        .read(friendActionsProvider.notifier)
+        .removeFriend(friend.friendshipId);
+    if (!mounted) return;
+    Navigator.of(this.context).pop();
+  }
+}
+
+// ─── Rankings tab (LoL-inspired leaderboard) ──────────────────────────────────
+
+class _RankingsTab extends ConsumerStatefulWidget {
+  const _RankingsTab();
+
+  @override
+  ConsumerState<_RankingsTab> createState() => _RankingsTabState();
+}
+
+class _RankingsTabState extends ConsumerState<_RankingsTab>
+    with SingleTickerProviderStateMixin {
+  late final TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+    _tabController.addListener(() => setState(() {}));
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final gymName = ref
+        .watch(activeMembershipProvider)
+        .maybeWhen(data: (m) => m?.gymName, orElse: () => null);
+
+    return Column(
+      children: [
+        _LeaderboardSeasonHeader(gymName: gymName),
+        _LeaderboardAxisTabBar(controller: _tabController),
+        Expanded(
+          child: TabBarView(
+            controller: _tabController,
+            physics: const NeverScrollableScrollPhysics(),
+            children: const [
+              _LeaderboardView(axis: kAxisTrainingDay),
+              _EquipmentOverviewView(),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ─── Season header banner ─────────────────────────────────────────────────────
+
+class _LeaderboardSeasonHeader extends StatelessWidget {
+  const _LeaderboardSeasonHeader({this.gymName});
+  final String? gymName;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+      decoration: const BoxDecoration(
+        color: AppColors.surface800,
+        border: Border(bottom: BorderSide(color: AppColors.surface500)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'GYM LEADERBOARD',
+                style: AppTextStyles.h3.copyWith(
+                  color: AppColors.neonCyan,
+                  letterSpacing: 2.0,
+                  height: 1.1,
+                ),
+              ),
+              if (gymName != null) ...[
+                const SizedBox(height: 2),
+                Text(
+                  gymName!.toUpperCase(),
+                  style: AppTextStyles.labelSm.copyWith(
+                    color: AppColors.textSecondary,
+                    letterSpacing: 1.5,
+                  ),
+                ),
+              ],
+            ],
+          ),
+          const Spacer(),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+              border: Border.all(color: AppColors.neonCyan.withAlpha(70)),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Text(
+              'SEASON 1',
+              style: AppTextStyles.labelSm.copyWith(
+                color: AppColors.neonCyan.withAlpha(200),
+                letterSpacing: 1.5,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Axis tab bar ─────────────────────────────────────────────────────────────
+
+class _LeaderboardAxisTabBar extends StatelessWidget {
+  const _LeaderboardAxisTabBar({required this.controller});
+  final TabController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: AppColors.surface900,
+      child: TabBar(
+        controller: controller,
+        indicatorColor: AppColors.neonCyan,
+        indicatorWeight: 2,
+        labelColor: AppColors.neonCyan,
+        unselectedLabelColor: AppColors.textSecondary,
+        labelStyle: AppTextStyles.labelSm.copyWith(
+          letterSpacing: 1.5,
+          fontSize: 11,
+        ),
+        unselectedLabelStyle: AppTextStyles.labelSm.copyWith(
+          letterSpacing: 1.5,
+          fontSize: 11,
+        ),
+        tabs: const [
+          Tab(text: 'KONSISTENZ'),
+          Tab(text: 'EQUIPMENT XP'),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Equipment overview tab (per-exercise top user) ───────────────────────────
+
+class _EquipmentOverviewView extends ConsumerWidget {
+  const _EquipmentOverviewView();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final async = ref.watch(gymEquipmentOverviewProvider);
+
+    return Column(
+      children: [
+        _EquipmentColumnHeader(),
+        Expanded(
+          child: async.when(
+            skipLoadingOnReload: true,
+            loading: () => _EquipmentOverviewLoading(),
+            error: (e, _) => _LeaderboardError(message: e.toString()),
+            data: (entries) {
+              if (entries.isEmpty) {
+                // Gym has no active equipment configured yet.
+                return Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(32),
+                    child: Text(
+                      'Noch keine Geräte im Gym konfiguriert.',
+                      style: AppTextStyles.bodyMd.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                );
+              }
+              return RefreshIndicator(
+                onRefresh: () async =>
+                    ref.refresh(gymEquipmentOverviewProvider),
+                color: AppColors.neonCyan,
+                backgroundColor: AppColors.surface800,
+                child: ListView.builder(
+                  padding: const EdgeInsets.only(bottom: 24),
+                  itemCount: entries.length + 1, // +1 for privacy note
+                  itemBuilder: (_, i) {
+                    if (i == entries.length) return const _PrivacyFootnote();
+                    return _EquipmentOverviewRow(entry: entries[i]);
+                  },
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ── Loading state: ghost rows matching the equipment row layout ────────────────
+
+class _EquipmentOverviewLoading extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        ListView.builder(
+          physics: const NeverScrollableScrollPhysics(),
+          padding: EdgeInsets.zero,
+          itemCount: 8,
+          itemBuilder: (_, i) => _EquipmentGhostRow(index: i),
+        ),
+        const Center(
+          child: CircularProgressIndicator(
+            color: AppColors.neonCyan,
+            strokeWidth: 2,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _EquipmentGhostRow extends StatelessWidget {
+  const _EquipmentGhostRow({required this.index});
+  final int index;
+
+  @override
+  Widget build(BuildContext context) {
+    final opacity = (0.38 - index * 0.032).clamp(0.05, 0.38);
+    // Vary placeholder widths so ghost rows look natural
+    final nameWidth = 80.0 + (index % 4) * 28.0;
+    final userWidth = 60.0 + (index % 3) * 20.0;
+
+    return Opacity(
+      opacity: opacity,
+      child: Container(
+        height: 60,
+        decoration: const BoxDecoration(
+          border: Border(bottom: BorderSide(color: AppColors.surface500)),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Row(
+          children: [
+            // Exercise name + user placeholder
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    height: 10,
+                    width: nameWidth,
+                    decoration: BoxDecoration(
+                      color: AppColors.surface600,
+                      borderRadius: BorderRadius.circular(3),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Container(
+                    height: 8,
+                    width: userWidth,
+                    decoration: BoxDecoration(
+                      color: AppColors.surface600,
+                      borderRadius: BorderRadius.circular(3),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              width: 58,
+              height: 22,
+              decoration: BoxDecoration(
+                color: AppColors.surface600,
+                borderRadius: BorderRadius.circular(4),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              width: 54,
+              height: 10,
+              decoration: BoxDecoration(
+                color: AppColors.surface600,
+                borderRadius: BorderRadius.circular(3),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _EquipmentColumnHeader extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 36,
+      decoration: const BoxDecoration(
+        color: AppColors.surface900,
+        border: Border(bottom: BorderSide(color: AppColors.surface500)),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              'GERÄT',
+              style: AppTextStyles.labelSm.copyWith(
+                color: AppColors.textDisabled,
+                letterSpacing: 1,
+              ),
+            ),
+          ),
+          Text(
+            'TOP-ATHLET',
+            style: AppTextStyles.labelSm.copyWith(
+              color: AppColors.textDisabled,
+              letterSpacing: 1,
+            ),
+          ),
+          const SizedBox(width: 28), // space for chevron
+        ],
+      ),
+    );
+  }
+}
+
+class _EquipmentOverviewRow extends ConsumerWidget {
+  const _EquipmentOverviewRow({required this.entry});
+  final EquipmentExerciseEntry entry;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final hasData = entry.hasData;
+    final hasMyData = entry.hasMyData;
+    final isCurrent = entry.isCurrentUser; // I am the top athlete
+
+    return InkWell(
+      onTap: () => _openLeaderboardSheet(context, ref),
+      child: Container(
+        decoration: BoxDecoration(
+          border: Border(
+            left: BorderSide(
+              color: hasMyData
+                  ? AppColors.neonCyan.withAlpha(100)
+                  : Colors.transparent,
+              width: 3,
+            ),
+            bottom: BorderSide(color: AppColors.surface500.withAlpha(70)),
+          ),
+        ),
+        padding: const EdgeInsets.fromLTRB(16, 10, 12, 10),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            // ── Left: machine name + my XP ───────────────────────────────
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    entry.equipmentName,
+                    style: AppTextStyles.labelSm.copyWith(
+                      color: AppColors.textPrimary,
+                      letterSpacing: 0.3,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  if (hasMyData)
+                    Text(
+                      'Du: ${entry.myXp} XP · LVL ${entry.myLevel}',
+                      style: AppTextStyles.bodySm.copyWith(
+                        color: AppColors.neonCyan.withAlpha(200),
+                        fontSize: 10,
+                      ),
+                    )
+                  else
+                    Text(
+                      'Noch nicht trainiert',
+                      style: AppTextStyles.bodySm.copyWith(
+                        color: AppColors.textDisabled,
+                        fontSize: 10,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            // ── Right: top athlete ────────────────────────────────────────
+            if (hasData) ...[
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.emoji_events_outlined,
+                        size: 11,
+                        color: Color(0xFFFFD700),
+                      ),
+                      const SizedBox(width: 3),
+                      Text(
+                        '@${entry.topUsername}',
+                        style: AppTextStyles.bodySm.copyWith(
+                          color: isCurrent
+                              ? AppColors.neonCyan
+                              : AppColors.neonMagenta,
+                          fontSize: 11,
+                          fontWeight: isCurrent
+                              ? FontWeight.w600
+                              : FontWeight.w400,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${entry.topXp} XP · LVL ${entry.topLevel}',
+                    style: AppTextStyles.monoSm.copyWith(
+                      color: AppColors.textSecondary,
+                      fontSize: 10,
+                    ),
+                  ),
+                ],
+              ),
+            ] else
+              Text(
+                'Niemand',
+                style: AppTextStyles.bodySm.copyWith(
+                  color: AppColors.textDisabled,
+                  fontSize: 10,
+                ),
+              ),
+            const SizedBox(width: 4),
+            const Icon(
+              Icons.chevron_right,
+              size: 18,
+              color: AppColors.textDisabled,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _openLeaderboardSheet(BuildContext context, WidgetRef ref) {
+    unawaited(
+      showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: AppColors.surface800,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+        ),
+        builder: (_) => UncontrolledProviderScope(
+          container: ProviderScope.containerOf(context),
+          child: _EquipmentLeaderboardSheet(entry: entry),
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Equipment leaderboard sheet ──────────────────────────────────────────────
+// Bottom sheet showing ALL gym members ranked by XP on one specific machine.
+
+class _EquipmentLeaderboardSheet extends ConsumerWidget {
+  const _EquipmentLeaderboardSheet({required this.entry});
+  final EquipmentExerciseEntry entry;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final leaderboardAsync = ref.watch(
+      equipmentLeaderboardProvider(entry.equipmentId),
+    );
+
+    return DraggableScrollableSheet(
+      initialChildSize: 0.7,
+      minChildSize: 0.4,
+      maxChildSize: 0.95,
+      expand: false,
+      builder: (_, scrollController) {
+        return Column(
+          children: [
+            // ── Sheet header ────────────────────────────────────────────────
+            Container(
+              padding: const EdgeInsets.fromLTRB(20, 16, 12, 14),
+              decoration: const BoxDecoration(
+                border: Border(bottom: BorderSide(color: AppColors.surface500)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.fitness_center,
+                    size: 18,
+                    color: AppColors.neonCyan,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          entry.equipmentName.toUpperCase(),
+                          style: AppTextStyles.h3.copyWith(
+                            color: AppColors.neonCyan,
+                            letterSpacing: 1.5,
+                            fontSize: 14,
+                          ),
+                        ),
+                        Text(
+                          'LEADERBOARD',
+                          style: AppTextStyles.labelSm.copyWith(
+                            color: AppColors.textSecondary,
+                            letterSpacing: 2,
+                            fontSize: 9,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close, size: 20),
+                    color: AppColors.textSecondary,
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ],
+              ),
+            ),
+            // ── Column header ───────────────────────────────────────────────
+            Container(
+              height: 32,
+              decoration: const BoxDecoration(
+                color: AppColors.surface900,
+                border: Border(bottom: BorderSide(color: AppColors.surface500)),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 40,
+                    child: Text(
+                      '#',
+                      style: AppTextStyles.labelSm.copyWith(
+                        color: AppColors.textDisabled,
+                        letterSpacing: 1,
+                        fontSize: 10,
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: Text(
+                      'ATHLET',
+                      style: AppTextStyles.labelSm.copyWith(
+                        color: AppColors.textDisabled,
+                        letterSpacing: 1,
+                        fontSize: 10,
+                      ),
+                    ),
+                  ),
+                  SizedBox(
+                    width: 52,
+                    child: Text(
+                      'LEVEL',
+                      style: AppTextStyles.labelSm.copyWith(
+                        color: AppColors.textDisabled,
+                        letterSpacing: 1,
+                        fontSize: 10,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                  SizedBox(
+                    width: 64,
+                    child: Text(
+                      'XP',
+                      style: AppTextStyles.labelSm.copyWith(
+                        color: AppColors.textDisabled,
+                        letterSpacing: 1,
+                        fontSize: 10,
+                      ),
+                      textAlign: TextAlign.right,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // ── List ────────────────────────────────────────────────────────
+            Expanded(
+              child: leaderboardAsync.when(
+                loading: () => const Center(
+                  child: CircularProgressIndicator(
+                    color: AppColors.neonCyan,
+                    strokeWidth: 2,
+                  ),
+                ),
+                error: (e, _) => Center(
+                  child: Text(
+                    'Fehler: $e',
+                    style: AppTextStyles.bodySm.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ),
+                data: (entries) {
+                  if (entries.isEmpty) {
+                    return Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(32),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.fitness_center_outlined,
+                              size: 40,
+                              color: AppColors.textDisabled.withAlpha(120),
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              'Noch niemand hat auf diesem Gerät trainiert.',
+                              style: AppTextStyles.bodyMd.copyWith(
+                                color: AppColors.textSecondary,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }
+                  return ListView.builder(
+                    controller: scrollController,
+                    padding: const EdgeInsets.only(bottom: 32),
+                    itemCount: entries.length,
+                    itemBuilder: (_, i) =>
+                        _EquipmentLeaderboardRow(entry: entries[i]),
+                  );
+                },
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _EquipmentLeaderboardRow extends StatelessWidget {
+  const _EquipmentLeaderboardRow({required this.entry});
+  final EquipmentLeaderboardEntry entry;
+
+  @override
+  Widget build(BuildContext context) {
+    final rank = entry.rank;
+    final isCurrent = entry.isCurrentUser;
+    final isTop3 = rank <= 3;
+
+    final Color? medalColor = switch (rank) {
+      1 when !isCurrent => const Color(0xFFFFD700),
+      2 when !isCurrent => const Color(0xFFC0C0C0),
+      3 when !isCurrent => const Color(0xFFCD7F32),
+      _ => null,
+    };
+
+    final accentColor = isCurrent
+        ? AppColors.neonCyan
+        : (medalColor ?? AppColors.textSecondary);
+
+    final bgColor = isCurrent
+        ? AppColors.neonCyan.withAlpha(18)
+        : (medalColor != null ? medalColor.withAlpha(10) : Colors.transparent);
+
+    final leftBorderColor = isCurrent
+        ? AppColors.neonCyan
+        : (isTop3 ? (medalColor ?? Colors.transparent) : Colors.transparent);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: bgColor,
+        border: Border(
+          left: BorderSide(color: leftBorderColor, width: 3),
+          bottom: BorderSide(color: AppColors.surface500.withAlpha(70)),
+        ),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 40,
+                  child: Text(
+                    '#$rank',
+                    style: AppTextStyles.monoSm.copyWith(
+                      color: accentColor,
+                      fontWeight: isTop3 ? FontWeight.w700 : FontWeight.w400,
+                      fontSize: isTop3 ? 13 : 12,
+                    ),
+                  ),
+                ),
+                _LeaderboardAvatar(
+                  username: entry.username,
+                  accentColor: accentColor,
+                  size: 28,
+                  avatarUrl: entry.avatarUrl,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '@${entry.username}',
+                    style: AppTextStyles.bodyMd.copyWith(
+                      color: isCurrent
+                          ? AppColors.neonCyan
+                          : AppColors.textPrimary,
+                      fontWeight: isCurrent ? FontWeight.w600 : FontWeight.w400,
+                      fontSize: 13,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                _LevelBadge(level: entry.currentLevel, color: accentColor),
+                const SizedBox(width: 8),
+                SizedBox(
+                  width: 64,
+                  child: Text(
+                    '${entry.totalXp} XP',
+                    style: AppTextStyles.monoSm.copyWith(
+                      color: accentColor,
+                      fontSize: 11,
+                    ),
+                    textAlign: TextAlign.right,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          LinearProgressIndicator(
+            value: _progressFraction(entry.totalXp, entry.xpToNextLevel),
+            backgroundColor: AppColors.surface500.withAlpha(50),
+            valueColor: AlwaysStoppedAnimation<Color>(
+              accentColor.withAlpha(130),
+            ),
+            minHeight: 2,
+          ),
+        ],
+      ),
+    );
+  }
+
+  double _progressFraction(int totalXp, int xpToNextLevel) {
+    final denominator = totalXp + xpToNextLevel;
+    if (denominator <= 0) return 0;
+    return (totalXp / denominator).clamp(0.0, 1.0);
+  }
+}
+
+// ─── Column header row ────────────────────────────────────────────────────────
+
+class _TableColumnHeader extends StatelessWidget {
+  const _TableColumnHeader({required this.axis});
+  final String axis;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 36,
+      decoration: const BoxDecoration(
+        color: AppColors.surface900,
+        border: Border(bottom: BorderSide(color: AppColors.surface500)),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 44,
+            child: Text(
+              '#',
+              style: AppTextStyles.labelSm.copyWith(
+                color: AppColors.textDisabled,
+                letterSpacing: 1,
+              ),
+            ),
+          ),
+          const SizedBox(width: 4),
+          Expanded(
+            child: Text(
+              'ATHLET',
+              style: AppTextStyles.labelSm.copyWith(
+                color: AppColors.textDisabled,
+                letterSpacing: 1,
+              ),
+            ),
+          ),
+          SizedBox(
+            width: 58,
+            child: Text(
+              'LEVEL',
+              style: AppTextStyles.labelSm.copyWith(
+                color: AppColors.textDisabled,
+                letterSpacing: 1,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ),
+          SizedBox(
+            width: 72,
+            child: Text(
+              'XP',
+              style: AppTextStyles.labelSm.copyWith(
+                color: AppColors.textDisabled,
+                letterSpacing: 1,
+              ),
+              textAlign: TextAlign.right,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Leaderboard view (orchestrates states) ───────────────────────────────────
+
+class _LeaderboardView extends ConsumerWidget {
+  const _LeaderboardView({required this.axis});
+  final String axis;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final async = ref.watch(gymLeaderboardProvider(axis));
+
+    return Column(
+      children: [
+        _TableColumnHeader(axis: axis),
+        Expanded(
+          child: async.when(
+            skipLoadingOnReload: true,
+            loading: () => _LeaderboardLoading(axis: axis),
+            error: (e, _) => _LeaderboardError(message: e.toString()),
+            data: (entries) => _LeaderboardLoaded(
+              entries: entries,
+              axis: axis,
+              onRefresh: () async => ref.refresh(gymLeaderboardProvider(axis)),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ─── Loading state ────────────────────────────────────────────────────────────
+
+class _LeaderboardLoading extends StatelessWidget {
+  const _LeaderboardLoading({required this.axis});
+  final String axis;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        ListView.builder(
+          physics: const NeverScrollableScrollPhysics(),
+          padding: EdgeInsets.zero,
+          itemCount: 10,
+          itemBuilder: (_, i) => _GhostRow(rank: i + 1),
+        ),
+        const Center(
+          child: CircularProgressIndicator(
+            color: AppColors.neonCyan,
+            strokeWidth: 2,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ─── Error state ──────────────────────────────────────────────────────────────
+
+class _LeaderboardError extends StatelessWidget {
+  const _LeaderboardError({required this.message});
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.error_outline, size: 40, color: AppColors.error),
+            const SizedBox(height: 16),
+            Text(
+              'Fehler beim Laden',
+              style: AppTextStyles.h3.copyWith(color: AppColors.error),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              message,
+              style: AppTextStyles.bodySm.copyWith(
+                color: AppColors.textSecondary,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Loaded state (data + empty) ──────────────────────────────────────────────
+
+class _LeaderboardLoaded extends StatelessWidget {
+  const _LeaderboardLoaded({
+    required this.entries,
+    required this.axis,
+    required this.onRefresh,
+  });
+
+  final List<LeaderboardEntry> entries;
+  final String axis;
+  final Future<void> Function() onRefresh;
+
+  @override
+  Widget build(BuildContext context) {
+    if (entries.isEmpty) {
+      return _EmptyLeaderboardBody(axis: axis);
+    }
+
+    final currentUserEntry = entries.where((e) => e.isCurrentUser).firstOrNull;
+
+    return Stack(
+      children: [
+        RefreshIndicator(
+          onRefresh: onRefresh,
+          color: AppColors.neonCyan,
+          backgroundColor: AppColors.surface800,
+          child: ListView.builder(
+            padding: EdgeInsets.only(
+              bottom: currentUserEntry != null ? 80 : 24,
+            ),
+            itemCount: entries.length + 1, // +1 for privacy note at end
+            itemBuilder: (_, i) {
+              if (i == entries.length) {
+                return const _PrivacyFootnote();
+              }
+              return _LeaderboardDataRow(entry: entries[i]);
+            },
+          ),
+        ),
+        if (currentUserEntry != null)
+          _StickyCurrentUserBar(entry: currentUserEntry),
+      ],
+    );
+  }
+}
+
+// ─── Empty leaderboard: ghost rows + call-to-action overlay ──────────────────
+
+class _EmptyLeaderboardBody extends StatelessWidget {
+  const _EmptyLeaderboardBody({required this.axis});
+  final String axis;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        // Ghost rows as structural backdrop — convey leaderboard shape
+        ListView.builder(
+          physics: const NeverScrollableScrollPhysics(),
+          padding: EdgeInsets.zero,
+          itemCount: 10,
+          itemBuilder: (_, i) => _GhostRow(rank: i + 1),
+        ),
+        // Frosted CTA card centred over the ghost rows
+        Center(child: _EmptyCallToAction(axis: axis)),
+      ],
+    );
+  }
+}
+
+class _EmptyCallToAction extends StatelessWidget {
+  const _EmptyCallToAction({required this.axis});
+  final String axis;
+
+  @override
+  Widget build(BuildContext context) {
+    final isConsistency = axis == kAxisTrainingDay;
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 32),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
+      decoration: BoxDecoration(
+        color: AppColors.surface800.withAlpha(242),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.neonCyan.withAlpha(80)),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.neonCyan.withAlpha(25),
+            blurRadius: 24,
+            spreadRadius: 0,
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: AppColors.neonCyan.withAlpha(20),
+              border: Border.all(color: AppColors.neonCyan.withAlpha(80)),
+            ),
+            child: Icon(
+              isConsistency
+                  ? Icons.emoji_events_outlined
+                  : Icons.fitness_center_outlined,
+              color: AppColors.neonCyan,
+              size: 28,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'NOCH KEINE DATEN',
+            style: AppTextStyles.h3.copyWith(
+              color: AppColors.neonCyan,
+              letterSpacing: 1.5,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 10),
+          Text(
+            isConsistency
+                ? 'Trainiere und claim deinen ersten Platz auf dem Leaderboard!'
+                : 'Benutze Geräte im Gym und steige in der Equipment-Rangliste auf!',
+            style: AppTextStyles.bodyMd.copyWith(
+              color: AppColors.textSecondary,
+              height: 1.5,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Actual data row ──────────────────────────────────────────────────────────
+
+class _LeaderboardDataRow extends StatelessWidget {
+  const _LeaderboardDataRow({required this.entry});
+  final LeaderboardEntry entry;
+
+  @override
+  Widget build(BuildContext context) {
+    final rank = entry.rank;
+    final isCurrent = entry.isCurrentUser;
+    final hasXp = entry.totalXp > 0;
+    final isTop3 = rank <= 3 && hasXp;
+
+    // Rank-based medal colour — only for ranked (xp > 0) non-current rows
+    final Color? medalColor = switch (rank) {
+      1 when !isCurrent && hasXp => const Color(0xFFFFD700),
+      2 when !isCurrent && hasXp => const Color(0xFFC0C0C0),
+      3 when !isCurrent && hasXp => const Color(0xFFCD7F32),
+      _ => null,
+    };
+
+    // Users with 0 XP (haven't synced yet) render dimly — they're on the
+    // board, but clearly haven't earned a rank yet.
+    final accentColor = isCurrent
+        ? AppColors.neonCyan
+        : hasXp
+        ? (medalColor ?? AppColors.textSecondary)
+        : AppColors.textDisabled;
+
+    final bgColor = isCurrent
+        ? AppColors.neonCyan.withAlpha(18)
+        : (medalColor != null ? medalColor.withAlpha(10) : Colors.transparent);
+
+    final leftBorderColor = isCurrent
+        ? AppColors.neonCyan
+        : (isTop3 ? (medalColor ?? Colors.transparent) : Colors.transparent);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: bgColor,
+        border: Border(
+          left: BorderSide(color: leftBorderColor, width: 3),
+          bottom: BorderSide(color: AppColors.surface500.withAlpha(70)),
+        ),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+            child: Row(
+              children: [
+                // ── Rank ─────────────────────────────────────────────────────
+                SizedBox(
+                  width: 44,
+                  child: Text(
+                    '#$rank',
+                    style: AppTextStyles.monoSm.copyWith(
+                      color: accentColor,
+                      fontWeight: isTop3 ? FontWeight.w700 : FontWeight.w400,
+                      fontSize: isTop3 ? 14 : 13,
+                    ),
+                  ),
+                ),
+                // ── Avatar ────────────────────────────────────────────────────
+                _LeaderboardAvatar(
+                  username: entry.username,
+                  accentColor: accentColor,
+                  size: 32,
+                  avatarUrl: entry.avatarUrl,
+                ),
+                const SizedBox(width: 10),
+                // ── Username + optional "Noch kein Training" label ────────────
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        '@${entry.username}',
+                        style: AppTextStyles.bodyMd.copyWith(
+                          color: isCurrent
+                              ? AppColors.neonCyan
+                              : hasXp
+                              ? AppColors.textPrimary
+                              : AppColors.textSecondary,
+                          fontWeight: isCurrent
+                              ? FontWeight.w600
+                              : FontWeight.w400,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      if (!hasXp && !isCurrent)
+                        Text(
+                          'Noch kein Training',
+                          style: AppTextStyles.bodySm.copyWith(
+                            color: AppColors.textDisabled,
+                            fontSize: 10,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                // ── Level badge ───────────────────────────────────────────────
+                _LevelBadge(level: entry.currentLevel, color: accentColor),
+                const SizedBox(width: 8),
+                // ── XP ────────────────────────────────────────────────────────
+                SizedBox(
+                  width: 72,
+                  child: Text(
+                    hasXp ? '${entry.totalXp} XP' : '—',
+                    style: AppTextStyles.monoSm.copyWith(
+                      color: accentColor,
+                      fontSize: 12,
+                    ),
+                    textAlign: TextAlign.right,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // ── XP progress bar — hidden for 0-XP users ───────────────────────
+          if (hasXp)
+            LinearProgressIndicator(
+              value: entry.xpProgressFraction,
+              backgroundColor: AppColors.surface500.withAlpha(50),
+              valueColor: AlwaysStoppedAnimation<Color>(
+                accentColor.withAlpha(130),
+              ),
+              minHeight: 2,
+            )
+          else
+            const SizedBox(height: 2),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Level badge ──────────────────────────────────────────────────────────────
+
+class _LevelBadge extends StatelessWidget {
+  const _LevelBadge({required this.level, required this.color});
+  final int level;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 58,
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withAlpha(22),
+        border: Border.all(color: color.withAlpha(90)),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        'LVL $level',
+        style: AppTextStyles.labelSm.copyWith(
+          color: color,
+          fontSize: 10,
+          letterSpacing: 0.8,
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Ghost row (empty-state placeholder) ──────────────────────────────────────
+
+class _GhostRow extends StatelessWidget {
+  const _GhostRow({required this.rank});
+  final int rank;
+
+  @override
+  Widget build(BuildContext context) {
+    // Rows fade out as rank increases to convey depth
+    final opacity = (0.38 - (rank - 1) * 0.032).clamp(0.05, 0.38);
+
+    return Opacity(
+      opacity: opacity,
+      child: Container(
+        height: 64,
+        decoration: const BoxDecoration(
+          border: Border(bottom: BorderSide(color: AppColors.surface500)),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Row(
+          children: [
+            // Rank number
+            SizedBox(
+              width: 44,
+              child: Text(
+                '#$rank',
+                style: AppTextStyles.monoSm.copyWith(
+                  color: AppColors.textDisabled,
+                ),
+              ),
+            ),
+            // Avatar placeholder
+            Container(
+              width: 32,
+              height: 32,
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                color: AppColors.surface600,
+              ),
+            ),
+            const SizedBox(width: 10),
+            // Username placeholder bar
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    height: 11,
+                    width: 100 + (rank % 3) * 20.0,
+                    decoration: BoxDecoration(
+                      color: AppColors.surface600,
+                      borderRadius: BorderRadius.circular(3),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            // Level badge placeholder
+            Container(
+              width: 58,
+              height: 22,
+              decoration: BoxDecoration(
+                color: AppColors.surface600,
+                borderRadius: BorderRadius.circular(4),
+              ),
+            ),
+            const SizedBox(width: 8),
+            // XP placeholder
+            Container(
+              width: 54,
+              height: 11,
+              decoration: BoxDecoration(
+                color: AppColors.surface600,
+                borderRadius: BorderRadius.circular(3),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Leaderboard avatar ───────────────────────────────────────────────────────
+
+class _LeaderboardAvatar extends StatelessWidget {
+  const _LeaderboardAvatar({
+    required this.username,
+    required this.accentColor,
+    required this.size,
+    this.avatarUrl,
+  });
+
+  final String username;
+  final Color accentColor;
+  final double size;
+  final String? avatarUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    return UserAvatar(
+      username: username,
+      radius: size / 2,
+      avatarUrl: avatarUrl,
+      borderColor: accentColor,
+    );
+  }
+}
+
+// ─── Sticky current-user bar ──────────────────────────────────────────────────
+
+class _StickyCurrentUserBar extends StatelessWidget {
+  const _StickyCurrentUserBar({required this.entry});
+  final LeaderboardEntry entry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      left: 0,
+      right: 0,
+      bottom: 0,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
+        decoration: BoxDecoration(
+          color: AppColors.surface900,
+          border: Border(
+            top: BorderSide(color: AppColors.neonCyan.withAlpha(100)),
+            left: const BorderSide(color: AppColors.neonCyan, width: 3),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.neonCyan.withAlpha(20),
+              blurRadius: 16,
+              offset: const Offset(0, -4),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Text(
+              'DU  ',
+              style: AppTextStyles.labelSm.copyWith(
+                color: AppColors.neonCyan,
+                letterSpacing: 2,
+                fontSize: 10,
+              ),
+            ),
+            Text(
+              '#${entry.rank}',
+              style: AppTextStyles.monoSm.copyWith(
+                color: AppColors.neonCyan,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(width: 12),
+            _LeaderboardAvatar(
+              username: entry.username,
+              accentColor: AppColors.neonCyan,
+              size: 28,
+              avatarUrl: entry.avatarUrl,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                '@${entry.username}',
+                style: AppTextStyles.bodyMd.copyWith(color: AppColors.neonCyan),
+              ),
+            ),
+            _LevelBadge(level: entry.currentLevel, color: AppColors.neonCyan),
+            const SizedBox(width: 8),
+            Text(
+              '${entry.totalXp} XP',
+              style: AppTextStyles.monoSm.copyWith(
+                color: AppColors.neonCyan,
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Privacy footnote ─────────────────────────────────────────────────────────
+
+class _PrivacyFootnote extends StatelessWidget {
+  const _PrivacyFootnote();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(
+            Icons.shield_outlined,
+            size: 12,
+            color: AppColors.textDisabled,
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              context.l10n.rankingPrivacyNote,
+              style: AppTextStyles.bodySm.copyWith(
+                color: AppColors.textDisabled,
+                fontSize: 11,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Find friends bottom sheet ────────────────────────────────────────────────
+
+class _FindFriendsSheet extends ConsumerStatefulWidget {
+  const _FindFriendsSheet();
+
+  @override
+  ConsumerState<_FindFriendsSheet> createState() => _FindFriendsSheetState();
+}
+
+class _FindFriendsSheetState extends ConsumerState<_FindFriendsSheet> {
+  final _controller = TextEditingController();
+  String _query = '';
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final searchAsync = ref.watch(userSearchProvider(_query));
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+    final l10n = context.l10n;
+
+    return Padding(
+      padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + bottomInset),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  l10n.findFriendsSheetTitle,
+                  style: AppTextStyles.h3,
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.close),
+                onPressed: () => Navigator.of(context).pop(),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _controller,
+            autofocus: true,
+            onChanged: (v) => setState(() => _query = v),
+            decoration: InputDecoration(
+              hintText: l10n.searchByUsername,
+              hintStyle: AppTextStyles.bodyMd.copyWith(
+                color: AppColors.textSecondary,
+              ),
+              prefixIcon: const Icon(
+                Icons.search,
+                color: AppColors.textSecondary,
+              ),
+              filled: true,
+              fillColor: AppColors.surface700,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(4),
+                borderSide: const BorderSide(color: AppColors.surface500),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(4),
+                borderSide: const BorderSide(color: AppColors.surface500),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(4),
+                borderSide: BorderSide(
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+              ),
+            ),
+            style: AppTextStyles.bodyMd,
+          ),
+          const SizedBox(height: 16),
+          if (_query.length >= 2)
+            searchAsync.when(
+              data: (users) => users.isEmpty
+                  ? Text(
+                      l10n.noUsersFound(_query),
+                      style: AppTextStyles.bodyMd.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                    )
+                  : _SearchResults(users: users),
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (e, _) => Text(e.toString()),
+            )
+          else
+            Text(
+              l10n.typeToSearch,
+              style: AppTextStyles.bodySm.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
+          const SizedBox(height: 8),
+        ],
+      ),
+    );
+  }
+}
+
+class _SearchResults extends StatelessWidget {
+  const _SearchResults({required this.users});
+  final List<FriendUser> users;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final sameGym = users.where((u) => u.sharesActiveGym).toList();
+    final otherGyms = users.where((u) => !u.sharesActiveGym).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (sameGym.isNotEmpty) ...[
+          _SectionLabel(l10n.searchMyGymSection(sameGym.length)),
+          const SizedBox(height: 8),
+          ...sameGym.map((u) => _SearchResultTile(user: u)),
+          const SizedBox(height: 10),
+        ],
+        if (otherGyms.isNotEmpty) ...[
+          _SectionLabel(l10n.searchOtherGymsSection(otherGyms.length)),
+          const SizedBox(height: 8),
+          ...otherGyms.map((u) => _SearchResultTile(user: u)),
+        ],
+      ],
+    );
+  }
+}
+
+class _SearchResultTile extends ConsumerWidget {
+  const _SearchResultTile({required this.user});
+  final FriendUser user;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final actionsState = ref.watch(friendActionsProvider);
+    final isLoading = actionsState.isLoading;
+    final l10n = context.l10n;
+
+    Widget trailing;
+    switch (user.status) {
+      case 'accepted':
+        trailing = _Badge(label: l10n.friendStatusFriends);
+        break;
+      case 'pending_sent':
+        trailing = _Badge(label: l10n.pendingBadge);
+        break;
+      case 'pending_received':
+        trailing = Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              onPressed: isLoading || user.friendshipId.isEmpty
+                  ? null
+                  : () => ref
+                        .read(friendActionsProvider.notifier)
+                        .declineRequest(user.friendshipId),
+              icon: Icon(
+                Icons.cancel_outlined,
+                color: AppColors.textSecondary.withAlpha(190),
+                size: 20,
+              ),
+              tooltip: l10n.declineTooltip,
+            ),
+            TextButton(
+              onPressed: isLoading || user.friendshipId.isEmpty
+                  ? null
+                  : () => ref
+                        .read(friendActionsProvider.notifier)
+                        .acceptRequest(user.friendshipId),
+              child: Text(
+                l10n.acceptTooltip.toUpperCase(),
+                style: AppTextStyles.labelMd.copyWith(
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+              ),
+            ),
+          ],
+        );
+        break;
+      default:
+        trailing = TextButton(
+          onPressed: isLoading
+              ? null
+              : () => ref
+                    .read(friendActionsProvider.notifier)
+                    .sendRequest(user.userId),
+          child: Text(
+            l10n.addFriendBtn,
+            style: AppTextStyles.labelMd.copyWith(
+              color: Theme.of(context).colorScheme.primary,
+            ),
+          ),
+        );
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.surface700,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.surface500),
+      ),
+      child: Row(
+        children: [
+          _Avatar(username: user.username, avatarUrl: user.avatarUrl),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('@${user.username}', style: AppTextStyles.bodyMd),
+                if (user.displayName != null)
+                  Text(
+                    user.displayName!,
+                    style: AppTextStyles.bodySm.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                Text(
+                  user.sharesActiveGym
+                      ? l10n.friendInYourGym
+                      : l10n.friendFromOtherGyms(user.sharedGymCount),
+                  style: AppTextStyles.bodySm.copyWith(
+                    color: AppColors.textDisabled,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          trailing,
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Shared avatar widget ─────────────────────────────────────────────────────
+
+class _Avatar extends StatelessWidget {
+  const _Avatar({required this.username, this.avatarUrl});
+  final String username;
+  final String? avatarUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    return UserAvatar(username: username, radius: 20, avatarUrl: avatarUrl);
+  }
+}

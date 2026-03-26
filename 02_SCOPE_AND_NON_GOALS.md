@@ -1,4 +1,9 @@
-# 02 Scope And Non Goals
+# 02 Scope And Non-Goals
+
+> Status: Finalisiert fuer V1-Buildstart
+> Stand: 2026-03-18
+> Geltung: Verbindliche Arbeitsgrundlage
+
 
 ## V1 MUSS-Umfang
 
@@ -28,6 +33,11 @@
 ### Coaching und Administration
 - Trainingsplaene: selbst erstellt (Member) und zugewiesen (Coach).
 - Studio-Admin-Bereich fuer operative Kernaufgaben.
+- Basis-Moderation fuer gym-interne Community-Inhalte im notwendigen Mindestumfang.
+
+## Technologie-Stack (verbindlich)
+- Frontend-App wird mit Flutter (Dart) als gemeinsamer Codepfad fuer iOS und Android entwickelt.
+- Backend wird Supabase-first umgesetzt (Postgres, RLS, Edge Functions).
 
 ## V1 Nicht-Ziele
 - KI-Coaching als Kernprodukt.
@@ -49,3 +59,5 @@
 - Jede Scope-Erweiterung braucht eine gleich grosse Komplexitaetsreduktion an anderer Stelle.
 - Jede neue Funktion braucht mindestens ein Abnahmekriterium in `14_ACCEPTANCE_CRITERIA.md`.
 - Scope-Aenderungen ohne messbaren Nutzen fuer Member, Coach oder Gym Admin sind nicht zulaessig.
+- In Launch-nahen Phasen gilt Scope-Freeze fuer neue Features ohne kritischen Business- oder Security-Grund.
+- Alles, was hier nicht explizit als V1-MUSS genannt ist, gilt bis zur dokumentierten Entscheidung als ausserhalb von V1.

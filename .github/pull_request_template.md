@@ -1,21 +1,44 @@
+## Change Type
+- [ ] Feature
+- [ ] Bugfix
+- [ ] Refactor
+- [ ] Security
+- [ ] Documentation
+
 ## Summary
-- What changed and why?
+- What changed?
+- Why was this change needed?
+- Which user/business risk is reduced?
 
 ## Scope
 - [ ] Product / Domain
 - [ ] Frontend
 - [ ] Backend
-- [ ] Security
+- [ ] Data / Infra
+- [ ] Security / Privacy
 - [ ] Docs
 
-## Acceptance Criteria
+## Acceptance Criteria Mapping
 - Which `AC-*` criteria are affected?
+- Which criteria are newly covered?
+- Evidence links per criterion:
 
-## Risk & Rollback
+## Risk Assessment
 - Risk level: Low / Medium / High
-- Rollback plan:
+- Main risk:
+- Mitigation:
 
-## Validation
+## Validation Evidence
 - [ ] CI green
-- [ ] Manual test completed
+- [ ] Manual validation executed
+- [ ] Regression checks executed
 - [ ] No secrets introduced
+- [ ] Security impact reviewed (if applicable)
+
+## Rollback Plan
+- Exact rollback command or procedure:
+
+## Reviewer Notes
+- Areas that need deep review:
+- Data model / migration impact:
+- Tenant isolation / privacy impact:

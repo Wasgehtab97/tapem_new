@@ -1,5 +1,10 @@
 # 06 Design Principles
 
+> Status: Finalisiert fuer V1-Buildstart
+> Stand: 2026-03-18
+> Geltung: Verbindliche Arbeitsgrundlage
+
+
 ## Grundprinzipien
 - Einfachheit vor Funktionsmasse.
 - Klarheit vor Dekoration.
@@ -27,9 +32,11 @@
 - Primaraktion pro Screen sprachlich eindeutig benennen.
 - Fehlertexte enthalten immer Ursache, naechsten Schritt und Retry-Hinweis.
 - Fachbegriffe im UI muessen den Begriffen in den Spezifikationen entsprechen.
+- Zeitkritische Aktionen nutzen kurze Verben und vermeiden Fachjargon.
 
 ## Accessibility
 - Screenreader- und Tastatur-freundliche Struktur.
 - Kontrast und Touch-Targets nach WCAG 2.2 AA.
 - Keine essentielle Information nur ueber Farbe.
 - Fokus-Reihenfolge folgt der visuell-logischen Bedienreihenfolge.
+- Bewegungsintensive Animationen sind reduzierbar (Systemeinstellung respektieren).

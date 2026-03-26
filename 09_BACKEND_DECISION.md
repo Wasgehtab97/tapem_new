@@ -1,7 +1,15 @@
 # 09 Backend Decision
 
+> Status: Finalisiert fuer V1-Buildstart
+> Stand: 2026-03-18
+> Geltung: Verbindliche Arbeitsgrundlage
+
+
 ## Entscheidung
 V1 wird als `Supabase-first, server-authoritative` Backend aufgebaut.
+
+## Kontext zum Client-Stack
+- Der primaere Mobile-Client fuer V1 ist Flutter (Dart) mit gemeinsamem Codepfad fuer iOS und Android.
 
 ## Entscheidungsgruende
 - Relationale Datenintegritaet fuer Sessions, Sets, Rankings und Memberships.
@@ -52,6 +60,7 @@ Nachteile:
 - Keine geschaeftskritische Client-Logik.
 - Service-Role-Zugriffe nur in geschuetzten serverseitigen Komponenten.
 - Alle privilegierten Writes muessen auditierbare Request-IDs fuehren.
+- Kritische Datenpfade muessen deterministisch replaybar sein (Debug- und Incident-Faelle).
 
 ## Kostenstrategie MVP
 - Start auf Supabase Free Tier.
@@ -60,6 +69,7 @@ Nachteile:
   - Datenbankgroesse >= 70 Prozent des Free-Tier-Limits fuer 7 Tage.
   - p95 API-Latenz > 400ms in 3 aufeinanderfolgenden Tagen.
   - >= 3 zahlende Gyms oder definierte SLA-Zusagen mit 99.5 Prozent Verfuegbarkeit.
+- Upgrade-Entscheidung wird im Decision Log mit Metrik-Snapshot und Datum dokumentiert.
 
 ## Hauptrisiken und Gegenmassnahmen
 - Risiko: fehlerhafte RLS-Policies.

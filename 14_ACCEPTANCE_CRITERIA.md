@@ -1,5 +1,10 @@
 # 14 Acceptance Criteria
 
+> Status: Finalisiert fuer V1-Buildstart
+> Stand: 2026-03-18
+> Geltung: Verbindliche Arbeitsgrundlage
+
+
 ## Produkt
 - `AC-PROD-01`: Kernjourneys fuer Member, Coach und Gym Admin sind Ende-zu-Ende funktionsfaehig und in E2E-Tests abgedeckt.
 - `AC-PROD-02`: Workout-Start funktioniert per NFC und manuell ohne funktionale Abstriche.
@@ -11,6 +16,8 @@
 - `AC-PROD-06`: Username-Anlage nach Erstregistrierung ist verpflichtend und robust validiert.
 - `AC-PROD-07`: Theme-Presets sind pro User persistent anwendbar.
 - `AC-PROD-08`: Gym-interne Friends/Connections inklusive Activity-Sicht funktionieren gemaess Privacy-Leveln.
+- `AC-PROD-09`: Mobile-App ist als Flutter-(Dart)-Codebasis fuer iOS und Android umgesetzt.
+- `AC-PROD-10`: Member kann einen Trainingsplan erstellen (Name + min. 1 Uebung), alle Felder nach Erstellung jederzeit bearbeiten (Name, Reihenfolge, Uebungen hinzufuegen/entfernen), den Plan als Workout starten (Uebungen werden als Session-Uebungen vorbelegt) und den Plan loeschen. Bei `open_station`-Geraeten ist die Inline-Neuanlage einer eigenen Uebung direkt im Plan-Builder moeglich.
 
 ## Launch Non-Negotiables
 - `AC-LAUNCH-01` Erfassungsgeschwindigkeit:
@@ -20,6 +27,8 @@
   Session- und Set-Daten bleiben bei Offline, Retry und App-Neustart korrekt erhalten und synchronisieren konsistent.
 - `AC-LAUNCH-03` Nutzerfuehrung:
   Der Trainingstags-Flow ist ohne Erklaerung nutzbar.
+- `AC-LAUNCH-04` Ausfallsicherheit:
+  Kernflow bleibt bei temporaeren Backend-Fehlern lokal funktionsfaehig und zeigt klaren Sync-Status.
 
 ## Sicherheit
 - `AC-SEC-01`: Keine unautorisierten kritischen Writes moeglich.
@@ -50,6 +59,7 @@
 ## Nachweisformat
 - Jedes Kriterium muss im Go/No-Go-Protokoll mit Status, Evidenzlink und verantwortlicher Rolle dokumentiert sein.
 - Fehlende Evidenz gilt als nicht erfuellt.
+- Jede Evidenz muss reproduzierbar sein (Test-Run-ID, Dashboard-Snapshot oder dokumentierter manueller Nachweis).
 
 ## Launch-Freigabe
 Ein Release ist nur launch-ready, wenn alle Muss-Kriterien in diesem Dokument erfuellt sind.

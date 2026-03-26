@@ -1,7 +1,13 @@
 # 13 Delivery Roadmap
 
+> Status: Finalisiert fuer V1-Buildstart
+> Stand: 2026-03-18
+> Geltung: Verbindliche Arbeitsgrundlage
+
+
 ## Phase 1: Foundation
 - Domainmodell, Scope und Acceptance-Kriterien finalisieren.
+- Flutter-App-Foundation fuer iOS und Android (Projektstruktur, Build-Flavors, Basisnavigation) aufsetzen.
 - Supabase-Projekt in EU/Frankfurt (sofern verfuegbar) aufsetzen.
 - Schema, Migrationen, RLS-Baseline und Auth-Grundlagen produktionsreif machen.
 - Username-Regeln, Theme-Presets und Privacy-Level final implementierbar spezifizieren.
@@ -27,6 +33,7 @@ Exit-Kriterien:
 ## Phase 3: Studio Engagement
 - Gym-interne Rankings, Challenges und Community-Basis bereitstellen.
 - Gym-interne Friends/Connections inkl. Requests und Activity-Ansichten liefern.
+- Member-Eigenplaene: Trainingsplaene erstellen, bearbeiten, reordnen und als Workout-Vorlage starten.
 - Coach-Plan-Zuweisung und Progress-Begleitung liefern.
 - Notification-Grundfunktionen aktivieren.
 
@@ -44,6 +51,7 @@ Exit-Kriterien:
 - Keine offenen Blocker in den Launch Non-Negotiables.
 - Incident-Kommunikation und Eskalationswege sind geprobt.
 - Vollstaendiges Evidenzpaket pro `AC-*` Kriterium ist abgelegt.
+- Kritische Oncall-Rollen und Vertretungen sind fuer Launch-Woche verbindlich geplant.
 
 ## Phase 5: Post-Launch Expansion (nicht V1)
 - Partner-Deals und Revenue-Share.
@@ -52,3 +60,4 @@ Exit-Kriterien:
 
 ## Lieferprinzip
 Jede Phase endet nur mit messbaren und dokumentierten Abnahmekriterien.
+Phasen ohne erfuellte Exit-Kriterien duerfen nicht uebersprungen werden.

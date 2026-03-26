@@ -1,0 +1,430 @@
+{
+  "@@locale": "en",
+
+  "navHome": "Home",
+  "navGym": "Gym",
+  "navProgress": "Progress",
+  "navCommunity": "Community",
+  "navWorkout": "Workout",
+  "navAdmin": "Admin",
+
+  "appTagline": "TRACK. PROGRESS. COMPETE.",
+
+  "emailLabel": "EMAIL",
+  "passwordLabel": "PASSWORD",
+  "forgotPassword": "FORGOT PASSWORD?",
+  "signIn": "SIGN IN",
+  "signUp": "SIGN UP",
+  "noAccount": "Don't have an account? ",
+  "emailRequired": "Email required",
+  "invalidEmail": "Invalid email",
+  "passwordMinLength": "Min. 8 characters",
+  "enterEmailFirst": "Enter your email first",
+  "passwordResetSent": "Password reset email sent",
+
+  "createAccount": "CREATE ACCOUNT",
+  "joinGymTagline": "Join your gym on Tap'em.",
+  "confirmPasswordLabel": "CONFIRM PASSWORD",
+  "passwordsNoMatch": "Passwords do not match",
+  "alreadyHaveAccount": "Already have an account? ",
+
+  "chooseYourUsername": "CHOOSE YOUR\nUSERNAME",
+  "usernamePublicHint": "Your username is public within your gym. You can change it later.",
+  "usernameLabel": "USERNAME",
+  "usernameSuggestions": "SUGGESTIONS",
+  "usernameRequired": "Username required",
+  "usernameInvalid": "3\u201324 chars, letters, numbers, underscore only",
+  "usernameTaken": "Username already taken",
+  "continueBtn": "CONTINUE",
+
+  "joinYourGym": "JOIN YOUR GYM",
+  "gymCodeDescription": "Enter the gym code provided by your gym. You can switch gyms anytime from your profile.",
+  "yourGyms": "YOUR GYMS",
+  "joinAnotherGym": "JOIN ANOTHER GYM",
+  "noGymMembership": "NO GYM MEMBERSHIP YET",
+  "askGymForCode": "Ask your gym for the gym code and enter it below to get started.",
+  "gymCodeLabel": "GYM CODE",
+  "gymCodeEmpty": "Please enter the gym code.",
+  "invalidGymCode": "Invalid gym code. Please check and try again.",
+  "somethingWentWrong": "Something went wrong. Please try again.",
+  "joinGymBtn": "JOIN GYM",
+  "failedToLoadGyms": "Failed to load gyms: {error}",
+  "@failedToLoadGyms": {
+    "placeholders": { "error": { "type": "String" } }
+  },
+
+  "welcomeBack": "WELCOME BACK",
+  "welcomeBackUser": "WELCOME BACK, @{username}",
+  "@welcomeBackUser": {
+    "placeholders": { "username": { "type": "String" } }
+  },
+  "errorLoadingProfile": "Error loading profile",
+  "noProfile": "No profile",
+  "checkingForSession": "Checking for active session\u2026",
+  "workoutInProgress": "WORKOUT IN PROGRESS",
+  "startedAt": "Started at {time}",
+  "@startedAt": {
+    "placeholders": { "time": { "type": "String" } }
+  },
+  "continueWorkout": "CONTINUE WORKOUT",
+  "discard": "DISCARD",
+  "discardWorkoutTitle": "DISCARD WORKOUT?",
+  "discardWorkoutContent": "All sets from this session will be permanently deleted.",
+  "keep": "KEEP",
+  "quickStart": "QUICK START",
+  "startWorkout": "START WORKOUT",
+  "startWorkoutHint": "Choose freestyle or follow a plan",
+  "recentSessions": "RECENT SESSIONS",
+  "seeAll": "SEE ALL",
+  "noSessionsYetShort": "No sessions yet.\nStart your first workout!",
+  "couldNotLoadSessions": "Could not load sessions.",
+  "allSessions": "ALL SESSIONS",
+  "freestyleTitle": "FREESTYLE",
+  "freestyleDescription": "Start immediately \u2014 add exercises\nas you go from the Gym tab.",
+  "fromPlanTitle": "FROM PLAN",
+  "fromPlanDescription": "Follow one of your workout plans.",
+  "choosePlan": "CHOOSE PLAN",
+  "exerciseCount": "{count, plural, =1{1 exercise} other{{count} exercises}}",
+  "@exerciseCount": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "setCount": "{count, plural, =1{1 set} other{{count} sets}}",
+  "@setCount": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+
+  "noActiveGym": "No active gym.",
+  "searchEquipmentLabel": "Search",
+  "searchEquipmentHint": "Search equipment...",
+  "tapMachineToAdd": "Tap any machine to add it to your workout",
+  "noFavouritesYet": "No favourites yet.\nTap \u2605 on any machine to add it.",
+  "noEquipmentFound": "No equipment found.\nAsk your gym admin to add machines.",
+  "errorLoadingEquipment": "Error loading equipment",
+  "filterAll": "All",
+  "filterMachines": "Machines",
+  "filterOpen": "Multi",
+  "filterCardio": "Cardio",
+  "filterFavs": "\u2605 FAVS",
+  "machineTypeLabel": "MACHINE",
+  "openTypeLabel": "OPEN",
+  "cardioTypeLabel": "CARDIO",
+
+  "discardWorkoutFullTitle": "DISCARD WORKOUT?",
+  "discardWorkoutFullContent": "All sets and progress from this session will be permanently deleted. Nothing will be saved or synced.",
+  "leaveWorkoutTitle": "LEAVE WORKOUT?",
+  "leaveWorkoutContent": "Your workout is still running. Unchecked sets will be lost \u2014 only checked sets are saved when you tap FINISH.",
+  "finishWorkoutTitle": "FINISH WORKOUT?",
+  "finishWorkoutContent": "All checked sets will be saved and synced.",
+  "stay": "STAY",
+  "leave": "LEAVE",
+  "finish": "FINISH",
+  "cancel": "CANCEL",
+  "addExercise": "ADD EXERCISE",
+  "discardWorkoutMenu": "Discard workout",
+  "workoutDiscardedSnack": "Workout discarded. Nothing was saved.",
+  "cancelTimer": "Cancel timer",
+  "removeExerciseTitle": "REMOVE EXERCISE?",
+  "removeExerciseContent": "All sets for \"{name}\" will be removed.",
+  "@removeExerciseContent": {
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "remove": "REMOVE",
+  "sessionStarted": "Session started!",
+  "addExerciseHint": "Tap \"Add Exercise\" below or browse the Gym tab.",
+  "addSet": "ADD SET",
+  "setColumnHeader": "SET",
+  "prevColumnHeader": "PREV",
+  "kgColumnHeader": "KG",
+  "repsColumnHeader": "REPS",
+  "startTimer": "START TIMER",
+  "stopAndLog": "STOP & LOG",
+  "equipmentDetails": "Equipment details",
+
+  "progressTitle": "PROGRESS",
+  "trainingCalendar": "TRAINING CALENDAR",
+  "expand": "EXPAND",
+  "failedToLoadCalendar": "Failed to load calendar",
+  "trainingDaysThisYear": "{count} training days this year",
+  "@trainingDaysThisYear": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "failedToLoadXp": "Failed to load XP",
+  "topEquipment": "TOP EQUIPMENT",
+  "noExerciseData": "No exercise data yet.",
+  "muscleGroups": "MUSCLE GROUPS",
+  "noMuscleGroupData": "No muscle group data yet.",
+  "trainingDayXp": "TRAINING DAY XP",
+  "noXpYet": "No XP yet. Start your first workout!",
+  "xpTotal": "{xp} XP total",
+  "@xpTotal": {
+    "placeholders": { "xp": { "type": "int" } }
+  },
+  "xpToNextLevel": "{xp} XP to next level",
+  "@xpToNextLevel": {
+    "placeholders": { "xp": { "type": "int" } }
+  },
+  "trainingPlansTile": "TRAINING PLANS",
+  "createManagePlans": "Create and manage your workout plans",
+  "noSessionsYetLong": "No sessions yet. Start your first workout!",
+
+  "communityTitle": "COMMUNITY",
+  "findFriendsTooltip": "Find friends",
+  "friendsTab": "FRIENDS",
+  "rankingsTab": "RANKINGS",
+  "requestsSection": "REQUESTS ({count})",
+  "@requestsSection": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "friendsSection": "FRIENDS ({count})",
+  "@friendsSection": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "friendsSameGymSection": "YOUR GYM ({count})",
+  "@friendsSameGymSection": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "friendsOtherGymsSection": "OTHER GYMS ({count})",
+  "@friendsOtherGymsSection": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "pendingSection": "PENDING ({count})",
+  "@pendingSection": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "pendingBadge": "PENDING",
+  "friendStatusFriends": "FRIEND",
+  "noFriendsYet": "NO FRIENDS YET",
+  "findGymMembers": "Find gym members to connect with.",
+  "findFriendsBtn": "FIND FRIENDS",
+  "friendInYourGym": "In your active gym",
+  "friendFromOtherGyms": "Other gyms ({count} shared)",
+  "@friendFromOtherGyms": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "searchMyGymSection": "MY GYM ({count})",
+  "@searchMyGymSection": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "searchOtherGymsSection": "OTHER GYMS ({count})",
+  "@searchOtherGymsSection": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "lastTrained": "Last trained: {date}",
+  "@lastTrained": {
+    "placeholders": { "date": { "type": "String" } }
+  },
+  "noRankingData": "No ranking data yet.\nComplete a workout to earn XP!",
+  "gymXpLeaderboard": "GYM XP LEADERBOARD",
+  "findFriendsSheetTitle": "FIND FRIENDS",
+  "searchByUsername": "Search by username...",
+  "noUsersFound": "No users found for \"{query}\"",
+  "@noUsersFound": {
+    "placeholders": { "query": { "type": "String" } }
+  },
+  "typeToSearch": "Type at least 2 characters to search.",
+  "addFriendBtn": "ADD",
+  "acceptTooltip": "Accept",
+  "declineTooltip": "Decline",
+
+  "profileTitle": "PROFILE",
+  "profileNavLabel": "Profile",
+  "usernameSection": "USERNAME",
+  "themeSection": "THEME",
+  "themeDefault": "DEFAULT",
+  "themeEnergy": "ENERGY",
+  "themeMinimal": "MINIMAL",
+  "privacySection": "ACTIVITY PRIVACY",
+  "privacyPrivate": "PRIVATE",
+  "privacyPrivateDescription": "No activity visible to friends",
+  "privacyTrainingDays": "TRAINING DAYS",
+  "privacyTrainingDaysDescription": "Friends see your training days only",
+  "privacySummary": "SUMMARY",
+  "privacySummaryDescription": "Friends see training days + session summaries",
+  "signOut": "SIGN OUT",
+  "languageSection": "LANGUAGE",
+
+  "trainingPlansTitle": "TRAINING PLANS",
+  "newPlanTooltip": "New Plan",
+  "noPlansYet": "NO PLANS YET",
+  "noPlansDescription": "Create your first training plan\nto start structured workouts.",
+  "createFirstPlan": "CREATE FIRST PLAN",
+  "createNewPlan": "CREATE NEW PLAN",
+  "updatedToday": "Updated today",
+  "updatedYesterday": "Updated yesterday",
+  "updatedDaysAgo": "Updated {count}d ago",
+  "@updatedDaysAgo": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "updatedDate": "Updated {date}",
+  "@updatedDate": {
+    "placeholders": { "date": { "type": "String" } }
+  },
+  "editPlan": "EDIT PLAN",
+  "newPlan": "NEW PLAN",
+  "deletePlanTooltip": "Delete plan",
+  "deletePlanTitle": "DELETE PLAN?",
+  "deletePlanContent": "This plan will be permanently removed.",
+  "delete": "DELETE",
+  "planNameLabel": "PLAN NAME",
+  "noExercisesYet": "NO EXERCISES YET",
+  "noExercisesHint": "Add exercises from your gym\nequipment to build the plan.",
+  "addFirstExercise": "ADD FIRST EXERCISE",
+  "addExerciseToPlan": "+ ADD EXERCISE",
+  "saveChanges": "SAVE CHANGES",
+  "savePlan": "SAVE PLAN",
+  "addExercisePicker": "ADD EXERCISE",
+  "searchLabel": "SEARCH",
+  "filterEquipment": "Filter equipment...",
+  "noEquipmentFoundShort": "No equipment found.",
+  "fixedBadge": "FIXED",
+  "openBadge": "OPEN",
+  "cardioBadge": "CARDIO",
+
+  "myExercises": "MY EXERCISES",
+  "noExercisesAtStation": "No exercises created at this station yet.",
+  "myHistory": "MY HISTORY",
+  "historyFor": "HISTORY \u2014 {name}",
+  "@historyFor": {
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "noSessionsOnEquipment": "No sessions on this equipment yet.",
+  "noSessionsWithExercise": "No sessions with {name} yet.",
+  "@noSessionsWithExercise": {
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "historyCouldNotLoad": "History could not be loaded.",
+  "myXpOnEquipment": "MY XP ON THIS EQUIPMENT",
+  "xpDataUnavailable": "XP data unavailable.",
+  "xpEarnedOnEquipment": "Level {level} \u00b7 earned on this equipment",
+  "@xpEarnedOnEquipment": {
+    "placeholders": { "level": { "type": "int" } }
+  },
+  "gymRanking": "GYM RANKING",
+  "noRankingYet": "No ranking data yet.\nRankings unlock after enough sessions are recorded.",
+  "rankingUnavailable": "Ranking unavailable.",
+  "myNote": "MY NOTE",
+  "noteHint": "Add a personal note for this equipment...",
+  "save": "SAVE",
+  "noteSaved": "Note saved.",
+  "feedbackToGym": "FEEDBACK TO GYM",
+  "feedbackHint": "Report an issue or suggest an improvement for the gym owner...",
+  "send": "SEND",
+  "feedbackSent": "Feedback sent to gym management.",
+  "failedToSendFeedback": "Failed to send feedback. Please try again.",
+  "setsRepsLabel": "{sets} sets \u00b7 {reps} reps \u00b7 {duration}",
+  "@setsRepsLabel": {
+    "placeholders": {
+      "sets": { "type": "int" },
+      "reps": { "type": "int" },
+      "duration": { "type": "String" }
+    }
+  },
+  "allExercisesChip": "ALL",
+
+  "filterFixed": "Fixed",
+
+  "failedToLoadSessionDetails": "Failed to load session details.",
+  "noExercisesRecorded": "No exercises recorded.",
+  "noSetsLogged": "No sets logged.",
+
+  "usernameInvalid": "3–20 chars, lowercase, numbers, _ and . only",
+
+  "rankingConsistency": "KONSISTENZ",
+  "rankingEquipment": "EQUIPMENT",
+  "rankingMuscleGroup": "MUSCLE",
+  "rankingMuscleGroupLocked": "COMING SOON",
+  "rankingMuscleGroupLockedDesc": "Muscle group rankings unlock once your gym's equipment has muscle group data configured by the gym admin.",
+  "rankingBeyondTop3": "RANKINGS",
+  "rankingEmptyConsistency": "No one in this gym has trained yet – be the first!",
+  "rankingEmptyEquipment": "No Equipment XP in this gym yet – be the first!",
+  "rankingPrivacyNote": "Rankings show members with public profiles only.",
+  "removeFriend": "Remove Friend",
+  "removeFriendTitle": "REMOVE FRIEND?",
+  "removeFriendContent": "Remove @{username} from your friends?",
+  "@removeFriendContent": {
+    "placeholders": {
+      "username": { "type": "String" }
+    }
+  },
+  "removeFriendBtn": "REMOVE",
+  "cancelRequestTitle": "CANCEL REQUEST?",
+  "cancelRequestContent": "Cancel your request to @{username}?",
+  "@cancelRequestContent": {
+    "placeholders": {
+      "username": { "type": "String" }
+    }
+  },
+  "cancelRequestBtn": "CANCEL REQUEST",
+  "lastTrainedToday": "Trained today",
+  "lastTrainedYesterday": "Trained yesterday",
+  "lastTrainedDaysAgo": "Trained {days}d ago",
+  "@lastTrainedDaysAgo": {
+    "placeholders": {
+      "days": { "type": "int" }
+    }
+  },
+  "friendProfileTitle": "FRIEND PROFILE",
+  "friendTagSameGym": "SAME GYM",
+  "friendTagOtherGym": "OTHER GYM",
+  "sharedGymsCount": "{count} shared gyms",
+  "@sharedGymsCount": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "friendTrainingCalendar": "TRAINING CALENDAR",
+  "friendTrainingDaysCount": "{count} training days · {year}",
+  "@friendTrainingDaysCount": {
+    "placeholders": {
+      "count": { "type": "int" },
+      "year": { "type": "int" }
+    }
+  },
+  "openCalendarBtn": "OPEN",
+  "friendCalendarUnavailable": "Training calendar is not visible.",
+  "friendLastSessionSummary": "LAST SESSION SUMMARY",
+  "friendSessionSummaryHidden": "Session summary is hidden by privacy settings.",
+  "friendSessionSummaryUnavailable": "Could not load session summary.",
+  "friendSessionDay": "Session day: {day}",
+  "@friendSessionDay": {
+    "placeholders": {
+      "day": { "type": "String" }
+    }
+  },
+  "friendExerciseCount": "{count} exercises",
+  "@friendExerciseCount": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "friendSetCount": "{count} sets",
+  "@friendSetCount": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+
+  "xpOverviewTitle": "XP OVERVIEW",
+  "consistencyAxisLabel": "KONSISTENZ",
+  "equipmentAxisLabel": "EQUIPMENT",
+  "muscleGroupAxisLabel": "MUSCLE GROUPS",
+  "equipmentXpTitle": "EXERCISES",
+  "muscleGroupEmptyState": "Muscle group tracking activates once your gym's equipment has muscle group data configured.",
+  "showAllBtn": "SHOW ALL",
+  "collapseBtn": "SHOW LESS",
+
+  "createPlanFromSessionTooltip": "Create plan from session",
+  "createPlanFromSessionTitle": "CREATE PLAN FROM SESSION",
+  "planNameHintCreateFromSession": "Plan name...",
+  "createPlanBtn": "CREATE",
+  "planCreatedFromSessionSuccess": "Plan \"{name}\" created.",
+  "@planCreatedFromSessionSuccess": {
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "planCreatedFromSessionFailed": "Failed to create plan. Please try again.",
+
+  "strengthProgressTitle": "E1RM PROGRESS",
+  "e1rmChartEmptyState": "Complete more sessions to see your E1RM progress."
+}

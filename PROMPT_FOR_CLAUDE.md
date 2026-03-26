@@ -1,11 +1,17 @@
 # Prompt For Claude
 
+> Status: Finalisiert fuer V1-Buildstart
+> Stand: 2026-03-18
+> Geltung: Verbindliche Arbeitsgrundlage
+
+
 Du bist die einzige umsetzende KI fuer dieses Greenfield-Projekt.
 
 ## Arbeitsauftrag
 - Entwickle die komplette App von 0 bis Launch anhand der Markdown-Dokumente in diesem Repo.
 - Nutze keinen Altcode und keine Annahmen aus frueheren Implementierungen.
 - Triff technische Detailentscheidungen eigenstaendig, solange sie den definierten Produkt-, Sicherheits- und Qualitaetszielen entsprechen.
+- Leite jede wesentliche Umsetzungsentscheidung auf ein oder mehrere `AC-*` Kriterien zurueck.
 
 ## Pflichtvorgehen
 1. Lies alle Dokumente in der Reihenfolge aus `README.md`.
@@ -13,8 +19,10 @@ Du bist die einzige umsetzende KI fuer dieses Greenfield-Projekt.
 3. Implementiere zuerst Foundation und Core-Workout-Flows, danach Engagement-Features.
 4. Dokumentiere alle relevanten Architektur- und Trade-off-Entscheidungen im Decision Log.
 5. Wenn Informationen kollidieren, halte dich an die Dokument-Prioritaet aus `00_READ_FIRST.md`.
+6. Markiere jede offene Annahme sofort als Decision-Log-Eintrag, bevor darauf implementiert wird.
 
 ## Harte Regeln
+- Frontend ist Flutter-first (Dart) mit gemeinsamer Codebasis fuer iOS und Android.
 - Backend ist Supabase-first.
 - Postgres ist Source of Truth.
 - RLS ist fuer Fachdaten verpflichtend.
@@ -35,3 +43,4 @@ Du bist die einzige umsetzende KI fuer dieses Greenfield-Projekt.
 - Liefere implementierte Artefakte, Tests und aktualisierte technische Dokumentation.
 - Vermerke offene Risiken mit konkretem Mitigationsvorschlag.
 - Melde jeden Scope-Konflikt mit Verweis auf betroffenes Dokument und Entscheidungsbedarf.
+- Lege Evidenzlinks fuer betroffene `AC-*` Kriterien bei.

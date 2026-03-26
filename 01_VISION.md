@@ -1,8 +1,13 @@
 # 01 Vision
 
+> Status: Finalisiert fuer V1-Buildstart
+> Stand: 2026-03-18
+> Geltung: Verbindliche Arbeitsgrundlage
+
+
 ## Produktidee
-Tap'em ist die Trainingsplattform fuer Fitnessstudios, die das reale Studio in die App bringt:
-Mitglieder starten Workouts in Sekunden (NFC oder manuell), dokumentieren direkt am Geraet und sehen Fortschritt, Vergleich und Community im Kontext ihres echten Gyms.
+Tap'em ist die Trainingsplattform fuer Fitnessstudios, die den realen Studioalltag praezise in die App uebertraegt:
+Mitglieder starten Workouts in Sekunden (NFC oder manuell), dokumentieren direkt am Geraet und sehen Fortschritt, Vergleich und Community im Kontext ihres eigenen Gyms.
 
 ## Warum diese App gebraucht wird
 - Freestyle-Training ist oft unsichtbar: hoher Einsatz, aber schwache Historie und wenig Feedback.
@@ -18,7 +23,7 @@ Mitglieder starten Workouts in Sekunden (NFC oder manuell), dokumentieren direkt
 ## Klarer USP
 - NFC pro Geraet fuer Start in Sekunden.
 - Vollstaendig gym-individualisierter Geraete- und Uebungskontext.
-- Hybrid-Tracking ohne Bruch: NFC und manueller Start sind gleichwertig.
+- Hybrid-Tracking ohne Bruch: NFC- und manueller Start sind funktional gleichwertig.
 - Drei XP-Achsen im Gym-Kontext mit transparenten Leveln.
 - Community und Vergleich genau dort, wo trainiert wird.
 
@@ -47,6 +52,7 @@ Mitglieder starten Workouts in Sekunden (NFC oder manuell), dokumentieren direkt
 - Erfassungsgeschwindigkeit und Robustheit im Trainingsalltag.
 - Datenvertrauen bei Offline, Retry und Sync.
 - Selbsterklaerender Kernflow: Starten, Tracken, Abschliessen, Verlauf.
+- Sichtbare, faire und manipulationsresistente Leistungsdarstellung.
 
 ## North-Star-Ziele (12 Monate)
 - Hohe 30-Tage-Retention auf Studio-Ebene.
