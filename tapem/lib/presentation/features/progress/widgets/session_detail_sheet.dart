@@ -239,6 +239,21 @@ class _ExerciseBlock extends StatelessWidget {
   Widget build(BuildContext context) {
     final progressWidget = _progressBadge();
 
+    // Best set for e1RM badge (strength only — cardio yields no e1RM)
+    final bestIdx = _bestSetIndex();
+    final bestE1rm = bestIdx != null ? _e1rm(exercise.sets[bestIdx]) : null;
+    final showE1rmCrown = !exercise.isFirstTime &&
+        bestE1rm != null &&
+        exercise.previousBestE1rm != null &&
+        bestE1rm > exercise.previousBestE1rm!;
+
+    // Total volume (reps × weight_kg, strength sets only)
+    final volume = _totalVolume();
+    final showVolumeCrown = !exercise.isFirstTime &&
+        volume > 0 &&
+        exercise.previousBestVolume != null &&
+        volume > exercise.previousBestVolume!;
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 24),
       child: Column(
@@ -267,10 +282,11 @@ class _ExerciseBlock extends StatelessWidget {
                 color: AppColors.textSecondary,
               ),
             )
-          else
+          else ...[
             ...exercise.sets.asMap().entries.map((entry) {
               final i = entry.key;
               final set = entry.value;
+              final isBest = i == bestIdx;
               return Padding(
                 padding: const EdgeInsets.only(bottom: 4),
                 child: Row(
@@ -284,11 +300,99 @@ class _ExerciseBlock extends StatelessWidget {
                         ),
                       ),
                     ),
-                    Text(_formatSet(set), style: AppTextStyles.bodyMd),
+                    Expanded(
+                      child: Text(_formatSet(set), style: AppTextStyles.bodyMd),
+                    ),
+                    if (isBest && bestE1rm != null)
+                      _e1rmBadge(bestE1rm, showE1rmCrown),
                   ],
                 ),
               );
             }),
+            // Volume summary
+            if (volume > 0) ...[
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  if (showVolumeCrown) ...[
+                    const Icon(
+                      Icons.emoji_events,
+                      size: 12,
+                      color: AppColors.textSecondary,
+                    ),
+                    const SizedBox(width: 4),
+                  ],
+                  Text(
+                    'Total: ${_fmtWeight(volume)} kg',
+                    style: AppTextStyles.bodySm.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ],
+        ],
+      ),
+    );
+  }
+
+  int? _bestSetIndex() {
+    double? best;
+    int? bestIdx;
+    for (int i = 0; i < exercise.sets.length; i++) {
+      final e = _e1rm(exercise.sets[i]);
+      if (e != null && (best == null || e > best)) {
+        best = e;
+        bestIdx = i;
+      }
+    }
+    return bestIdx;
+  }
+
+  static double? _e1rm(LocalSetEntry set) {
+    final reps = set.reps;
+    final weight = set.weightKg;
+    if (reps == null || weight == null || reps <= 0 || weight <= 0) return null;
+    return weight * (1 + reps / 30.0);
+  }
+
+  double _totalVolume() {
+    return exercise.sets.fold(0.0, (sum, s) {
+      final r = s.reps;
+      final w = s.weightKg;
+      if (r == null || w == null) return sum;
+      return sum + r * w;
+    });
+  }
+
+  static Widget _e1rmBadge(double e1rm, bool showCrown) {
+    final e1rmStr = e1rm.toStringAsFixed(2);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      decoration: BoxDecoration(
+        color: AppColors.neonCyan.withAlpha(25),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: AppColors.neonCyan.withAlpha(80)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (showCrown) ...[
+            const Icon(
+              Icons.emoji_events,
+              size: 10,
+              color: AppColors.neonCyan,
+            ),
+            const SizedBox(width: 3),
+          ],
+          Text(
+            'e1RM: ${e1rmStr}kg',
+            style: AppTextStyles.labelSm.copyWith(
+              color: AppColors.neonCyan,
+              fontSize: 10,
+            ),
+          ),
         ],
       ),
     );

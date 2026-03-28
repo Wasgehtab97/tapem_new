@@ -1777,6 +1777,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Complete more sessions to see your E1RM progress.'**
   String get e1rmChartEmptyState;
+
+  /// No description provided for @navNutrition.
+  ///
+  /// In en, this message translates to:
+  /// **'Nutrition'**
+  String get navNutrition;
+
+  /// No description provided for @muscleGroupTrained.
+  ///
+  /// In en, this message translates to:
+  /// **'TRAINED'**
+  String get muscleGroupTrained;
+
+  /// No description provided for @muscleGroupNeglected.
+  ///
+  /// In en, this message translates to:
+  /// **'NEGLECTED'**
+  String get muscleGroupNeglected;
 }
 
 class _AppLocalizationsDelegate

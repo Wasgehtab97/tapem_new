@@ -8,9 +8,11 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/utils/l10n_extension.dart';
 import '../../../../core/utils/xp_rules.dart';
+import '../../../../domain/entities/gym/muscle_group.dart';
 import '../../../../l10n/generated/app_localizations.dart';
 import '../../../router/route_names.dart';
 import '../providers/xp_provider.dart';
+import '../widgets/muscle_body_map_widget.dart';
 import '../widgets/session_detail_sheet.dart';
 
 class ProgressScreen extends ConsumerWidget {
@@ -47,6 +49,10 @@ class ProgressScreen extends ConsumerWidget {
             _MuscleGroupCard(muscleXp: muscleXp),
             const SizedBox(height: 16),
 
+            // ── Nutrition tile ────────────────────────────────────────────
+            _NutritionTile(),
+            const SizedBox(height: 16),
+
             // ── Training plans tile ───────────────────────────────────────
             _TrainingPlansTile(),
             const SizedBox(height: 16),
@@ -78,9 +84,9 @@ class _XpOverviewCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
-    final localBase = ref.watch(localXpBaseProvider);
-
-    final trainingDayXp = localBase.valueOrNull?.trainingDayXp ?? 0;
+    // userGymXpProvider has a Supabase fallback — works after reinstall.
+    final gymXp = ref.watch(userGymXpProvider);
+    final trainingDayXp = gymXp.valueOrNull?.totalXp ?? 0;
     final trainingDayLevel = XpRules.levelFromXp(
       trainingDayXp,
       XpRules.trainingDayXpPerLevel,
@@ -103,7 +109,7 @@ class _XpOverviewCard extends ConsumerWidget {
             xpToNext: trainingDayToNext,
             xpPerLevel: XpRules.trainingDayXpPerLevel,
             color: AppColors.neonCyan,
-            isLoading: localBase.isLoading,
+            isLoading: gymXp.isLoading,
           ),
         ],
       ),
@@ -166,7 +172,7 @@ class _XpAxisRow extends StatelessWidget {
                 '$totalXp XP',
                 style: AppTextStyles.monoSm.copyWith(fontSize: 11),
               ),
-            ] else if (isEmpty) ...[
+            ] else if (isEmpty && !isLoading) ...[
               Text(
                 '—',
                 style: AppTextStyles.bodySm.copyWith(
@@ -564,11 +570,18 @@ class _EquipmentXpRow extends StatelessWidget {
   }
 }
 
-// ─── Muscle group bar chart ───────────────────────────────────────────────────
+// ─── Muscle group card — body map + trained/neglected breakdown ───────────────
 
-class _MuscleGroupCard extends StatelessWidget {
+class _MuscleGroupCard extends StatefulWidget {
   const _MuscleGroupCard({required this.muscleXp});
   final AsyncValue<List<MuscleGroupXp>> muscleXp;
+
+  @override
+  State<_MuscleGroupCard> createState() => _MuscleGroupCardState();
+}
+
+class _MuscleGroupCardState extends State<_MuscleGroupCard> {
+  bool _expanded = false;
 
   @override
   Widget build(BuildContext context) {
@@ -578,45 +591,152 @@ class _MuscleGroupCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Text(l10n.muscleGroups, style: AppTextStyles.labelMd),
-              const Spacer(),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: AppColors.neonYellow.withAlpha(12),
-                  borderRadius: BorderRadius.circular(999),
-                  border: Border.all(color: AppColors.neonYellow.withAlpha(70)),
+          // ── Tappable header ───────────────────────────────────────────────
+          GestureDetector(
+            onTap: () => setState(() => _expanded = !_expanded),
+            behavior: HitTestBehavior.opaque,
+            child: Row(
+              children: [
+                Text(l10n.muscleGroups, style: AppTextStyles.labelMd),
+                const Spacer(),
+                if (!_expanded)
+                  widget.muscleXp.maybeWhen(
+                    data: (list) {
+                      final trained =
+                          list.where((m) => m.totalXp > 0).toList();
+                      if (trained.isEmpty) return const SizedBox.shrink();
+                      return Text(
+                        _trainedPreview(trained),
+                        style: AppTextStyles.bodySm.copyWith(
+                          color: AppColors.textSecondary,
+                          fontSize: 10,
+                        ),
+                      );
+                    },
+                    orElse: () => const SizedBox.shrink(),
+                  ),
+                const SizedBox(width: 6),
+                Icon(
+                  _expanded ? Icons.expand_less : Icons.expand_more,
+                  size: 16,
+                  color: AppColors.textSecondary,
                 ),
-                child: Text(
-                  'Coming Soon!',
-                  style: AppTextStyles.labelSm.copyWith(
+              ],
+            ),
+          ),
+
+          // ── Expanded detail ───────────────────────────────────────────────
+          if (_expanded) ...[
+            const SizedBox(height: 16),
+            widget.muscleXp.when(
+              data: (list) => _MuscleGroupContent(list: list, l10n: l10n),
+              loading: () => const SizedBox(
+                height: 200,
+                child: Center(
+                  child: CircularProgressIndicator(
                     color: AppColors.neonYellow,
-                    letterSpacing: 0.4,
+                    strokeWidth: 2,
                   ),
                 ),
               ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          muscleXp.when(
-            data: (list) {
-              if (list.isEmpty) {
-                return _MuscleGroupEmptyState(l10n: l10n);
-              }
-              final maxXp = list.first.totalXp;
-              return Column(
-                children: list
-                    .map((m) => _MuscleGroupBar(entry: m, maxXp: maxXp))
-                    .toList(),
-              );
-            },
-            loading: () => const LinearProgressIndicator(),
-            error: (_, __) => const Text('Error'),
-          ),
+              error: (_, __) => Text(
+                'Fehler beim Laden.',
+                style: AppTextStyles.bodySm.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ),
+          ],
         ],
       ),
+    );
+  }
+
+  String _trainedPreview(List<MuscleGroupXp> trained) {
+    const maxVisible = 2;
+    final names = trained
+        .take(maxVisible)
+        .map((m) => m.muscleGroupEnum?.displayNameDe ?? m.muscleGroup)
+        .join(' · ');
+    if (trained.length <= maxVisible) return names;
+    return '$names · +${trained.length - maxVisible}';
+  }
+}
+
+class _MuscleGroupContent extends StatelessWidget {
+  const _MuscleGroupContent({required this.list, required this.l10n});
+  final List<MuscleGroupXp> list;
+  final AppLocalizations l10n;
+
+  @override
+  Widget build(BuildContext context) {
+    final xpMap = <MuscleGroup, double>{};
+    for (final entry in list) {
+      final mg = entry.muscleGroupEnum;
+      if (mg != null) xpMap[mg] = entry.totalXp;
+    }
+
+    final trained = list.where((m) => m.totalXp > 0).toList();
+    final neglected = list.where((m) => m.totalXp == 0).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        MuscleBodyMapWidget(xpMap: xpMap),
+
+        if (trained.isEmpty) ...[
+          const SizedBox(height: 16),
+          _MuscleGroupEmptyState(l10n: l10n),
+        ] else ...[
+          const SizedBox(height: 20),
+          Text(
+            l10n.muscleGroupTrained,
+            style: AppTextStyles.labelSm.copyWith(
+              color: AppColors.neonYellow,
+              fontSize: 10,
+            ),
+          ),
+          const SizedBox(height: 8),
+          ...trained.map((m) => _MuscleGroupBar(entry: m)),
+
+          if (neglected.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            Text(
+              l10n.muscleGroupNeglected,
+              style: AppTextStyles.labelSm.copyWith(
+                color: AppColors.textSecondary,
+                fontSize: 10,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: neglected.map((m) {
+                final name = m.muscleGroupEnum?.displayNameDe ?? m.muscleGroup;
+                return Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.surface700,
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(color: AppColors.surface500),
+                  ),
+                  child: Text(
+                    name,
+                    style: AppTextStyles.labelSm.copyWith(
+                      color: AppColors.textDisabled,
+                      fontSize: 10,
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ],
+        ],
+      ],
     );
   }
 }
@@ -668,20 +788,24 @@ class _MuscleGroupEmptyState extends StatelessWidget {
 }
 
 class _MuscleGroupBar extends StatelessWidget {
-  const _MuscleGroupBar({required this.entry, required this.maxXp});
+  const _MuscleGroupBar({required this.entry});
   final MuscleGroupXp entry;
-  final int maxXp;
 
   @override
   Widget build(BuildContext context) {
-    final levelProgress =
-        (1.0 -
-                XpRules.xpToNextLevel(
-                      entry.totalXp,
-                      XpRules.exerciseXpPerLevel,
-                    ) /
-                    XpRules.exerciseXpPerLevel)
-            .clamp(0.0, 1.0);
+    final levelProgress = XpRules.levelProgressDouble(
+      entry.totalXp,
+      XpRules.muscleGroupXpPerLevel,
+    );
+    final xpToNext = XpRules.xpToNextLevelDouble(
+      entry.totalXp,
+      XpRules.muscleGroupXpPerLevel,
+    );
+    // Format XP: drop the decimal if it's a whole number (e.g. "10 XP" not "10.0 XP").
+    final xpLabel = entry.totalXp == entry.totalXp.roundToDouble()
+        ? '${entry.totalXp.round()} XP'
+        : '${entry.totalXp.toStringAsFixed(1)} XP';
+    final name = entry.muscleGroupEnum?.displayNameDe ?? entry.muscleGroup;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
@@ -692,12 +816,7 @@ class _MuscleGroupBar extends StatelessWidget {
             children: [
               Container(width: 3, height: 12, color: AppColors.neonYellow),
               const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  _formatMuscleGroup(entry.muscleGroup),
-                  style: AppTextStyles.bodyMd,
-                ),
-              ),
+              Expanded(child: Text(name, style: AppTextStyles.bodyMd)),
               const SizedBox(width: 8),
               Text(
                 'LVL ${entry.currentLevel}',
@@ -708,7 +827,7 @@ class _MuscleGroupBar extends StatelessWidget {
               ),
               const SizedBox(width: 6),
               Text(
-                '${entry.totalXp} XP',
+                xpLabel,
                 style: AppTextStyles.monoSm.copyWith(fontSize: 10),
               ),
             ],
@@ -725,21 +844,87 @@ class _MuscleGroupBar extends StatelessWidget {
               ),
             ),
           ),
+          const SizedBox(height: 2),
+          Text(
+            '${xpToNext.toStringAsFixed(xpToNext == xpToNext.roundToDouble() ? 0 : 1)} XP → LVL ${entry.currentLevel + 1}',
+            style: AppTextStyles.bodySm.copyWith(
+              color: AppColors.textDisabled,
+              fontSize: 9,
+            ),
+          ),
         ],
       ),
     );
   }
+}
 
-  String _formatMuscleGroup(String raw) {
-    return raw
-        .replaceAll('_', ' ')
-        .split(' ')
-        .map(
-          (w) => w.isNotEmpty
-              ? '${w[0].toUpperCase()}${w.substring(1).toLowerCase()}'
-              : '',
-        )
-        .join(' ');
+// ─── Nutrition tile ───────────────────────────────────────────────────────────
+
+class _NutritionTile extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: Material(
+        color: AppColors.surface800,
+        child: InkWell(
+          onTap: () => context.push(RouteNames.nutrition),
+          splashColor: AppColors.neonCyan.withAlpha(15),
+          highlightColor: AppColors.neonCyan.withAlpha(8),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: AppColors.surface500),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: AppColors.neonCyan.withAlpha(20),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: AppColors.neonCyan.withAlpha(60),
+                    ),
+                  ),
+                  child: const Icon(
+                    Icons.restaurant_outlined,
+                    color: AppColors.neonCyan,
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'KALORIEN & ERNÄHRUNG',
+                        style: AppTextStyles.labelMd,
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        'Mahlzeiten loggen & Makros tracken',
+                        style: AppTextStyles.bodySm.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(
+                  Icons.chevron_right,
+                  color: AppColors.textSecondary,
+                  size: 20,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -875,7 +1060,7 @@ class _RecentSessionsCard extends ConsumerWidget {
           child: Material(
             color: AppColors.surface800,
             child: InkWell(
-              onTap: () => _showAllSessionsSheet(context, list),
+              onTap: () => _showAllSessionsSheet(context),
               splashColor: AppColors.neonCyan.withAlpha(15),
               highlightColor: AppColors.neonCyan.withAlpha(8),
               child: Container(
@@ -937,16 +1122,13 @@ class _RecentSessionsCard extends ConsumerWidget {
     );
   }
 
-  static void _showAllSessionsSheet(
-    BuildContext context,
-    List<SessionSummary> sessions,
-  ) {
+  static void _showAllSessionsSheet(BuildContext context) {
     unawaited(
       showModalBottomSheet<void>(
         context: context,
         backgroundColor: Colors.transparent,
         isScrollControlled: true,
-        builder: (_) => _AllSessionsSheet(sessions: sessions),
+        builder: (_) => const _AllSessionsSheet(),
       ),
     );
   }
@@ -1040,13 +1222,14 @@ class _SessionRowContent extends StatelessWidget {
 
 // ─── All-sessions bottom sheet ────────────────────────────────────────────────
 
-class _AllSessionsSheet extends StatelessWidget {
-  const _AllSessionsSheet({required this.sessions});
-  final List<SessionSummary> sessions;
+class _AllSessionsSheet extends ConsumerWidget {
+  const _AllSessionsSheet();
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
+    final sessionsAsync = ref.watch(allSessionsProvider);
+
     return DraggableScrollableSheet(
       initialChildSize: 0.75,
       minChildSize: 0.45,
@@ -1076,26 +1259,27 @@ class _AllSessionsSheet extends StatelessWidget {
                 children: [
                   Text(l10n.allSessions, style: AppTextStyles.labelLg),
                   const SizedBox(width: 10),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColors.neonCyan.withAlpha(20),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: AppColors.neonCyan.withAlpha(60),
+                  if (sessionsAsync.hasValue)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.neonCyan.withAlpha(20),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: AppColors.neonCyan.withAlpha(60),
+                        ),
+                      ),
+                      child: Text(
+                        '${sessionsAsync.value!.length}',
+                        style: AppTextStyles.labelSm.copyWith(
+                          color: AppColors.neonCyan,
+                          fontSize: 11,
+                        ),
                       ),
                     ),
-                    child: Text(
-                      '${sessions.length}',
-                      style: AppTextStyles.labelSm.copyWith(
-                        color: AppColors.neonCyan,
-                        fontSize: 11,
-                      ),
-                    ),
-                  ),
                   const Spacer(),
                   IconButton(
                     icon: const Icon(Icons.close, size: 20),
@@ -1109,31 +1293,44 @@ class _AllSessionsSheet extends StatelessWidget {
             ),
             const Divider(color: AppColors.surface500, height: 24),
             Expanded(
-              child: ListView.builder(
-                controller: scrollCtrl,
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
-                itemCount: sessions.length,
-                itemBuilder: (context, index) {
-                  final session = sessions[index];
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(10),
-                      child: Material(
-                        color: Colors.transparent,
-                        child: InkWell(
-                          onTap: () {
-                            Navigator.of(context).pop();
-                            showSessionDetailSheet(context, session);
-                          },
-                          splashColor: AppColors.neonCyan.withAlpha(15),
-                          highlightColor: AppColors.neonCyan.withAlpha(8),
-                          child: _SessionRowContent(session: session),
+              child: sessionsAsync.when(
+                loading: () => const Center(
+                  child: CircularProgressIndicator(color: AppColors.neonCyan),
+                ),
+                error: (_, __) => Center(
+                  child: Text(
+                    l10n.couldNotLoadSessions,
+                    style: AppTextStyles.bodyMd.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ),
+                data: (sessions) => ListView.builder(
+                  controller: scrollCtrl,
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
+                  itemCount: sessions.length,
+                  itemBuilder: (context, index) {
+                    final session = sessions[index];
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(10),
+                        child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            onTap: () {
+                              Navigator.of(context).pop();
+                              showSessionDetailSheet(context, session);
+                            },
+                            splashColor: AppColors.neonCyan.withAlpha(15),
+                            highlightColor: AppColors.neonCyan.withAlpha(8),
+                            child: _SessionRowContent(session: session),
+                          ),
                         ),
                       ),
-                    ),
-                  );
-                },
+                    );
+                  },
+                ),
               ),
             ),
           ],

@@ -414,19 +414,21 @@ class _PrivacySelector extends ConsumerWidget {
                   size: 18,
                 ),
                 const SizedBox(width: 12),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      label,
-                      style: AppTextStyles.labelMd.copyWith(
-                        color: isSelected
-                            ? AppColors.neonCyan
-                            : AppColors.textPrimary,
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        label,
+                        style: AppTextStyles.labelMd.copyWith(
+                          color: isSelected
+                              ? AppColors.neonCyan
+                              : AppColors.textPrimary,
+                        ),
                       ),
-                    ),
-                    Text(description, style: AppTextStyles.bodySm),
-                  ],
+                      Text(description, style: AppTextStyles.bodySm),
+                    ],
+                  ),
                 ),
               ],
             ),

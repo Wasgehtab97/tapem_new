@@ -20,6 +20,7 @@ import '../../progress/widgets/training_heatmap.dart';
 import '../../workout/providers/workout_provider.dart';
 import '../providers/streak_provider.dart';
 
+
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
@@ -1267,6 +1268,7 @@ class _WorkoutTypeCard extends StatelessWidget {
     );
   }
 }
+
 
 // ─── Recent activity card ─────────────────────────────────────────────────────
 

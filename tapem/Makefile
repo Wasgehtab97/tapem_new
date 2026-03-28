@@ -1,5 +1,6 @@
-IOS_SIM_ID := 372BBDEF-052C-4B4B-A646-2EFB4EEB080D  # iPhone 16 Plus (iOS 18.6)
-ENV_FILE   := .env.json
+IOS_SIM_ID     := 372BBDEF-052C-4B4B-A646-2EFB4EEB080D  # iPhone 16 Plus (iOS 18.6)
+IOS_DEVICE_ID  := 00008130-0010745E1A09001C              # Daniels iPhone (wireless)
+ENV_FILE       := .env.json
 
 # App Store Connect API credentials — set these after creating the key in
 # App Store Connect → Users and Access → Integrations → App Store Connect API.
@@ -12,7 +13,17 @@ BUNDLE_ID     := com.tapem.tapem
 IPA_PATH      := build/ios/ipa/tapem.ipa
 APK_PATH      := build/app/outputs/flutter-apk/app-release.apk
 
-.PHONY: ios-emu apk testflight
+.PHONY: ios-emu ios-iphone apk testflight deploy-functions
+
+## ── Edge Functions ───────────────────────────────────────────────────────────
+## Deploy all Supabase Edge Functions.
+## verify_jwt = false is set in supabase/config.toml — no extra flags needed.
+deploy-functions:
+	@echo "→ Deploying Edge Functions..."
+	supabase functions deploy sync-workout
+	supabase functions deploy finish-session
+	supabase functions deploy process-xp-event
+	@echo "✓ All functions deployed."
 
 ios-emu:
 	@echo "→ Killing any running Flutter instances..."
@@ -23,6 +34,16 @@ ios-emu:
 	@open -a Simulator
 	@echo "→ Building and launching on iOS simulator..."
 	flutter run -d $(IOS_SIM_ID) --dart-define-from-file=$(ENV_FILE)
+
+ios-iphone:
+	@echo "→ Killing any running Flutter instances..."
+	@pkill -f "flutter run" 2>/dev/null || true
+	@sleep 1
+	@echo "→ Building release build for iOS..."
+	flutter build ios --release --dart-define-from-file=$(ENV_FILE)
+	@echo "→ Installing on Daniels iPhone..."
+	xcrun devicectl device install app --device $(IOS_DEVICE_ID) build/ios/iphoneos/Runner.app
+	@echo "✓ App installiert — auf dem iPhone öffnen."
 
 ## ── Android ──────────────────────────────────────────────────────────────────
 ## Build a release APK ready for Firebase App Distribution.

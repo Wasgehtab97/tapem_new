@@ -1,7 +1,7 @@
 name: tapem
 description: "Tap'em — Gym workout tracking platform. NFC-first, offline-capable, multi-tenant."
 publish_to: "none"
-version: 1.0.0+8
+version: 1.0.0+9
 
 environment:
   sdk: ">=3.8.1 <4.0.0"
@@ -34,6 +34,10 @@ dependencies:
   # NFC
   nfc_manager: ^4.0.2
 
+  # Nutrition (barcode scanning + Open Food Facts)
+  mobile_scanner: ^5.2.3
+  http: ^1.4.0
+
   # Media picking (avatar upload)
   image_picker: ^1.1.2
   app_links: ^6.4.0
@@ -44,6 +48,9 @@ dependencies:
 
   # Charts
   fl_chart: ^0.68.0
+
+  # SVG rendering (body map visualisation)
+  flutter_svg: ^2.0.17
 
   # UI utilities
   gap: ^3.0.1

@@ -761,18 +761,18 @@ class $LocalExerciseTemplatesTable extends LocalExerciseTemplates
         type: DriftSqlType.string,
         requiredDuringInsert: false,
       );
-  static const VerificationMeta _muscleGroupWeightsJsonMeta =
-      const VerificationMeta('muscleGroupWeightsJson');
+  static const VerificationMeta _muscleGroupsJsonMeta = const VerificationMeta(
+    'muscleGroupsJson',
+  );
   @override
-  late final GeneratedColumn<String> muscleGroupWeightsJson =
-      GeneratedColumn<String>(
-        'muscle_group_weights_json',
-        aliasedName,
-        false,
-        type: DriftSqlType.string,
-        requiredDuringInsert: false,
-        defaultValue: const Constant('[]'),
-      );
+  late final GeneratedColumn<String> muscleGroupsJson = GeneratedColumn<String>(
+    'muscle_groups_json',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('[]'),
+  );
   static const VerificationMeta _isActiveMeta = const VerificationMeta(
     'isActive',
   );
@@ -807,7 +807,7 @@ class $LocalExerciseTemplatesTable extends LocalExerciseTemplates
     name,
     isRankingEligible,
     primaryMuscleGroup,
-    muscleGroupWeightsJson,
+    muscleGroupsJson,
     isActive,
     cachedAt,
   ];
@@ -865,12 +865,12 @@ class $LocalExerciseTemplatesTable extends LocalExerciseTemplates
         ),
       );
     }
-    if (data.containsKey('muscle_group_weights_json')) {
+    if (data.containsKey('muscle_groups_json')) {
       context.handle(
-        _muscleGroupWeightsJsonMeta,
-        muscleGroupWeightsJson.isAcceptableOrUnknown(
-          data['muscle_group_weights_json']!,
-          _muscleGroupWeightsJsonMeta,
+        _muscleGroupsJsonMeta,
+        muscleGroupsJson.isAcceptableOrUnknown(
+          data['muscle_groups_json']!,
+          _muscleGroupsJsonMeta,
         ),
       );
     }
@@ -915,9 +915,9 @@ class $LocalExerciseTemplatesTable extends LocalExerciseTemplates
         DriftSqlType.string,
         data['${effectivePrefix}primary_muscle_group'],
       ),
-      muscleGroupWeightsJson: attachedDatabase.typeMapping.read(
+      muscleGroupsJson: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
-        data['${effectivePrefix}muscle_group_weights_json'],
+        data['${effectivePrefix}muscle_groups_json'],
       )!,
       isActive: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
@@ -943,7 +943,7 @@ class LocalExerciseTemplate extends DataClass
   final String name;
   final bool isRankingEligible;
   final String? primaryMuscleGroup;
-  final String muscleGroupWeightsJson;
+  final String muscleGroupsJson;
   final bool isActive;
   final DateTime cachedAt;
   const LocalExerciseTemplate({
@@ -952,7 +952,7 @@ class LocalExerciseTemplate extends DataClass
     required this.name,
     required this.isRankingEligible,
     this.primaryMuscleGroup,
-    required this.muscleGroupWeightsJson,
+    required this.muscleGroupsJson,
     required this.isActive,
     required this.cachedAt,
   });
@@ -966,7 +966,7 @@ class LocalExerciseTemplate extends DataClass
     if (!nullToAbsent || primaryMuscleGroup != null) {
       map['primary_muscle_group'] = Variable<String>(primaryMuscleGroup);
     }
-    map['muscle_group_weights_json'] = Variable<String>(muscleGroupWeightsJson);
+    map['muscle_groups_json'] = Variable<String>(muscleGroupsJson);
     map['is_active'] = Variable<bool>(isActive);
     map['cached_at'] = Variable<DateTime>(cachedAt);
     return map;
@@ -981,7 +981,7 @@ class LocalExerciseTemplate extends DataClass
       primaryMuscleGroup: primaryMuscleGroup == null && nullToAbsent
           ? const Value.absent()
           : Value(primaryMuscleGroup),
-      muscleGroupWeightsJson: Value(muscleGroupWeightsJson),
+      muscleGroupsJson: Value(muscleGroupsJson),
       isActive: Value(isActive),
       cachedAt: Value(cachedAt),
     );
@@ -1000,9 +1000,7 @@ class LocalExerciseTemplate extends DataClass
       primaryMuscleGroup: serializer.fromJson<String?>(
         json['primaryMuscleGroup'],
       ),
-      muscleGroupWeightsJson: serializer.fromJson<String>(
-        json['muscleGroupWeightsJson'],
-      ),
+      muscleGroupsJson: serializer.fromJson<String>(json['muscleGroupsJson']),
       isActive: serializer.fromJson<bool>(json['isActive']),
       cachedAt: serializer.fromJson<DateTime>(json['cachedAt']),
     );
@@ -1016,9 +1014,7 @@ class LocalExerciseTemplate extends DataClass
       'name': serializer.toJson<String>(name),
       'isRankingEligible': serializer.toJson<bool>(isRankingEligible),
       'primaryMuscleGroup': serializer.toJson<String?>(primaryMuscleGroup),
-      'muscleGroupWeightsJson': serializer.toJson<String>(
-        muscleGroupWeightsJson,
-      ),
+      'muscleGroupsJson': serializer.toJson<String>(muscleGroupsJson),
       'isActive': serializer.toJson<bool>(isActive),
       'cachedAt': serializer.toJson<DateTime>(cachedAt),
     };
@@ -1030,7 +1026,7 @@ class LocalExerciseTemplate extends DataClass
     String? name,
     bool? isRankingEligible,
     Value<String?> primaryMuscleGroup = const Value.absent(),
-    String? muscleGroupWeightsJson,
+    String? muscleGroupsJson,
     bool? isActive,
     DateTime? cachedAt,
   }) => LocalExerciseTemplate(
@@ -1041,8 +1037,7 @@ class LocalExerciseTemplate extends DataClass
     primaryMuscleGroup: primaryMuscleGroup.present
         ? primaryMuscleGroup.value
         : this.primaryMuscleGroup,
-    muscleGroupWeightsJson:
-        muscleGroupWeightsJson ?? this.muscleGroupWeightsJson,
+    muscleGroupsJson: muscleGroupsJson ?? this.muscleGroupsJson,
     isActive: isActive ?? this.isActive,
     cachedAt: cachedAt ?? this.cachedAt,
   );
@@ -1059,9 +1054,9 @@ class LocalExerciseTemplate extends DataClass
       primaryMuscleGroup: data.primaryMuscleGroup.present
           ? data.primaryMuscleGroup.value
           : this.primaryMuscleGroup,
-      muscleGroupWeightsJson: data.muscleGroupWeightsJson.present
-          ? data.muscleGroupWeightsJson.value
-          : this.muscleGroupWeightsJson,
+      muscleGroupsJson: data.muscleGroupsJson.present
+          ? data.muscleGroupsJson.value
+          : this.muscleGroupsJson,
       isActive: data.isActive.present ? data.isActive.value : this.isActive,
       cachedAt: data.cachedAt.present ? data.cachedAt.value : this.cachedAt,
     );
@@ -1075,7 +1070,7 @@ class LocalExerciseTemplate extends DataClass
           ..write('name: $name, ')
           ..write('isRankingEligible: $isRankingEligible, ')
           ..write('primaryMuscleGroup: $primaryMuscleGroup, ')
-          ..write('muscleGroupWeightsJson: $muscleGroupWeightsJson, ')
+          ..write('muscleGroupsJson: $muscleGroupsJson, ')
           ..write('isActive: $isActive, ')
           ..write('cachedAt: $cachedAt')
           ..write(')'))
@@ -1089,7 +1084,7 @@ class LocalExerciseTemplate extends DataClass
     name,
     isRankingEligible,
     primaryMuscleGroup,
-    muscleGroupWeightsJson,
+    muscleGroupsJson,
     isActive,
     cachedAt,
   );
@@ -1102,7 +1097,7 @@ class LocalExerciseTemplate extends DataClass
           other.name == this.name &&
           other.isRankingEligible == this.isRankingEligible &&
           other.primaryMuscleGroup == this.primaryMuscleGroup &&
-          other.muscleGroupWeightsJson == this.muscleGroupWeightsJson &&
+          other.muscleGroupsJson == this.muscleGroupsJson &&
           other.isActive == this.isActive &&
           other.cachedAt == this.cachedAt);
 }
@@ -1114,7 +1109,7 @@ class LocalExerciseTemplatesCompanion
   final Value<String> name;
   final Value<bool> isRankingEligible;
   final Value<String?> primaryMuscleGroup;
-  final Value<String> muscleGroupWeightsJson;
+  final Value<String> muscleGroupsJson;
   final Value<bool> isActive;
   final Value<DateTime> cachedAt;
   final Value<int> rowid;
@@ -1124,7 +1119,7 @@ class LocalExerciseTemplatesCompanion
     this.name = const Value.absent(),
     this.isRankingEligible = const Value.absent(),
     this.primaryMuscleGroup = const Value.absent(),
-    this.muscleGroupWeightsJson = const Value.absent(),
+    this.muscleGroupsJson = const Value.absent(),
     this.isActive = const Value.absent(),
     this.cachedAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -1135,7 +1130,7 @@ class LocalExerciseTemplatesCompanion
     required String name,
     this.isRankingEligible = const Value.absent(),
     this.primaryMuscleGroup = const Value.absent(),
-    this.muscleGroupWeightsJson = const Value.absent(),
+    this.muscleGroupsJson = const Value.absent(),
     this.isActive = const Value.absent(),
     this.cachedAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -1148,7 +1143,7 @@ class LocalExerciseTemplatesCompanion
     Expression<String>? name,
     Expression<bool>? isRankingEligible,
     Expression<String>? primaryMuscleGroup,
-    Expression<String>? muscleGroupWeightsJson,
+    Expression<String>? muscleGroupsJson,
     Expression<bool>? isActive,
     Expression<DateTime>? cachedAt,
     Expression<int>? rowid,
@@ -1160,8 +1155,7 @@ class LocalExerciseTemplatesCompanion
       if (isRankingEligible != null) 'is_ranking_eligible': isRankingEligible,
       if (primaryMuscleGroup != null)
         'primary_muscle_group': primaryMuscleGroup,
-      if (muscleGroupWeightsJson != null)
-        'muscle_group_weights_json': muscleGroupWeightsJson,
+      if (muscleGroupsJson != null) 'muscle_groups_json': muscleGroupsJson,
       if (isActive != null) 'is_active': isActive,
       if (cachedAt != null) 'cached_at': cachedAt,
       if (rowid != null) 'rowid': rowid,
@@ -1174,7 +1168,7 @@ class LocalExerciseTemplatesCompanion
     Value<String>? name,
     Value<bool>? isRankingEligible,
     Value<String?>? primaryMuscleGroup,
-    Value<String>? muscleGroupWeightsJson,
+    Value<String>? muscleGroupsJson,
     Value<bool>? isActive,
     Value<DateTime>? cachedAt,
     Value<int>? rowid,
@@ -1185,8 +1179,7 @@ class LocalExerciseTemplatesCompanion
       name: name ?? this.name,
       isRankingEligible: isRankingEligible ?? this.isRankingEligible,
       primaryMuscleGroup: primaryMuscleGroup ?? this.primaryMuscleGroup,
-      muscleGroupWeightsJson:
-          muscleGroupWeightsJson ?? this.muscleGroupWeightsJson,
+      muscleGroupsJson: muscleGroupsJson ?? this.muscleGroupsJson,
       isActive: isActive ?? this.isActive,
       cachedAt: cachedAt ?? this.cachedAt,
       rowid: rowid ?? this.rowid,
@@ -1211,10 +1204,8 @@ class LocalExerciseTemplatesCompanion
     if (primaryMuscleGroup.present) {
       map['primary_muscle_group'] = Variable<String>(primaryMuscleGroup.value);
     }
-    if (muscleGroupWeightsJson.present) {
-      map['muscle_group_weights_json'] = Variable<String>(
-        muscleGroupWeightsJson.value,
-      );
+    if (muscleGroupsJson.present) {
+      map['muscle_groups_json'] = Variable<String>(muscleGroupsJson.value);
     }
     if (isActive.present) {
       map['is_active'] = Variable<bool>(isActive.value);
@@ -1236,7 +1227,7 @@ class LocalExerciseTemplatesCompanion
           ..write('name: $name, ')
           ..write('isRankingEligible: $isRankingEligible, ')
           ..write('primaryMuscleGroup: $primaryMuscleGroup, ')
-          ..write('muscleGroupWeightsJson: $muscleGroupWeightsJson, ')
+          ..write('muscleGroupsJson: $muscleGroupsJson, ')
           ..write('isActive: $isActive, ')
           ..write('cachedAt: $cachedAt, ')
           ..write('rowid: $rowid')
@@ -1701,6 +1692,298 @@ class LocalUserCustomExercisesCompanion
           ..write('equipmentId: $equipmentId, ')
           ..write('syncStatus: $syncStatus, ')
           ..write('createdAt: $createdAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $LocalUserCustomExerciseMuscleGroupsTable
+    extends LocalUserCustomExerciseMuscleGroups
+    with
+        TableInfo<
+          $LocalUserCustomExerciseMuscleGroupsTable,
+          LocalUserCustomExerciseMuscleGroup
+        > {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $LocalUserCustomExerciseMuscleGroupsTable(
+    this.attachedDatabase, [
+    this._alias,
+  ]);
+  static const VerificationMeta _customExerciseIdMeta = const VerificationMeta(
+    'customExerciseId',
+  );
+  @override
+  late final GeneratedColumn<String> customExerciseId = GeneratedColumn<String>(
+    'custom_exercise_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _muscleGroupMeta = const VerificationMeta(
+    'muscleGroup',
+  );
+  @override
+  late final GeneratedColumn<String> muscleGroup = GeneratedColumn<String>(
+    'muscle_group',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _roleMeta = const VerificationMeta('role');
+  @override
+  late final GeneratedColumn<String> role = GeneratedColumn<String>(
+    'role',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [customExerciseId, muscleGroup, role];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'local_user_custom_exercise_muscle_groups';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<LocalUserCustomExerciseMuscleGroup> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('custom_exercise_id')) {
+      context.handle(
+        _customExerciseIdMeta,
+        customExerciseId.isAcceptableOrUnknown(
+          data['custom_exercise_id']!,
+          _customExerciseIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_customExerciseIdMeta);
+    }
+    if (data.containsKey('muscle_group')) {
+      context.handle(
+        _muscleGroupMeta,
+        muscleGroup.isAcceptableOrUnknown(
+          data['muscle_group']!,
+          _muscleGroupMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_muscleGroupMeta);
+    }
+    if (data.containsKey('role')) {
+      context.handle(
+        _roleMeta,
+        role.isAcceptableOrUnknown(data['role']!, _roleMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_roleMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {customExerciseId, muscleGroup};
+  @override
+  LocalUserCustomExerciseMuscleGroup map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return LocalUserCustomExerciseMuscleGroup(
+      customExerciseId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}custom_exercise_id'],
+      )!,
+      muscleGroup: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}muscle_group'],
+      )!,
+      role: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}role'],
+      )!,
+    );
+  }
+
+  @override
+  $LocalUserCustomExerciseMuscleGroupsTable createAlias(String alias) {
+    return $LocalUserCustomExerciseMuscleGroupsTable(attachedDatabase, alias);
+  }
+}
+
+class LocalUserCustomExerciseMuscleGroup extends DataClass
+    implements Insertable<LocalUserCustomExerciseMuscleGroup> {
+  final String customExerciseId;
+  final String muscleGroup;
+  final String role;
+  const LocalUserCustomExerciseMuscleGroup({
+    required this.customExerciseId,
+    required this.muscleGroup,
+    required this.role,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['custom_exercise_id'] = Variable<String>(customExerciseId);
+    map['muscle_group'] = Variable<String>(muscleGroup);
+    map['role'] = Variable<String>(role);
+    return map;
+  }
+
+  LocalUserCustomExerciseMuscleGroupsCompanion toCompanion(bool nullToAbsent) {
+    return LocalUserCustomExerciseMuscleGroupsCompanion(
+      customExerciseId: Value(customExerciseId),
+      muscleGroup: Value(muscleGroup),
+      role: Value(role),
+    );
+  }
+
+  factory LocalUserCustomExerciseMuscleGroup.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return LocalUserCustomExerciseMuscleGroup(
+      customExerciseId: serializer.fromJson<String>(json['customExerciseId']),
+      muscleGroup: serializer.fromJson<String>(json['muscleGroup']),
+      role: serializer.fromJson<String>(json['role']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'customExerciseId': serializer.toJson<String>(customExerciseId),
+      'muscleGroup': serializer.toJson<String>(muscleGroup),
+      'role': serializer.toJson<String>(role),
+    };
+  }
+
+  LocalUserCustomExerciseMuscleGroup copyWith({
+    String? customExerciseId,
+    String? muscleGroup,
+    String? role,
+  }) => LocalUserCustomExerciseMuscleGroup(
+    customExerciseId: customExerciseId ?? this.customExerciseId,
+    muscleGroup: muscleGroup ?? this.muscleGroup,
+    role: role ?? this.role,
+  );
+  LocalUserCustomExerciseMuscleGroup copyWithCompanion(
+    LocalUserCustomExerciseMuscleGroupsCompanion data,
+  ) {
+    return LocalUserCustomExerciseMuscleGroup(
+      customExerciseId: data.customExerciseId.present
+          ? data.customExerciseId.value
+          : this.customExerciseId,
+      muscleGroup: data.muscleGroup.present
+          ? data.muscleGroup.value
+          : this.muscleGroup,
+      role: data.role.present ? data.role.value : this.role,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('LocalUserCustomExerciseMuscleGroup(')
+          ..write('customExerciseId: $customExerciseId, ')
+          ..write('muscleGroup: $muscleGroup, ')
+          ..write('role: $role')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(customExerciseId, muscleGroup, role);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is LocalUserCustomExerciseMuscleGroup &&
+          other.customExerciseId == this.customExerciseId &&
+          other.muscleGroup == this.muscleGroup &&
+          other.role == this.role);
+}
+
+class LocalUserCustomExerciseMuscleGroupsCompanion
+    extends UpdateCompanion<LocalUserCustomExerciseMuscleGroup> {
+  final Value<String> customExerciseId;
+  final Value<String> muscleGroup;
+  final Value<String> role;
+  final Value<int> rowid;
+  const LocalUserCustomExerciseMuscleGroupsCompanion({
+    this.customExerciseId = const Value.absent(),
+    this.muscleGroup = const Value.absent(),
+    this.role = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  LocalUserCustomExerciseMuscleGroupsCompanion.insert({
+    required String customExerciseId,
+    required String muscleGroup,
+    required String role,
+    this.rowid = const Value.absent(),
+  }) : customExerciseId = Value(customExerciseId),
+       muscleGroup = Value(muscleGroup),
+       role = Value(role);
+  static Insertable<LocalUserCustomExerciseMuscleGroup> custom({
+    Expression<String>? customExerciseId,
+    Expression<String>? muscleGroup,
+    Expression<String>? role,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (customExerciseId != null) 'custom_exercise_id': customExerciseId,
+      if (muscleGroup != null) 'muscle_group': muscleGroup,
+      if (role != null) 'role': role,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  LocalUserCustomExerciseMuscleGroupsCompanion copyWith({
+    Value<String>? customExerciseId,
+    Value<String>? muscleGroup,
+    Value<String>? role,
+    Value<int>? rowid,
+  }) {
+    return LocalUserCustomExerciseMuscleGroupsCompanion(
+      customExerciseId: customExerciseId ?? this.customExerciseId,
+      muscleGroup: muscleGroup ?? this.muscleGroup,
+      role: role ?? this.role,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (customExerciseId.present) {
+      map['custom_exercise_id'] = Variable<String>(customExerciseId.value);
+    }
+    if (muscleGroup.present) {
+      map['muscle_group'] = Variable<String>(muscleGroup.value);
+    }
+    if (role.present) {
+      map['role'] = Variable<String>(role.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('LocalUserCustomExerciseMuscleGroupsCompanion(')
+          ..write('customExerciseId: $customExerciseId, ')
+          ..write('muscleGroup: $muscleGroup, ')
+          ..write('role: $role, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -5164,6 +5447,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       $LocalExerciseTemplatesTable(this);
   late final $LocalUserCustomExercisesTable localUserCustomExercises =
       $LocalUserCustomExercisesTable(this);
+  late final $LocalUserCustomExerciseMuscleGroupsTable
+  localUserCustomExerciseMuscleGroups =
+      $LocalUserCustomExerciseMuscleGroupsTable(this);
   late final $LocalWorkoutSessionsTable localWorkoutSessions =
       $LocalWorkoutSessionsTable(this);
   late final $LocalSessionExercisesTable localSessionExercises =
@@ -5184,6 +5470,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     localGymEquipment,
     localExerciseTemplates,
     localUserCustomExercises,
+    localUserCustomExerciseMuscleGroups,
     localWorkoutSessions,
     localSessionExercises,
     localSetEntries,
@@ -5535,7 +5822,7 @@ typedef $$LocalExerciseTemplatesTableCreateCompanionBuilder =
       required String name,
       Value<bool> isRankingEligible,
       Value<String?> primaryMuscleGroup,
-      Value<String> muscleGroupWeightsJson,
+      Value<String> muscleGroupsJson,
       Value<bool> isActive,
       Value<DateTime> cachedAt,
       Value<int> rowid,
@@ -5547,7 +5834,7 @@ typedef $$LocalExerciseTemplatesTableUpdateCompanionBuilder =
       Value<String> name,
       Value<bool> isRankingEligible,
       Value<String?> primaryMuscleGroup,
-      Value<String> muscleGroupWeightsJson,
+      Value<String> muscleGroupsJson,
       Value<bool> isActive,
       Value<DateTime> cachedAt,
       Value<int> rowid,
@@ -5587,8 +5874,8 @@ class $$LocalExerciseTemplatesTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<String> get muscleGroupWeightsJson => $composableBuilder(
-    column: $table.muscleGroupWeightsJson,
+  ColumnFilters<String> get muscleGroupsJson => $composableBuilder(
+    column: $table.muscleGroupsJson,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -5637,8 +5924,8 @@ class $$LocalExerciseTemplatesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<String> get muscleGroupWeightsJson => $composableBuilder(
-    column: $table.muscleGroupWeightsJson,
+  ColumnOrderings<String> get muscleGroupsJson => $composableBuilder(
+    column: $table.muscleGroupsJson,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -5681,8 +5968,8 @@ class $$LocalExerciseTemplatesTableAnnotationComposer
     builder: (column) => column,
   );
 
-  GeneratedColumn<String> get muscleGroupWeightsJson => $composableBuilder(
-    column: $table.muscleGroupWeightsJson,
+  GeneratedColumn<String> get muscleGroupsJson => $composableBuilder(
+    column: $table.muscleGroupsJson,
     builder: (column) => column,
   );
 
@@ -5744,7 +6031,7 @@ class $$LocalExerciseTemplatesTableTableManager
                 Value<String> name = const Value.absent(),
                 Value<bool> isRankingEligible = const Value.absent(),
                 Value<String?> primaryMuscleGroup = const Value.absent(),
-                Value<String> muscleGroupWeightsJson = const Value.absent(),
+                Value<String> muscleGroupsJson = const Value.absent(),
                 Value<bool> isActive = const Value.absent(),
                 Value<DateTime> cachedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -5754,7 +6041,7 @@ class $$LocalExerciseTemplatesTableTableManager
                 name: name,
                 isRankingEligible: isRankingEligible,
                 primaryMuscleGroup: primaryMuscleGroup,
-                muscleGroupWeightsJson: muscleGroupWeightsJson,
+                muscleGroupsJson: muscleGroupsJson,
                 isActive: isActive,
                 cachedAt: cachedAt,
                 rowid: rowid,
@@ -5766,7 +6053,7 @@ class $$LocalExerciseTemplatesTableTableManager
                 required String name,
                 Value<bool> isRankingEligible = const Value.absent(),
                 Value<String?> primaryMuscleGroup = const Value.absent(),
-                Value<String> muscleGroupWeightsJson = const Value.absent(),
+                Value<String> muscleGroupsJson = const Value.absent(),
                 Value<bool> isActive = const Value.absent(),
                 Value<DateTime> cachedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -5776,7 +6063,7 @@ class $$LocalExerciseTemplatesTableTableManager
                 name: name,
                 isRankingEligible: isRankingEligible,
                 primaryMuscleGroup: primaryMuscleGroup,
-                muscleGroupWeightsJson: muscleGroupWeightsJson,
+                muscleGroupsJson: muscleGroupsJson,
                 isActive: isActive,
                 cachedAt: cachedAt,
                 rowid: rowid,
@@ -6069,6 +6356,191 @@ typedef $$LocalUserCustomExercisesTableProcessedTableManager =
         >,
       ),
       LocalUserCustomExercise,
+      PrefetchHooks Function()
+    >;
+typedef $$LocalUserCustomExerciseMuscleGroupsTableCreateCompanionBuilder =
+    LocalUserCustomExerciseMuscleGroupsCompanion Function({
+      required String customExerciseId,
+      required String muscleGroup,
+      required String role,
+      Value<int> rowid,
+    });
+typedef $$LocalUserCustomExerciseMuscleGroupsTableUpdateCompanionBuilder =
+    LocalUserCustomExerciseMuscleGroupsCompanion Function({
+      Value<String> customExerciseId,
+      Value<String> muscleGroup,
+      Value<String> role,
+      Value<int> rowid,
+    });
+
+class $$LocalUserCustomExerciseMuscleGroupsTableFilterComposer
+    extends Composer<_$AppDatabase, $LocalUserCustomExerciseMuscleGroupsTable> {
+  $$LocalUserCustomExerciseMuscleGroupsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get customExerciseId => $composableBuilder(
+    column: $table.customExerciseId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get muscleGroup => $composableBuilder(
+    column: $table.muscleGroup,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get role => $composableBuilder(
+    column: $table.role,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$LocalUserCustomExerciseMuscleGroupsTableOrderingComposer
+    extends Composer<_$AppDatabase, $LocalUserCustomExerciseMuscleGroupsTable> {
+  $$LocalUserCustomExerciseMuscleGroupsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get customExerciseId => $composableBuilder(
+    column: $table.customExerciseId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get muscleGroup => $composableBuilder(
+    column: $table.muscleGroup,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get role => $composableBuilder(
+    column: $table.role,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$LocalUserCustomExerciseMuscleGroupsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $LocalUserCustomExerciseMuscleGroupsTable> {
+  $$LocalUserCustomExerciseMuscleGroupsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get customExerciseId => $composableBuilder(
+    column: $table.customExerciseId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get muscleGroup => $composableBuilder(
+    column: $table.muscleGroup,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get role =>
+      $composableBuilder(column: $table.role, builder: (column) => column);
+}
+
+class $$LocalUserCustomExerciseMuscleGroupsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $LocalUserCustomExerciseMuscleGroupsTable,
+          LocalUserCustomExerciseMuscleGroup,
+          $$LocalUserCustomExerciseMuscleGroupsTableFilterComposer,
+          $$LocalUserCustomExerciseMuscleGroupsTableOrderingComposer,
+          $$LocalUserCustomExerciseMuscleGroupsTableAnnotationComposer,
+          $$LocalUserCustomExerciseMuscleGroupsTableCreateCompanionBuilder,
+          $$LocalUserCustomExerciseMuscleGroupsTableUpdateCompanionBuilder,
+          (
+            LocalUserCustomExerciseMuscleGroup,
+            BaseReferences<
+              _$AppDatabase,
+              $LocalUserCustomExerciseMuscleGroupsTable,
+              LocalUserCustomExerciseMuscleGroup
+            >,
+          ),
+          LocalUserCustomExerciseMuscleGroup,
+          PrefetchHooks Function()
+        > {
+  $$LocalUserCustomExerciseMuscleGroupsTableTableManager(
+    _$AppDatabase db,
+    $LocalUserCustomExerciseMuscleGroupsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$LocalUserCustomExerciseMuscleGroupsTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$LocalUserCustomExerciseMuscleGroupsTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$LocalUserCustomExerciseMuscleGroupsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> customExerciseId = const Value.absent(),
+                Value<String> muscleGroup = const Value.absent(),
+                Value<String> role = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => LocalUserCustomExerciseMuscleGroupsCompanion(
+                customExerciseId: customExerciseId,
+                muscleGroup: muscleGroup,
+                role: role,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String customExerciseId,
+                required String muscleGroup,
+                required String role,
+                Value<int> rowid = const Value.absent(),
+              }) => LocalUserCustomExerciseMuscleGroupsCompanion.insert(
+                customExerciseId: customExerciseId,
+                muscleGroup: muscleGroup,
+                role: role,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$LocalUserCustomExerciseMuscleGroupsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $LocalUserCustomExerciseMuscleGroupsTable,
+      LocalUserCustomExerciseMuscleGroup,
+      $$LocalUserCustomExerciseMuscleGroupsTableFilterComposer,
+      $$LocalUserCustomExerciseMuscleGroupsTableOrderingComposer,
+      $$LocalUserCustomExerciseMuscleGroupsTableAnnotationComposer,
+      $$LocalUserCustomExerciseMuscleGroupsTableCreateCompanionBuilder,
+      $$LocalUserCustomExerciseMuscleGroupsTableUpdateCompanionBuilder,
+      (
+        LocalUserCustomExerciseMuscleGroup,
+        BaseReferences<
+          _$AppDatabase,
+          $LocalUserCustomExerciseMuscleGroupsTable,
+          LocalUserCustomExerciseMuscleGroup
+        >,
+      ),
+      LocalUserCustomExerciseMuscleGroup,
       PrefetchHooks Function()
     >;
 typedef $$LocalWorkoutSessionsTableCreateCompanionBuilder =
@@ -7857,6 +8329,12 @@ class $AppDatabaseManager {
       $$LocalUserCustomExercisesTableTableManager(
         _db,
         _db.localUserCustomExercises,
+      );
+  $$LocalUserCustomExerciseMuscleGroupsTableTableManager
+  get localUserCustomExerciseMuscleGroups =>
+      $$LocalUserCustomExerciseMuscleGroupsTableTableManager(
+        _db,
+        _db.localUserCustomExerciseMuscleGroups,
       );
   $$LocalWorkoutSessionsTableTableManager get localWorkoutSessions =>
       $$LocalWorkoutSessionsTableTableManager(_db, _db.localWorkoutSessions);

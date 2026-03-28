@@ -957,4 +957,13 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get e1rmChartEmptyState =>
       'Complete more sessions to see your E1RM progress.';
+
+  @override
+  String get navNutrition => 'Nutrition';
+
+  @override
+  String get muscleGroupTrained => 'TRAINED';
+
+  @override
+  String get muscleGroupNeglected => 'NEGLECTED';
 }

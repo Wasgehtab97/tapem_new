@@ -1,26 +1,20 @@
 import 'package:equatable/equatable.dart';
 
-/// Muscle group weighting for XP distribution.
-/// Weights must sum to 1.0.
-class MuscleGroupWeight extends Equatable {
-  const MuscleGroupWeight({required this.muscleGroup, required this.weight});
+import 'exercise_muscle_group.dart';
+import 'muscle_group.dart';
 
-  final String muscleGroup;
-  final double weight; // 0.0–1.0
-
-  @override
-  List<Object?> get props => [muscleGroup, weight];
-}
-
+/// An exercise template for a fixed machine or open station, scoped to a gym.
+///
+/// Muscle group assignments use the primary/secondary role model — see
+/// [ExerciseMuscleGroup] for the XP rules.
 class ExerciseTemplate extends Equatable {
   const ExerciseTemplate({
     required this.key,
     required this.gymId,
     required this.name,
     required this.isRankingEligible,
-    required this.muscleGroupWeights,
+    required this.muscleGroups,
     this.description,
-    this.primaryMuscleGroup,
     required this.isActive,
     required this.createdAt,
   });
@@ -29,24 +23,39 @@ class ExerciseTemplate extends Equatable {
   final String gymId;
   final String name;
   final bool isRankingEligible;
-  final List<MuscleGroupWeight> muscleGroupWeights;
+
+  /// All muscle group assignments for this exercise (primary + secondary).
+  final List<ExerciseMuscleGroup> muscleGroups;
+
   final String? description;
-  final String? primaryMuscleGroup;
   final bool isActive;
   final DateTime createdAt;
 
-  /// Validates that muscle group weights sum to 1.0 (within floating point tolerance).
-  bool get hasValidWeights {
-    if (muscleGroupWeights.isEmpty) return true;
-    final sum = muscleGroupWeights.fold(0.0, (s, w) => s + w.weight);
-    return (sum - 1.0).abs() < 0.001;
-  }
+  // ─── Convenience accessors ──────────────────────────────────────────────────
+
+  /// The primary muscle group assignment, or null if none has been configured.
+  ExerciseMuscleGroup? get primaryMuscleGroup =>
+      muscleGroups.where((m) => m.isPrimary).firstOrNull;
+
+  /// All secondary muscle group assignments.
+  List<ExerciseMuscleGroup> get secondaryMuscleGroups =>
+      muscleGroups.where((m) => m.isSecondary).toList();
+
+  /// Returns the [MuscleGroup] enum value of the primary group, or null.
+  MuscleGroup? get primaryGroup => primaryMuscleGroup?.muscleGroup;
+
+  /// True when at least one muscle group is assigned.
+  bool get hasMuscleGroups => muscleGroups.isNotEmpty;
 
   @override
   List<Object?> get props => [key, gymId];
 }
 
-/// User-created exercise for open_station. Gym- and user-scoped.
+/// A user-created exercise for an open_station. Gym- and user-scoped.
+///
+/// Users assign muscle groups when creating the exercise; the app persists
+/// them locally and syncs them to [user_custom_exercise_muscle_groups] on
+/// the server.
 class UserCustomExercise extends Equatable {
   const UserCustomExercise({
     required this.id,
@@ -55,6 +64,7 @@ class UserCustomExercise extends Equatable {
     required this.name,
     required this.isRankingEligible,
     required this.createdAt,
+    this.muscleGroups = const [],
   });
 
   final String id;
@@ -65,6 +75,19 @@ class UserCustomExercise extends Equatable {
   /// Always false by default. Content-Ops must explicitly promote.
   final bool isRankingEligible;
   final DateTime createdAt;
+
+  /// Muscle group assignments set by the user during exercise creation.
+  final List<ExerciseMuscleGroup> muscleGroups;
+
+  // ─── Convenience accessors ──────────────────────────────────────────────────
+
+  ExerciseMuscleGroup? get primaryMuscleGroup =>
+      muscleGroups.where((m) => m.isPrimary).firstOrNull;
+
+  List<ExerciseMuscleGroup> get secondaryMuscleGroups =>
+      muscleGroups.where((m) => m.isSecondary).toList();
+
+  MuscleGroup? get primaryGroup => primaryMuscleGroup?.muscleGroup;
 
   @override
   List<Object?> get props => [id];

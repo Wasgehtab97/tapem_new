@@ -319,7 +319,7 @@ final equipmentRankingProvider =
             .eq('gym_id', args.gymId)
             .eq('exercise_key', args.exerciseKey)
             .eq('period', 'weekly')
-            .order('rank_position')
+            .order('rank_position', ascending: true)
             .limit(10);
 
         final typedRows = (rows as List)
@@ -335,6 +335,48 @@ final equipmentRankingProvider =
             username: profile?['username'] as String? ?? 'Unknown',
             score: (r['score'] as num?)?.toDouble() ?? 0,
             isCurrentUser: (r['user_id'] as String?) == args.userId,
+          );
+        }).toList();
+      } catch (_) {
+        return [];
+      }
+    });
+
+// ─── Exercise muscle groups ───────────────────────────────────────────────────
+
+class ExerciseMuscleGroupEntry {
+  const ExerciseMuscleGroupEntry({
+    required this.muscleGroup,
+    required this.role,
+  });
+
+  final String muscleGroup; // e.g. 'chest'
+  final String role;        // 'primary' | 'secondary'
+}
+
+typedef _MgArgs = ({String gymId, String exerciseKey});
+
+final exerciseMuscleGroupsProvider =
+    FutureProvider.family<List<ExerciseMuscleGroupEntry>, _MgArgs>((
+      ref,
+      args,
+    ) async {
+      if (args.exerciseKey.isEmpty) return [];
+      if (args.exerciseKey.startsWith('cardio:')) return [];
+
+      final client = ref.watch(supabaseClientProvider);
+      try {
+        final rows = await client
+            .from('exercise_muscle_groups')
+            .select('muscle_group, role')
+            .eq('exercise_key', args.exerciseKey)
+            .eq('gym_id', args.gymId);
+
+        return (rows as List).map((r) {
+          final m = Map<String, Object?>.from(r as Map);
+          return ExerciseMuscleGroupEntry(
+            muscleGroup: m['muscle_group'] as String? ?? '',
+            role: m['role'] as String? ?? '',
           );
         }).toList();
       } catch (_) {

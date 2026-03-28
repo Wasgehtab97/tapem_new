@@ -72,8 +72,8 @@ class SyncNotifier extends StateNotifier<SyncStatus> {
   static const _kHeartbeatPeriod = Duration(minutes: 5);
 
   /// After a 401 we back off for this long before retrying sync_failed sessions.
-  /// Prevents log spam when the refresh token is also expired.
-  static const _kAuthFailureCooldown = Duration(minutes: 5);
+  /// 60 seconds is enough to prevent log spam while keeping recovery fast.
+  static const _kAuthFailureCooldown = Duration(seconds: 60);
 
   DateTime? _lastHeartbeatAt;
 
@@ -139,26 +139,46 @@ class SyncNotifier extends StateNotifier<SyncStatus> {
     _connectivitySub = null;
   }
 
-  /// Returns a valid Supabase access token, refreshing if necessary.
+  /// Returns a valid Supabase access token.
   ///
-  /// Uses the cached token when it still has >5 minutes of life (avoids
-  /// unnecessary network round-trips during active workouts). Returns null
-  /// when the token cannot be obtained (not logged in, offline, or refresh
-  /// token expired).
+  /// Uses the current session token when it has more than 5 minutes of
+  /// validity remaining — no network call needed, no auth state events fired.
+  /// Only calls [refreshSession] when the token is near expiry, preventing
+  /// unnecessary [AuthChangeEvent.tokenRefreshed] emissions that would cause
+  /// every [currentUserProvider] dependent to rebuild with a loading spinner.
   Future<String?> _getAccessToken(SupabaseClient client) async {
-    final cached = client.auth.currentSession;
-    final nowSecs = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-    final secsRemaining = (cached?.expiresAt ?? 0) - nowSecs;
-
-    if (cached != null && secsRemaining > 300) return cached.accessToken;
-
-    try {
-      final refreshed = await client.auth.refreshSession();
-      return refreshed.session?.accessToken;
-    } catch (e) {
-      debugPrint('[SYNC] token refresh failed: $e');
+    final current = client.auth.currentSession;
+    if (current == null) {
+      debugPrint('[SYNC] no usable token — skipping sync');
       return null;
     }
+
+    final nowSecs = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    final expiresAt = current.expiresAt ?? 0;
+
+    // Token valid for more than 5 min — use it directly, no refresh needed.
+    if (expiresAt - nowSecs > 300) {
+      return current.accessToken;
+    }
+
+    // Token near expiry — refresh it.
+    try {
+      final refreshed = await client.auth.refreshSession();
+      if (refreshed.session?.accessToken != null) {
+        return refreshed.session!.accessToken;
+      }
+    } catch (e) {
+      debugPrint('[SYNC] refreshSession failed: $e — trying current session');
+    }
+
+    // Fallback: use current token if still technically valid.
+    if (expiresAt > nowSecs) {
+      debugPrint('[SYNC] using current session token as fallback');
+      return current.accessToken;
+    }
+
+    debugPrint('[SYNC] no usable token — skipping sync');
+    return null;
   }
 
   /// Syncs all locally-finished, not-yet-confirmed sessions to Supabase.
@@ -181,7 +201,7 @@ class SyncNotifier extends StateNotifier<SyncStatus> {
     final user = _ref.read(currentUserProvider);
     final gymId = _ref.read(activeGymIdProvider);
     if (user == null || gymId == null) {
-      debugPrint('[SYNC] skipped — user=$user gymId=$gymId');
+      debugPrint('[SYNC] skipped — user=${user?.id} gymId=$gymId');
       return;
     }
 
@@ -195,8 +215,6 @@ class SyncNotifier extends StateNotifier<SyncStatus> {
     final db = _ref.read(appDatabaseProvider);
     final pending = await db.getPendingSessions(userId: user.id);
 
-    debugPrint('[SYNC] pending sessions: ${pending.length}');
-
     if (pending.isEmpty) {
       state = state.copyWith(
         state: SyncServiceState.idle,
@@ -206,6 +224,7 @@ class SyncNotifier extends StateNotifier<SyncStatus> {
       return;
     }
 
+    debugPrint('[SYNC] ${pending.length} session(s) pending — syncing...');
     state = state.copyWith(
       state: SyncServiceState.syncing,
       pendingCount: pending.length,
@@ -365,6 +384,20 @@ class SyncNotifier extends StateNotifier<SyncStatus> {
 
     for (final exercise in exercises) {
       final sets = await db.getSetsForExercise(exercise.id);
+
+      // Include muscle group assignments for custom exercises so the edge
+      // function can compute muscle-group XP without an extra DB lookup.
+      List<Map<String, String>>? customMuscleGroups;
+      if (exercise.customExerciseId != null) {
+        final mgRows =
+            await db.getCustomExerciseMuscleGroups(exercise.customExerciseId!);
+        if (mgRows.isNotEmpty) {
+          customMuscleGroups = mgRows
+              .map((mg) => {'muscle_group': mg.muscleGroup, 'role': mg.role})
+              .toList();
+        }
+      }
+
       exercisePayload.add({
         'session_exercise_id': exercise.id,
         'exercise_key': exercise.exerciseKey,
@@ -372,6 +405,8 @@ class SyncNotifier extends StateNotifier<SyncStatus> {
         'sort_order': exercise.sortOrder,
         'custom_exercise_id': exercise.customExerciseId,
         'equipment_id': exercise.equipmentId,
+        if (customMuscleGroups != null)
+          'custom_muscle_groups': customMuscleGroups,
         'sets': sets
             .map(
               (s) => {

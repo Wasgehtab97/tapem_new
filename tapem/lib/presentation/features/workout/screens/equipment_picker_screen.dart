@@ -12,7 +12,10 @@ import '../../../../core/services/sync_service.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../data/datasources/local/app_database.dart';
+import '../../../../domain/entities/gym/exercise_muscle_group.dart';
 import '../../../../domain/entities/gym/gym_equipment.dart';
+import '../../../../domain/entities/gym/muscle_group.dart';
+import '../../../../domain/entities/gym/muscle_group_role.dart';
 import '../../../features/auth/providers/auth_provider.dart';
 import '../../../router/route_names.dart';
 import '../../../widgets/common/tapem_button.dart';
@@ -20,6 +23,7 @@ import '../../../widgets/common/tapem_text_field.dart';
 import '../providers/equipment_provider.dart';
 import '../providers/workout_provider.dart';
 import '../widgets/equipment_detail_sheet.dart';
+import '../widgets/muscle_group_picker.dart';
 
 const _uuid = Uuid();
 
@@ -628,6 +632,9 @@ class _ExerciseTileItem extends StatelessWidget {
   }
 }
 
+/// Two-step inline widget for creating a custom exercise:
+///   Step 1 — Enter exercise name
+///   Step 2 — Assign primary + optional secondary muscle groups
 class _CreateExerciseInline extends HookConsumerWidget {
   const _CreateExerciseInline({
     required this.controller,
@@ -651,6 +658,12 @@ class _CreateExerciseInline extends HookConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isLoading = useState(false);
+    final step = useState(0); // 0 = name, 1 = muscle groups
+    final selectedPrimary = useState<MuscleGroup?>(null);
+    final selectedSecondary = useState<List<MuscleGroup>>(const []);
+    // Rebuild when the text field content changes so the WEITER button
+    // enables/disables reactively as the user types.
+    useListenable(controller);
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -664,51 +677,118 @@ class _CreateExerciseInline extends HookConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text('NEW EXERCISE', style: AppTextStyles.labelMd),
-          const SizedBox(height: 12),
-          TapemTextField(
-            controller: controller,
-            label: 'EXERCISE NAME',
-            hintText: 'e.g. Cable Fly',
-            textInputAction: TextInputAction.done,
-            autofocus: true,
-            autocorrect: false,
-            enableSuggestions: false,
-          ),
-          const SizedBox(height: 12),
           Row(
             children: [
-              Expanded(
-                child: TapemButton(
-                  label: 'CANCEL',
-                  variant: TapemButtonVariant.ghost,
-                  onPressed: onCancel,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: TapemButton(
-                  label: 'CREATE',
-                  isLoading: isLoading.value,
-                  onPressed: () => _create(ref, isLoading),
+              Text('NEUE ÜBUNG', style: AppTextStyles.labelMd),
+              const Spacer(),
+              // Step indicator
+              Text(
+                'SCHRITT ${step.value + 1}/2',
+                style: AppTextStyles.labelSm.copyWith(
+                  color: AppColors.textSecondary,
+                  fontSize: 9,
                 ),
               ),
             ],
           ),
+          const SizedBox(height: 12),
+
+          if (step.value == 0) ...[
+            // ── Step 1: Name ─────────────────────────────────────────────────
+            TapemTextField(
+              controller: controller,
+              label: 'ÜBUNGSNAME',
+              hintText: 'z.B. Cable Fly',
+              textInputAction: TextInputAction.next,
+              autofocus: true,
+              autocorrect: false,
+              enableSuggestions: false,
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: TapemButton(
+                    label: 'ABBRECHEN',
+                    variant: TapemButtonVariant.ghost,
+                    onPressed: onCancel,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: TapemButton(
+                    label: 'WEITER',
+                    onPressed: controller.text.trim().isEmpty
+                        ? null
+                        : () => step.value = 1,
+                  ),
+                ),
+              ],
+            ),
+          ] else ...[
+            // ── Step 2: Muscle groups ────────────────────────────────────────
+            Text(
+              '"${controller.text.trim()}"',
+              style: AppTextStyles.bodyMd.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: 16),
+            MuscleGroupPicker(
+              selectedPrimary: selectedPrimary.value,
+              selectedSecondary: selectedSecondary.value,
+              onPrimaryChanged: (g) => selectedPrimary.value = g,
+              onSecondaryChanged: (list) => selectedSecondary.value = list,
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: TapemButton(
+                    label: 'ZURÜCK',
+                    variant: TapemButtonVariant.ghost,
+                    onPressed: () => step.value = 0,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: TapemButton(
+                    label: 'ERSTELLEN',
+                    isLoading: isLoading.value,
+                    // Require at least a primary muscle group.
+                    onPressed: selectedPrimary.value == null
+                        ? null
+                        : () => _create(
+                              ref,
+                              isLoading,
+                              selectedPrimary.value,
+                              selectedSecondary.value,
+                            ),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ],
       ),
     );
   }
 
-  Future<void> _create(WidgetRef ref, ValueNotifier<bool> isLoading) async {
+  Future<void> _create(
+    WidgetRef ref,
+    ValueNotifier<bool> isLoading,
+    MuscleGroup? primary,
+    List<MuscleGroup> secondary,
+  ) async {
     final name = controller.text.trim();
-    if (name.isEmpty) return;
+    if (name.isEmpty || primary == null) return;
 
     isLoading.value = true;
     try {
       final userId = ref.read(currentUserProvider)?.id ?? '';
       final db = ref.read(appDatabaseProvider);
       final id = _uuid.v4();
+
       await db.insertCustomExercise(
         LocalUserCustomExercisesCompanion.insert(
           id: id,
@@ -718,6 +798,23 @@ class _CreateExerciseInline extends HookConsumerWidget {
           equipmentId: Value(equipmentId),
         ),
       );
+
+      // Persist muscle group assignments locally.
+      final mgCompanions = [
+        LocalUserCustomExerciseMuscleGroupsCompanion.insert(
+          customExerciseId: id,
+          muscleGroup: primary.value,
+          role: MuscleGroupRole.primary.value,
+        ),
+        for (final sec in secondary)
+          LocalUserCustomExerciseMuscleGroupsCompanion.insert(
+            customExerciseId: id,
+            muscleGroup: sec.value,
+            role: MuscleGroupRole.secondary.value,
+          ),
+      ];
+      await db.upsertCustomExerciseMuscleGroups(id, mgCompanions);
+
       onCreated('custom:$id', name, id);
     } finally {
       isLoading.value = false;

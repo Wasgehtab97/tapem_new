@@ -15,4 +15,16 @@ abstract final class RouteNames {
   static const profile = '/profile';
   static const admin = '/admin';
   static const adminNfc = '/admin/nfc';
+
+  // ── Nutrition ─────────────────────────────────────────────────────────────
+  static const nutrition = '/nutrition';
+  static const nutritionDay = '/nutrition/day';
+  static const nutritionGoals = '/nutrition/goals';
+  static const nutritionEntry = '/nutrition/entry';
+  static const nutritionSearch = '/nutrition/search';
+  static const nutritionScan = '/nutrition/scan';
+  static const nutritionRecipes = '/nutrition/recipes';
+  static const nutritionRecipeEdit = '/nutrition/recipe-edit';
+  static const nutritionWeight = '/nutrition/weight';
+  static const nutritionCalendar = '/nutrition/calendar';
 }

@@ -12,6 +12,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/utils/l10n_extension.dart';
 import '../../../../domain/entities/gym/gym_equipment.dart';
+import '../../../../domain/entities/gym/muscle_group.dart';
 import '../../../../core/utils/xp_rules.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../progress/providers/xp_provider.dart';
@@ -297,6 +298,28 @@ class EquipmentDetailSheet extends HookConsumerWidget {
                           )
                           .when(
                             data: (points) => _E1rmChart(points: points),
+                            loading: () => const _SectionSkeleton(),
+                            error: (_, __) => const SizedBox.shrink(),
+                          ),
+                      const SizedBox(height: 24),
+                    ],
+
+                    // ── MUSCLE GROUPS (fixed machines only) ─────────────────
+                    if (equipment.equipmentType == EquipmentType.fixedMachine &&
+                        activeExerciseKey.isNotEmpty) ...[
+                      _SectionHeader(label: l10n.muscleGroups),
+                      const SizedBox(height: 12),
+                      ref
+                          .watch(
+                            exerciseMuscleGroupsProvider((
+                              gymId: gymId,
+                              exerciseKey: activeExerciseKey,
+                            )),
+                          )
+                          .when(
+                            data: (entries) => entries.isEmpty
+                                ? const SizedBox.shrink()
+                                : _MuscleGroupChips(entries: entries),
                             loading: () => const _SectionSkeleton(),
                             error: (_, __) => const SizedBox.shrink(),
                           ),
@@ -1103,6 +1126,85 @@ class _E1rmChart extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Muscle group chips ───────────────────────────────────────────────────────
+
+class _MuscleGroupChips extends StatelessWidget {
+  const _MuscleGroupChips({required this.entries});
+  final List<ExerciseMuscleGroupEntry> entries;
+
+  @override
+  Widget build(BuildContext context) {
+    final primary = entries.where((e) => e.role == 'primary').toList();
+    final secondary = entries.where((e) => e.role == 'secondary').toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (primary.isNotEmpty) ...[
+          Text(
+            'PRIMÄR',
+            style: AppTextStyles.labelSm.copyWith(
+              color: AppColors.neonCyan,
+              fontSize: 10,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: primary.map((e) => _MgChip(entry: e, isPrimary: true)).toList(),
+          ),
+        ],
+        if (secondary.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          Text(
+            'SEKUNDÄR',
+            style: AppTextStyles.labelSm.copyWith(
+              color: AppColors.textSecondary,
+              fontSize: 10,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: secondary.map((e) => _MgChip(entry: e, isPrimary: false)).toList(),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _MgChip extends StatelessWidget {
+  const _MgChip({required this.entry, required this.isPrimary});
+  final ExerciseMuscleGroupEntry entry;
+  final bool isPrimary;
+
+  @override
+  Widget build(BuildContext context) {
+    final mg = MuscleGroup.tryFromValue(entry.muscleGroup);
+    final label = mg?.displayNameDe ?? entry.muscleGroup;
+    final color = isPrimary ? AppColors.neonCyan : AppColors.textSecondary;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withAlpha(isPrimary ? 20 : 12),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withAlpha(isPrimary ? 80 : 40)),
+      ),
+      child: Text(
+        label,
+        style: AppTextStyles.labelSm.copyWith(
+          color: color,
+          fontSize: 11,
         ),
       ),
     );

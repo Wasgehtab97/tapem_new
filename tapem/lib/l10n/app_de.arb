@@ -321,5 +321,10 @@
   "planCreatedFromSessionFailed": "Plan konnte nicht erstellt werden. Bitte erneut versuchen.",
 
   "strengthProgressTitle": "E1RM FORTSCHRITT",
-  "e1rmChartEmptyState": "Absolviere mehr Sessions, um deinen E1RM-Fortschritt zu sehen."
+  "e1rmChartEmptyState": "Absolviere mehr Sessions, um deinen E1RM-Fortschritt zu sehen.",
+
+  "navNutrition": "Ernährung",
+
+  "muscleGroupTrained": "TRAINIERT",
+  "muscleGroupNeglected": "VERNACHLÄSSIGT"
 }

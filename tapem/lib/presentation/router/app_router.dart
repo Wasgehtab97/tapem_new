@@ -20,6 +20,16 @@ import '../features/plans/screens/plan_builder_screen.dart';
 import '../features/plans/screens/plans_screen.dart';
 import '../widgets/common/scaffold_with_nav_bar.dart';
 import 'route_names.dart';
+import '../features/nutrition/screens/nutrition_home_screen.dart';
+import '../features/nutrition/screens/nutrition_day_screen.dart';
+import '../features/nutrition/screens/nutrition_goals_screen.dart';
+import '../features/nutrition/screens/nutrition_entry_screen.dart';
+import '../features/nutrition/screens/nutrition_search_screen.dart';
+import '../features/nutrition/screens/nutrition_scan_screen.dart';
+import '../features/nutrition/screens/nutrition_recipes_screen.dart';
+import '../features/nutrition/screens/nutrition_recipe_edit_screen.dart';
+import '../features/nutrition/screens/nutrition_weight_screen.dart';
+import '../features/nutrition/screens/nutrition_calendar_screen.dart';
 
 /// Provides a fully-configured [GoRouter] instance.
 /// Auth/gym changes are handled via [_AuthStateNotifier] as refreshListenable,
@@ -102,6 +112,70 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: RouteNames.profile,
         name: 'profile',
         builder: (_, __) => const ProfileScreen(),
+      ),
+
+      // ── Nutrition (full-screen, not a tab) ──────────────────────────────
+      GoRoute(
+        path: RouteNames.nutrition,
+        name: 'nutrition',
+        builder: (_, __) => const NutritionHomeScreen(),
+        routes: [
+          GoRoute(
+            path: 'day',
+            name: 'nutrition-day',
+            builder: (_, __) => const NutritionDayScreen(),
+          ),
+          GoRoute(
+            path: 'goals',
+            name: 'nutrition-goals',
+            builder: (_, __) => const NutritionGoalsScreen(),
+          ),
+          GoRoute(
+            path: 'entry',
+            name: 'nutrition-entry',
+            builder: (_, __) => const NutritionEntryScreen(),
+          ),
+          GoRoute(
+            path: 'search',
+            name: 'nutrition-search',
+            builder: (_, state) => NutritionSearchScreen(
+              extra: (state.extra as Map<String, dynamic>?) ?? {},
+            ),
+          ),
+          GoRoute(
+            path: 'scan',
+            name: 'nutrition-scan',
+            builder: (_, state) => NutritionScanScreen(
+              extra: (state.extra as Map<String, dynamic>?) ?? {},
+            ),
+          ),
+          GoRoute(
+            path: 'recipes',
+            name: 'nutrition-recipes',
+            builder: (_, state) => NutritionRecipesScreen(
+              extra: (state.extra as Map<String, dynamic>?) ?? {},
+            ),
+          ),
+          GoRoute(
+            path: 'recipe-edit',
+            name: 'nutrition-recipe-edit',
+            builder: (_, state) => NutritionRecipeEditScreen(
+              extra: (state.extra as Map<String, dynamic>?) ?? {},
+            ),
+          ),
+          GoRoute(
+            path: 'weight',
+            name: 'nutrition-weight',
+            builder: (_, __) => const NutritionWeightScreen(),
+          ),
+          GoRoute(
+            path: 'calendar',
+            name: 'nutrition-calendar',
+            builder: (_, state) => NutritionCalendarScreen(
+              extra: (state.extra as Map<String, dynamic>?) ?? {},
+            ),
+          ),
+        ],
       ),
 
       // ── Main shell ────────────────────────────────────────────────────────
@@ -194,11 +268,21 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: RouteNames.admin,
                 name: 'admin',
+                redirect: (_, __) {
+                  final isAdmin =
+                      ref.read(isGymAdminProvider).valueOrNull ?? false;
+                  return isAdmin ? null : RouteNames.home;
+                },
                 builder: (_, __) => const AdminScreen(),
                 routes: [
                   GoRoute(
                     path: 'nfc',
                     name: 'admin-nfc',
+                    redirect: (_, __) {
+                      final isAdmin =
+                          ref.read(isGymAdminProvider).valueOrNull ?? false;
+                      return isAdmin ? null : RouteNames.home;
+                    },
                     builder: (_, __) => const AdminNfcScreen(),
                   ),
                 ],
@@ -211,8 +295,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
   );
 });
 
-/// [ChangeNotifier] that fires whenever auth state or active gym changes,
-/// triggering GoRouter to re-evaluate redirect rules.
+/// [ChangeNotifier] that fires whenever auth state, active gym, or admin role
+/// changes, triggering GoRouter to re-evaluate all redirect rules including
+/// the admin route guard.
 class _AuthStateNotifier extends ChangeNotifier {
   _AuthStateNotifier(Ref ref) {
     _authSub = ref.listen(
@@ -220,15 +305,18 @@ class _AuthStateNotifier extends ChangeNotifier {
       (_, __) => notifyListeners(),
     );
     _gymSub = ref.listen(activeGymIdProvider, (_, __) => notifyListeners());
+    _adminSub = ref.listen(isGymAdminProvider, (_, __) => notifyListeners());
   }
 
   late final ProviderSubscription<dynamic> _authSub;
   late final ProviderSubscription<dynamic> _gymSub;
+  late final ProviderSubscription<dynamic> _adminSub;
 
   @override
   void dispose() {
     _authSub.close();
     _gymSub.close();
+    _adminSub.close();
     super.dispose();
   }
 }

@@ -7,8 +7,11 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/services/sync_service.dart';
 import '../../../../data/datasources/local/app_database.dart';
+import '../../../../domain/entities/gym/exercise_muscle_group.dart';
 import '../../../../domain/entities/gym/exercise_template.dart';
 import '../../../../domain/entities/gym/gym_equipment.dart';
+import '../../../../domain/entities/gym/muscle_group.dart';
+import '../../../../domain/entities/gym/muscle_group_role.dart';
 import '../../../features/auth/providers/auth_provider.dart';
 
 typedef _JsonMap = Map<String, Object?>;
@@ -33,12 +36,6 @@ String _readString(_JsonMap row, String key, {String fallback = ''}) =>
 
 bool _readBool(_JsonMap row, String key, {bool fallback = false}) =>
     row[key] as bool? ?? fallback;
-
-double _readDouble(_JsonMap row, String key, {double fallback = 0}) {
-  final value = row[key];
-  if (value is num) return value.toDouble();
-  return fallback;
-}
 
 // ─── Equipment ────────────────────────────────────────────────────────────────
 
@@ -71,7 +68,7 @@ Future<List<GymEquipment>> _fetchAndCacheEquipment(
         .select()
         .eq('gym_id', gymId)
         .eq('is_active', true)
-        .order('name'),
+        .order('name', ascending: true),
   );
 
   final companions = rows
@@ -193,21 +190,23 @@ Future<List<ExerciseTemplate>> _fetchAndCacheTemplates(
   AppDatabase db,
   SupabaseClient client,
 ) async {
+  // Fetch exercise_templates joined with their muscle group assignments.
+  // exercise_muscle_groups replaces the old muscle_group_weights table.
   final rows = _asJsonRows(
     await client
         .from('exercise_templates')
-        .select('*, muscle_group_weights(*)')
+        .select('*, exercise_muscle_groups(*)')
         .eq('gym_id', gymId)
         .eq('is_active', true),
   );
 
   final companions = rows.map((r) {
-    final weightRows = _asJsonRows(r['muscle_group_weights']);
-    final weights = weightRows
+    final mgRows = _asJsonRows(r['exercise_muscle_groups']);
+    final groups = mgRows
         .map(
           (w) => {
             'g': _readString(w, 'muscle_group'),
-            'w': _readDouble(w, 'weight'),
+            'r': _readString(w, 'role'),
           },
         )
         .toList(growable: false);
@@ -218,7 +217,7 @@ Future<List<ExerciseTemplate>> _fetchAndCacheTemplates(
       name: _readString(r, 'name'),
       isRankingEligible: Value(_readBool(r, 'is_ranking_eligible')),
       primaryMuscleGroup: Value(r['primary_muscle_group'] as String?),
-      muscleGroupWeightsJson: Value(jsonEncode(weights)),
+      muscleGroupsJson: Value(jsonEncode(groups)),
     );
   }).toList();
 
@@ -243,34 +242,33 @@ void _refreshTemplateCache(
 }
 
 ExerciseTemplate _localToTemplate(LocalExerciseTemplate r) {
-  final weights = (jsonDecode(r.muscleGroupWeightsJson) as List).map((w) {
-    final weight = _asJsonMap(w);
-    return MuscleGroupWeight(
-      muscleGroup: _readString(weight, 'g'),
-      weight: _readDouble(weight, 'w'),
-    );
-  }).toList();
+  final groups = (jsonDecode(r.muscleGroupsJson) as List)
+      .map((w) => ExerciseMuscleGroup.fromJson(_asJsonMap(w)))
+      .where((mg) => MuscleGroup.tryFromValue(mg.muscleGroup.value) != null)
+      .toList();
 
   return ExerciseTemplate(
     key: r.key,
     gymId: r.gymId,
     name: r.name,
     isRankingEligible: r.isRankingEligible,
-    muscleGroupWeights: weights,
-    primaryMuscleGroup: r.primaryMuscleGroup,
+    muscleGroups: groups,
     isActive: r.isActive,
     createdAt: r.cachedAt,
   );
 }
 
 ExerciseTemplate _rowToTemplate(_JsonMap r) {
-  final weights = _asJsonRows(r['muscle_group_weights'])
-      .map(
-        (w) => MuscleGroupWeight(
-          muscleGroup: _readString(w, 'muscle_group'),
-          weight: _readDouble(w, 'weight'),
-        ),
-      )
+  final groups = _asJsonRows(r['exercise_muscle_groups'])
+      .map((w) {
+        final group = MuscleGroup.tryFromValue(_readString(w, 'muscle_group'));
+        if (group == null) return null;
+        return ExerciseMuscleGroup(
+          muscleGroup: group,
+          role: MuscleGroupRole.fromValue(_readString(w, 'role')),
+        );
+      })
+      .whereType<ExerciseMuscleGroup>()
       .toList();
 
   return ExerciseTemplate(
@@ -278,8 +276,7 @@ ExerciseTemplate _rowToTemplate(_JsonMap r) {
     gymId: _readString(r, 'gym_id'),
     name: _readString(r, 'name'),
     isRankingEligible: _readBool(r, 'is_ranking_eligible'),
-    muscleGroupWeights: weights,
-    primaryMuscleGroup: r['primary_muscle_group'] as String?,
+    muscleGroups: groups,
     isActive: _readBool(r, 'is_active', fallback: true),
     createdAt: DateTime.parse(_readString(r, 'created_at')),
   );

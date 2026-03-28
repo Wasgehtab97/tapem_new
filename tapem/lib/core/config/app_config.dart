@@ -15,6 +15,13 @@ abstract final class AppConfig {
         '.3ZSlnwW8zSLFxnZYCkmPxq4n75muy4c8rbB9tEHjBy8',
   );
 
+  // --dart-define=USDA_API_KEY=... (register free at fdc.nal.usda.gov)
+  // Falls back to DEMO_KEY for local dev (30 req/h limit — not for production).
+  static const usdaApiKey = String.fromEnvironment(
+    'USDA_API_KEY',
+    defaultValue: 'DEMO_KEY',
+  );
+
   static const appName = "Tap'em";
   static const appVersion = '1.0.0';
 
@@ -23,6 +30,10 @@ abstract final class AppConfig {
   static const xpPerSet = 5;
   static const xpPerFiveReps = 1; // floor(reps/5)
   static const xpExerciseCap = 120;
+
+  /// Muscle group XP — flat per exercise per group (≥1 set required).
+  static const double xpMuscleGroupPrimary = 10.0;
+  static const double xpMuscleGroupSecondary = 2.5;
 
   /// Performance budgets
   static const workoutStartBudgetMs = 700;

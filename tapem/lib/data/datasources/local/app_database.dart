@@ -32,14 +32,26 @@ class LocalExerciseTemplates extends Table {
   BoolColumn get isRankingEligible =>
       boolean().withDefault(const Constant(false))();
   TextColumn get primaryMuscleGroup => text().nullable()();
-  // Muscle group weights serialized as JSON: [{"g":"chest","w":0.7},...]
-  TextColumn get muscleGroupWeightsJson =>
+  // Muscle group assignments serialized as JSON: [{"g":"chest","r":"primary"},...]
+  // Legacy format [{"g":"chest","w":0.7},...] is accepted during migration.
+  TextColumn get muscleGroupsJson =>
       text().withDefault(const Constant('[]'))();
   BoolColumn get isActive => boolean().withDefault(const Constant(true))();
   DateTimeColumn get cachedAt => dateTime().withDefault(currentDateAndTime)();
 
   @override
   Set<Column> get primaryKey => {key, gymId};
+}
+
+/// Muscle group assignments for user-created open-station exercises.
+/// Stored locally, synced to [user_custom_exercise_muscle_groups] on the server.
+class LocalUserCustomExerciseMuscleGroups extends Table {
+  TextColumn get customExerciseId => text()(); // FK → LocalUserCustomExercises.id
+  TextColumn get muscleGroup => text()();       // MuscleGroup.value
+  TextColumn get role => text()();              // 'primary' | 'secondary'
+
+  @override
+  Set<Column> get primaryKey => {customExerciseId, muscleGroup};
 }
 
 /// User's custom exercises — stored locally, synced to server.
@@ -169,6 +181,7 @@ class LocalSetEntries extends Table {
     LocalGymEquipment,
     LocalExerciseTemplates,
     LocalUserCustomExercises,
+    LocalUserCustomExerciseMuscleGroups,
     LocalWorkoutSessions,
     LocalSessionExercises,
     LocalSetEntries,
@@ -181,7 +194,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 6;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -210,6 +223,18 @@ class AppDatabase extends _$AppDatabase {
       if (from < 5) {
         await migrator.createTable(localWorkoutPlans);
         await migrator.createTable(localPlanItems);
+      }
+      if (from < 6) {
+        // Rename muscleGroupWeightsJson → muscleGroupsJson.
+        // The legacy format {"g":"…","w":…} is handled gracefully by
+        // ExerciseMuscleGroup.fromJson, so no data conversion is needed.
+        await migrator.renameColumn(
+          localExerciseTemplates,
+          'muscle_group_weights_json',
+          localExerciseTemplates.muscleGroupsJson,
+        );
+        // New table for user-assigned muscle groups on custom exercises.
+        await migrator.createTable(localUserCustomExerciseMuscleGroups);
       }
     },
   );
@@ -282,6 +307,30 @@ class AppDatabase extends _$AppDatabase {
 
   Future<void> insertCustomExercise(LocalUserCustomExercisesCompanion row) =>
       into(localUserCustomExercises).insertOnConflictUpdate(row);
+
+  // ─── Custom exercise muscle groups ────────────────────────────────────────
+
+  Future<List<LocalUserCustomExerciseMuscleGroup>> getCustomExerciseMuscleGroups(
+    String customExerciseId,
+  ) =>
+      (select(localUserCustomExerciseMuscleGroups)
+            ..where((t) => t.customExerciseId.equals(customExerciseId)))
+          .get();
+
+  /// Replaces all muscle group assignments for [customExerciseId] atomically.
+  Future<void> upsertCustomExerciseMuscleGroups(
+    String customExerciseId,
+    List<LocalUserCustomExerciseMuscleGroupsCompanion> rows,
+  ) async {
+    await transaction(() async {
+      await (delete(localUserCustomExerciseMuscleGroups)
+            ..where((t) => t.customExerciseId.equals(customExerciseId)))
+          .go();
+      if (rows.isNotEmpty) {
+        await batch((b) => b.insertAll(localUserCustomExerciseMuscleGroups, rows));
+      }
+    });
+  }
 
   // ─── Sessions ──────────────────────────────────────────────────────────────
 
@@ -401,21 +450,42 @@ class AppDatabase extends _$AppDatabase {
           ))
           .get();
 
+  /// Returns all distinct session_day_anchor values for [userId] in [year]
+  /// regardless of gym or sync status. Used to populate the calendar heatmap
+  /// with locally-saved sessions so the dot appears immediately after finishing
+  /// a workout, without waiting for a Supabase sync.
+  Future<Set<String>> getLocalSessionDaysForYear(
+    String userId,
+    int year,
+  ) async {
+    final prefix = '$year-';
+    final sessions = await (select(localWorkoutSessions)
+          ..where(
+            (t) =>
+                t.userId.equals(userId) &
+                t.finishedAt.isNotNull() &
+                t.sessionDayAnchor.like('$prefix%'),
+          ))
+        .get();
+    return sessions.map((s) => s.sessionDayAnchor).toSet();
+  }
+
   Future<List<LocalWorkoutSession>> getRecentSessions(
     String gymId,
     String userId, {
-    int limit = 20,
-  }) =>
-      (select(localWorkoutSessions)
-            ..where(
-              (t) =>
-                  t.gymId.equals(gymId) &
-                  t.userId.equals(userId) &
-                  t.finishedAt.isNotNull(),
-            )
-            ..orderBy([(t) => OrderingTerm.desc(t.startedAt)])
-            ..limit(limit))
-          .get();
+    int? limit,
+  }) {
+    final query = select(localWorkoutSessions)
+      ..where(
+        (t) =>
+            t.gymId.equals(gymId) &
+            t.userId.equals(userId) &
+            t.finishedAt.isNotNull(),
+      )
+      ..orderBy([(t) => OrderingTerm.desc(t.startedAt)]);
+    if (limit != null) query.limit(limit);
+    return query.get();
+  }
 
   /// Returns finished sessions in which [equipmentId] was used in any exercise.
   ///
@@ -426,9 +496,8 @@ class AppDatabase extends _$AppDatabase {
   Future<List<LocalWorkoutSession>> getSessionsForEquipment(
     String gymId,
     String userId,
-    String equipmentId, {
-    int limit = 20,
-  }) async {
+    String equipmentId,
+  ) async {
     // Step 1: find every session-exercise row that used this equipment.
     final exercises =
         await (select(localSessionExercises)..where(
@@ -439,7 +508,7 @@ class AppDatabase extends _$AppDatabase {
     final sessionIds = exercises.map((e) => e.sessionId).toSet();
     if (sessionIds.isEmpty) return [];
 
-    // Step 2: load the corresponding finished sessions.
+    // Step 2: load all corresponding finished sessions.
     return (select(localWorkoutSessions)
           ..where(
             (t) =>
@@ -447,8 +516,7 @@ class AppDatabase extends _$AppDatabase {
                 t.id.isIn(sessionIds) &
                 t.finishedAt.isNotNull(),
           )
-          ..orderBy([(t) => OrderingTerm.desc(t.startedAt)])
-          ..limit(limit))
+          ..orderBy([(t) => OrderingTerm.desc(t.startedAt)]))
         .get();
   }
 
@@ -551,6 +619,77 @@ class AppDatabase extends _$AppDatabase {
       return getSetsForExercise(ex.id);
     }
     return [];
+  }
+
+  /// Returns all sets from every *finished* session that contains [exerciseKey]
+  /// for this user, excluding [excludeSessionId] (current session).
+  /// Used to compute the all-time best e1RM for a given exercise.
+  Future<List<LocalSetEntry>> getAllCompletedSetsForExerciseKey(
+    String gymId,
+    String userId,
+    String exerciseKey, {
+    String? excludeSessionId,
+  }) async {
+    final exercises =
+        await (select(localSessionExercises)
+              ..where(
+                (t) =>
+                    t.gymId.equals(gymId) & t.exerciseKey.equals(exerciseKey),
+              ))
+            .get();
+
+    final allSets = <LocalSetEntry>[];
+    for (final ex in exercises) {
+      if (ex.sessionId == excludeSessionId) continue;
+      final session = await getSessionById(ex.sessionId);
+      if (session == null ||
+          session.userId != userId ||
+          session.finishedAt == null) {
+        continue;
+      }
+      allSets.addAll(await getSetsForExercise(ex.id));
+    }
+    return allSets;
+  }
+
+  /// Returns the maximum total volume (reps × weight_kg) achieved in a single
+  /// finished session for [exerciseKey], excluding [excludeSessionId].
+  /// Returns null if there is no prior strength history for this exercise.
+  Future<double?> getBestVolumeForExerciseKey(
+    String gymId,
+    String userId,
+    String exerciseKey, {
+    String? excludeSessionId,
+  }) async {
+    final exercises =
+        await (select(localSessionExercises)
+              ..where(
+                (t) =>
+                    t.gymId.equals(gymId) & t.exerciseKey.equals(exerciseKey),
+              ))
+            .get();
+
+    double? bestVolume;
+    for (final ex in exercises) {
+      if (ex.sessionId == excludeSessionId) continue;
+      final session = await getSessionById(ex.sessionId);
+      if (session == null ||
+          session.userId != userId ||
+          session.finishedAt == null) {
+        continue;
+      }
+      final sets = await getSetsForExercise(ex.id);
+      final volume = sets.fold(0.0, (sum, s) {
+        final r = s.reps;
+        final w = s.weightKg;
+        if (r == null || w == null) return sum;
+        return sum + r * w;
+      });
+      if (volume > 0 && (bestVolume == null || volume > bestVolume)) {
+        bestVolume = volume;
+      }
+    }
+    return bestVolume;
   }
 
   Future<List<LocalSetEntry>> getPendingSets(String gymId) =>

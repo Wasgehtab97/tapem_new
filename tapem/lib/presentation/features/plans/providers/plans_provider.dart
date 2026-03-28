@@ -14,6 +14,9 @@ import '../../../features/auth/providers/auth_provider.dart';
 
 const _uuid = Uuid();
 
+/// Maximum number of active plans a user can have at one time.
+const kMaxPlansPerUser = 7;
+
 // ─── Stream: all active plans for the current user/gym ───────────────────────
 
 final plansProvider = StreamProvider<List<LocalWorkoutPlan>>((ref) {
@@ -21,6 +24,94 @@ final plansProvider = StreamProvider<List<LocalWorkoutPlan>>((ref) {
   final user = ref.watch(currentUserProvider);
   if (gymId == null || user == null) return const Stream.empty();
   return ref.watch(appDatabaseProvider).watchPlansForUser(gymId, user.id);
+});
+
+// ─── Restore plans from Supabase when local SQLite is empty ──────────────────
+//
+// Called on the PlansScreen and Plans-from-session flow. If the user has
+// reinstalled the app (SQLite cleared), this fetches all their active plans
+// from Supabase and writes them back into SQLite so the StreamProvider above
+// can serve them normally. Idempotent: no-op when SQLite already has plans.
+
+final restorePlansFromSupabaseProvider = FutureProvider<void>((ref) async {
+  final gymId = ref.watch(activeGymIdProvider);
+  final user = ref.watch(currentUserProvider);
+  if (gymId == null || user == null) return;
+
+  final db = ref.watch(appDatabaseProvider);
+
+  // Fast path: SQLite has plans — nothing to restore.
+  final localPlans = await db.watchPlansForUser(gymId, user.id).first;
+  if (localPlans.isNotEmpty) return;
+
+  try {
+    final client = ref.watch(supabaseClientProvider);
+
+    final planRows = await client
+        .from('workout_plans')
+        .select('id, name, created_at, updated_at')
+        .eq('gym_id', gymId)
+        .eq('is_active', true)
+        .order('updated_at', ascending: false)
+        .limit(kMaxPlansPerUser);
+
+    for (final row in (planRows as List)) {
+      final r = Map<String, Object?>.from(row as Map);
+      final planId = r['id'] as String;
+
+      await db.upsertPlan(
+        LocalWorkoutPlansCompanion(
+          id: Value(planId),
+          gymId: Value(gymId),
+          userId: Value(user.id),
+          name: Value(r['name'] as String? ?? ''),
+          isActive: const Value(true),
+          syncStatus: const Value('sync_confirmed'),
+          createdAt: Value(
+            DateTime.tryParse(r['created_at'] as String? ?? '') ??
+                DateTime.now(),
+          ),
+          updatedAt: Value(
+            DateTime.tryParse(r['updated_at'] as String? ?? '') ??
+                DateTime.now(),
+          ),
+        ),
+      );
+
+      final itemRows = await client
+          .from('plan_items')
+          .select(
+            'id, equipment_id, canonical_exercise_key, '
+            'custom_exercise_id, display_name, position',
+          )
+          .eq('plan_id', planId)
+          .order('position', ascending: true);
+
+      final companions =
+          (itemRows as List).map((item) {
+            final i = Map<String, Object?>.from(item as Map);
+            return LocalPlanItemsCompanion(
+              id: Value(i['id'] as String),
+              planId: Value(planId),
+              gymId: Value(gymId),
+              equipmentId: Value(i['equipment_id'] as String? ?? ''),
+              canonicalExerciseKey: Value(
+                i['canonical_exercise_key'] as String?,
+              ),
+              customExerciseId: Value(i['custom_exercise_id'] as String?),
+              displayName: Value(i['display_name'] as String? ?? ''),
+              position: Value((i['position'] as num?)?.toInt() ?? 0),
+              createdAt: Value(DateTime.now()),
+            );
+          }).toList();
+
+      if (companions.isNotEmpty) {
+        await db.replacePlanItems(planId, companions);
+      }
+    }
+  } catch (e, st) {
+    AppLogger.e('restorePlansFromSupabase: failed', e, st);
+  }
 });
 
 // ─── Plan builder state ───────────────────────────────────────────────────────
@@ -186,6 +277,20 @@ class PlanBuilderNotifier extends StateNotifier<PlanBuilderState> {
 
     try {
       final planId = _editPlanId ?? _uuid.v4();
+
+      // Enforce max plan limit for new plans only (not edits).
+      if (_editPlanId == null) {
+        final existing = await _db.watchPlansForUser(gymId, user.id).first;
+        if (existing.length >= kMaxPlansPerUser) {
+          state = state.copyWith(
+            isSaving: false,
+            error:
+                'Du hast bereits $kMaxPlansPerUser Pläne. '
+                'Lösche einen Plan, bevor du einen neuen erstellst.',
+          );
+          return null;
+        }
+      }
       final now = DateTime.now();
       final trimmedName = state.name.trim();
 
@@ -347,7 +452,46 @@ Future<String?> createPlanFromSession({
   required String sessionId,
   required String planName,
 }) async {
-  final exercises = await db.getExercisesForSession(sessionId);
+  // Enforce max plan limit.
+  final activePlans = await db.watchPlansForUser(gymId, userId).first;
+  if (activePlans.length >= kMaxPlansPerUser) return null;
+
+  // Try local SQLite first (normal case).
+  var exercises = await db.getExercisesForSession(sessionId);
+
+  // Reinstall fallback: SQLite is empty — fetch exercises from Supabase.
+  if (exercises.isEmpty) {
+    try {
+      final rows = await supabase
+          .from('session_exercises')
+          .select(
+            'id, exercise_key, display_name, sort_order, '
+            'equipment_id, custom_exercise_id',
+          )
+          .eq('session_id', sessionId)
+          .order('sort_order', ascending: true);
+
+      exercises =
+          (rows as List).map((row) {
+            final r = Map<String, Object?>.from(row as Map);
+            return LocalSessionExercise(
+              id: r['id'] as String? ?? '',
+              sessionId: sessionId,
+              gymId: gymId,
+              exerciseKey: r['exercise_key'] as String? ?? '',
+              displayName: r['display_name'] as String? ?? '',
+              sortOrder: (r['sort_order'] as num?)?.toInt() ?? 0,
+              equipmentId: r['equipment_id'] as String?,
+              customExerciseId: r['custom_exercise_id'] as String?,
+              syncStatus: 'sync_confirmed',
+              createdAt: DateTime.now(),
+            );
+          }).toList();
+    } catch (e, st) {
+      AppLogger.e('createPlanFromSession: Supabase exercises fallback failed', e, st);
+    }
+  }
+
   if (exercises.isEmpty) return null;
 
   final planId = _uuid.v4();

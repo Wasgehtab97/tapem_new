@@ -10,17 +10,30 @@
 // XP aggregate recomputation (user_gym_xp / user_exercise_xp) is handled by
 // the DB trigger on xp_events — no explicit RPC call is needed here.
 //
+// Muscle group XP model (v2):
+//   Flat rate per exercise per muscle group — independent of set count or reps.
+//   primary   → 10.0 XP  (XP_MG_PRIMARY)
+//   secondary →  2.5 XP  (XP_MG_SECONDARY)
+//   Source table: exercise_muscle_groups (fixed machines) or
+//                 user_custom_exercise_muscle_groups (open station custom exercises)
+//
 // Error contract:
 //   200 — session + XP fully persisted
-//   400 — malformed request body
+//   400 — malformed request body / validation failure
 //   401 — missing or invalid JWT
 //   403 — user is not the session owner, or has no active membership
-//   404 — (unused — kept for future use)
 //   500 — DB write failure (client should mark session sync_failed and retry)
 // =============================================================================
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  XP_TRAINING_DAY,
+  XP_MG_PRIMARY,
+  XP_MG_SECONDARY,
+  calcVariableExerciseXp,
+  type SetLike,
+} from "../_shared/xp.ts";
 
 // ─── Request schema ───────────────────────────────────────────────────────────
 
@@ -35,8 +48,8 @@ interface SessionPayload {
   gym_id: string;
   user_id: string;
   equipment_id: string;
-  session_day_anchor: string; // yyyy-MM-dd
-  started_at: string;         // ISO 8601
+  session_day_anchor: string; // yyyy-MM-dd — ignored; server derives from started_at
+  started_at: string;         // ISO 8601 — authoritative source for day anchor
   finished_at: string | null;
   idempotency_key: string;
   notes: string | null;
@@ -48,11 +61,13 @@ interface ExercisePayload {
   display_name: string;
   sort_order: number;
   custom_exercise_id: string | null;
-  equipment_id: string | null;  // per-exercise machine attribution (may be 'freestyle' sentinel)
+  equipment_id: string | null;
   sets: SetPayload[];
+  /** Muscle groups from the local cache for this exercise (custom exercises only). */
+  custom_muscle_groups?: Array<{ muscle_group: string; role: "primary" | "secondary" }>;
 }
 
-interface SetPayload {
+interface SetPayload extends SetLike {
   set_entry_id: string;
   set_number: number;
   reps: number | null;
@@ -62,27 +77,21 @@ interface SetPayload {
   idempotency_key: string;
 }
 
-// ─── XP event shape (matches xp_events table columns) ────────────────────────
+// ─── Validation constants ─────────────────────────────────────────────────────
 
-interface XpEvent {
-  gym_id: string;
-  user_id: string;
-  axis: "training_day" | "exercise_equipment" | "muscle_group";
-  xp_amount: number;
-  source_type: string;
-  source_id: string;
-  idempotency_key: string;
-  exercise_key?: string;
-  muscle_group?: string;
-  occurred_at: string;
-}
+/** exercise_key must match this pattern — rejects anything outside a-z0-9:_.- */
+const EXERCISE_KEY_RE = /^[a-z0-9_:.-]{1,120}$/;
 
-// ─── XP constants (mirror XpRules in Flutter) ────────────────────────────────
+/** display_name is silently truncated to this length at write time. */
+const DISPLAY_NAME_MAX = 120;
 
-const XP_TRAINING_DAY = 25;
-// Flat XP per exercise per session — matches XpRules.exerciseSessionBase = 25.
-// Awarded once per exercise regardless of set count. Not variable per set.
-const XP_EXERCISE_BASE = 25;
+/** Hard upper bounds for set metric fields. Values above these are rejected. */
+const SET_LIMITS = {
+  reps:             500,
+  weight_kg:        500,
+  duration_seconds: 86_400,  // 24 h
+  distance_meters:  200_000, // 200 km
+};
 
 // ─── Handler ──────────────────────────────────────────────────────────────────
 
@@ -126,13 +135,15 @@ serve(async (req) => {
     return jsonResponse({ error: "Forbidden" }, 403);
   }
 
-  // ── Active membership check — upsert if missing ──────────────────────────────
-  //
-  // For an offline-first app, a valid JWT + session ownership is sufficient to
-  // trust the data. If the membership row is missing (e.g., join_gym_with_code
-  // failed silently, or the row was lost), we create it here rather than
-  // blocking the sync forever. The user was physically present in the gym when
-  // they recorded the session, so the membership is legitimate.
+  // ── Input validation ─────────────────────────────────────────────────────────
+  const exerciseErr = validateExercises(body.exercises);
+  if (exerciseErr) {
+    return jsonResponse({ error: exerciseErr }, 400);
+  }
+
+  // ── Active membership check ──────────────────────────────────────────────────
+  // Membership must be pre-existing. Auto-creation is intentionally not supported:
+  // users must join via the gym join-code flow before syncing workouts.
   const { data: membership } = await supabase
     .from("memberships")
     .select("id")
@@ -142,27 +153,16 @@ serve(async (req) => {
     .maybeSingle();
 
   if (!membership) {
-    console.log(`[sync-workout] no active membership found for user=${user.id} gym=${body.session.gym_id} — creating one`);
-    const { error: membershipInsertErr } = await supabase
-      .from("memberships")
-      .upsert(
-        {
-          gym_id: body.session.gym_id,
-          user_id: user.id,
-          role: "member",
-          is_active: true,
-        },
-        { onConflict: "user_id,gym_id", ignoreDuplicates: false },
-      );
-    if (membershipInsertErr) {
-      console.error("[sync-workout] membership upsert failed:", membershipInsertErr);
-      return jsonResponse({ error: "No active membership for this gym" }, 403);
-    }
+    return jsonResponse({ error: "No active membership for this gym" }, 403);
   }
+
+  // ── Derive day anchor server-side ────────────────────────────────────────────
+  // The client's session_day_anchor field is ignored — we recompute it from
+  // started_at to prevent backdating or future-dating of training-day XP.
+  const sessionDayAnchor = deriveSessionDayAnchor(body.session.started_at);
 
   // ── 1. Upsert workout_session ────────────────────────────────────────────────
 
-  // 'freestyle' is a Flutter sentinel meaning "no machine scanned" — store as null in DB
   const sessionEquipmentId = isValidUuid(body.session.equipment_id)
     ? body.session.equipment_id
     : null;
@@ -175,7 +175,7 @@ serve(async (req) => {
         gym_id: body.session.gym_id,
         user_id: body.session.user_id,
         equipment_id: sessionEquipmentId,
-        session_day_anchor: body.session.session_day_anchor,
+        session_day_anchor: sessionDayAnchor,
         started_at: body.session.started_at,
         finished_at: body.session.finished_at,
         notes: body.session.notes,
@@ -198,18 +198,18 @@ serve(async (req) => {
       session_id: body.session.id,
       gym_id: body.session.gym_id,
       exercise_key: exercise.exercise_key,
-      display_name: exercise.display_name,
+      display_name: exercise.display_name.slice(0, DISPLAY_NAME_MAX),
       sort_order: exercise.sort_order,
       custom_exercise_id: exercise.custom_exercise_id,
+      equipment_id: isValidUuid(exercise.equipment_id)
+        ? exercise.equipment_id
+        : sessionEquipmentId,
     };
 
     let { error: exErr } = await supabase
       .from("session_exercises")
       .upsert(exerciseRow, { onConflict: "id", ignoreDuplicates: false });
 
-    // FK miss on custom_exercise_id (e.g. the custom exercise was deleted from
-    // the server while the local session still referenced it). Retry with null
-    // so the session data and XP are not permanently lost.
     if (exErr?.code === "23503" && exErr.message.includes("custom_exercise_id")) {
       console.warn("[sync-workout] custom_exercise_id FK miss — retrying with null:", exercise.custom_exercise_id);
       ({ error: exErr } = await supabase
@@ -222,16 +222,33 @@ serve(async (req) => {
       return jsonResponse({ error: "Failed to persist exercise", detail: exErr.message }, 500);
     }
 
+    // Sync custom exercise muscle groups when present in the payload.
+    if (exercise.custom_exercise_id && exercise.custom_muscle_groups?.length) {
+      const mgRows = exercise.custom_muscle_groups.map((mg) => ({
+        user_custom_exercise_id: exercise.custom_exercise_id,
+        user_id: user.id,
+        muscle_group: mg.muscle_group,
+        role: mg.role,
+      }));
+      await supabase
+        .from("user_custom_exercise_muscle_groups")
+        .upsert(mgRows, { onConflict: "user_custom_exercise_id,muscle_group", ignoreDuplicates: false });
+    }
+
     if (exercise.sets.length > 0) {
+      // ── Validate set metrics before persisting ──────────────────────────────
+      const metricErr = validateSetMetrics(exercise.sets);
+      if (metricErr) {
+        return jsonResponse({ error: "Set metric out of bounds", detail: metricErr }, 400);
+      }
+
       const setRows = exercise.sets.map((s) => ({
         id: s.set_entry_id,
         session_exercise_id: exercise.session_exercise_id,
         gym_id: body.session.gym_id,
         set_number: s.set_number,
-        // Normalise 0 and negative values to NULL — the DB enforces CHECK > 0
-        // for these columns, and 0 reps/duration/distance is meaningless.
         reps: (s.reps != null && s.reps > 0) ? s.reps : null,
-        weight_kg: s.weight_kg,  // 0 is valid (bodyweight)
+        weight_kg: s.weight_kg,
         duration_seconds: (s.duration_seconds != null && s.duration_seconds > 0) ? s.duration_seconds : null,
         distance_meters: (s.distance_meters != null && s.distance_meters > 0) ? s.distance_meters : null,
         idempotency_key: s.idempotency_key,
@@ -250,22 +267,17 @@ serve(async (req) => {
   }
 
   // ── 3. XP processing (only for finished sessions) ────────────────────────────
-  //
-  // XP aggregate recomputation (user_gym_xp / user_exercise_xp) is triggered
-  // automatically by the DB trigger on xp_events (migration 00021). This
-  // function only needs to insert the raw events.
-  //
-  // IMPORTANT: XP failure is fatal — we return 500 so the Flutter client marks
-  // the session sync_failed and retries. xp_events upserts are idempotent via
-  // idempotency_key, so retries are always safe.
 
   if (body.session.finished_at !== null) {
-    const xpErr = await insertXpEvents(supabase, user.id, body, sessionEquipmentId);
+    const xpErr = await insertXpEvents(
+      supabase,
+      user.id,
+      body,
+      sessionEquipmentId,
+      sessionDayAnchor,
+    );
     if (xpErr) {
       console.error("[sync-workout] XP insert failed:", xpErr);
-      // Session data is already persisted at this point. The client will retry
-      // the full sync, which re-upserts session/exercises/sets (no-ops) and
-      // retries XP insertion.
       return jsonResponse({ error: "XP processing failed" }, 500);
     }
   }
@@ -278,12 +290,6 @@ serve(async (req) => {
 });
 
 // ─── XP event generation ──────────────────────────────────────────────────────
-//
-// Builds and inserts xp_events for one finished workout session.
-// Returns an error string on failure, null on success.
-//
-// Aggregate recomputation is NOT performed here — it is handled by the
-// xp_events_recompute_on_insert trigger (migration 00021).
 
 async function insertXpEvents(
   // deno-lint-ignore no-explicit-any
@@ -291,9 +297,11 @@ async function insertXpEvents(
   userId: string,
   body: SyncWorkoutRequest,
   sessionEquipmentId: string | null,
+  dayAnchor: string,
 ): Promise<string | null> {
-  const { gym_id: gymId, id: sessionId, session_day_anchor: dayAnchor, finished_at: finishedAt } = body.session;
-  const events: XpEvent[] = [];
+  const { gym_id: gymId, id: sessionId, finished_at: finishedAt } = body.session;
+
+  const events: Record<string, unknown>[] = [];
 
   // training_day XP — one award per (user, gym, day), idempotent
   events.push({
@@ -307,11 +315,11 @@ async function insertXpEvents(
     occurred_at: finishedAt!,
   });
 
-  // exercise_equipment XP + muscle_group XP per exercise
+  // exercise_equipment XP + muscle_group XP — one pass per exercise
   for (const exercise of body.exercises) {
-    // Flat 25 XP per exercise-session, awarded if the exercise has at least one set.
-    // Mirrors XpRules.exerciseSessionBase in Flutter — no per-set/per-rep variation.
-    const exerciseXp = exercise.sets.length > 0 ? XP_EXERCISE_BASE : 0;
+    if (exercise.sets.length === 0) continue;
+
+    const exerciseXp = calcVariableExerciseXp(exercise.sets);
     if (exerciseXp <= 0) continue;
 
     events.push({
@@ -323,36 +331,55 @@ async function insertXpEvents(
       source_id: exercise.session_exercise_id,
       idempotency_key: `exercise_equipment:session_exercise:${exercise.session_exercise_id}`,
       exercise_key: exercise.exercise_key,
-      // Denormalised: store equipment_id directly so leaderboard queries never
-      // need to join through session_exercises → workout_sessions.
-      // Priority: per-exercise equipment_id (valid UUID) > session equipment_id > null.
-      // 'freestyle' sentinel is treated as null (no machine scanned).
       equipment_id: isValidUuid(exercise.equipment_id)
         ? exercise.equipment_id
         : sessionEquipmentId,
       occurred_at: finishedAt!,
     });
 
-    // muscle_group XP derived from gym-specific weight mappings
-    const { data: weights } = await supabase
-      .from("muscle_group_weights")
-      .select("muscle_group, weight")
-      .eq("exercise_key", exercise.exercise_key)
-      .eq("gym_id", gymId);
+    // No muscle group XP for cardio exercises.
+    if (exercise.exercise_key.startsWith("cardio:")) continue;
 
-    for (const w of weights ?? []) {
-      const mgXp = Math.round(exerciseXp * (w.weight as number));
-      if (mgXp <= 0) continue;
+    // ── Resolve muscle group assignments ──────────────────────────────────────
+    //
+    // Priority:
+    //   1. custom_muscle_groups from payload  (user-defined, open station)
+    //   2. exercise_muscle_groups from DB     (seeded, fixed machine)
+
+    let mgRows: Array<{ muscle_group: string; role: string }> = [];
+
+    if (exercise.custom_muscle_groups?.length) {
+      mgRows = exercise.custom_muscle_groups;
+    } else if (exercise.exercise_key && !exercise.exercise_key.startsWith("custom:")) {
+      const { data } = await supabase
+        .from("exercise_muscle_groups")
+        .select("muscle_group, role")
+        .eq("exercise_key", exercise.exercise_key)
+        .eq("gym_id", gymId);
+      mgRows = data ?? [];
+    }
+
+    // Fall back to DB-stored custom exercise muscle groups if payload omitted them.
+    if (mgRows.length === 0 && exercise.custom_exercise_id) {
+      const { data } = await supabase
+        .from("user_custom_exercise_muscle_groups")
+        .select("muscle_group, role")
+        .eq("user_custom_exercise_id", exercise.custom_exercise_id);
+      mgRows = data ?? [];
+    }
+
+    for (const mg of mgRows) {
+      const xpAmount = mg.role === "primary" ? XP_MG_PRIMARY : XP_MG_SECONDARY;
       events.push({
         gym_id: gymId,
         user_id: userId,
         axis: "muscle_group",
-        xp_amount: mgXp,
+        xp_amount: xpAmount,
         source_type: "session_exercise",
         source_id: exercise.session_exercise_id,
-        idempotency_key: `muscle_group:${w.muscle_group}:session_exercise:${exercise.session_exercise_id}`,
+        idempotency_key: `mg:${mg.muscle_group}:${mg.role}:se:${exercise.session_exercise_id}`,
         exercise_key: exercise.exercise_key,
-        muscle_group: w.muscle_group,
+        muscle_group: mg.muscle_group,
         occurred_at: finishedAt!,
       });
     }
@@ -376,7 +403,56 @@ function jsonResponse(body: unknown, status: number): Response {
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/** Returns true only for properly-formatted UUIDs. Rejects 'freestyle' and other sentinels. */
 function isValidUuid(value: string | null | undefined): value is string {
   return typeof value === "string" && UUID_RE.test(value);
+}
+
+/**
+ * Derives a yyyy-MM-dd day anchor from an ISO 8601 timestamp using the
+ * Europe/Berlin timezone. The client-supplied session_day_anchor is ignored
+ * in favour of this server-computed value to prevent backdating.
+ */
+function deriveSessionDayAnchor(isoTimestamp: string): string {
+  // "sv-SE" locale produces YYYY-MM-DD format natively via Intl.DateTimeFormat.
+  return new Intl.DateTimeFormat("sv-SE", {
+    timeZone: "Europe/Berlin",
+  }).format(new Date(isoTimestamp));
+}
+
+/**
+ * Validates exercise_key format for every exercise in the payload.
+ * Returns a human-readable error string on first violation, or null if valid.
+ * display_name is handled via silent truncation at write time (no hard reject).
+ */
+function validateExercises(exercises: ExercisePayload[]): string | null {
+  for (const ex of exercises) {
+    if (!EXERCISE_KEY_RE.test(ex.exercise_key)) {
+      return `Invalid exercise_key: "${ex.exercise_key}"`;
+    }
+  }
+  return null;
+}
+
+/**
+ * Validates set metric fields against upper bounds.
+ * Returns a structured error object on first violation, or null if all valid.
+ */
+function validateSetMetrics(
+  sets: SetPayload[],
+): { set_entry_id: string; field: string; value: number } | null {
+  for (const s of sets) {
+    if (s.reps != null && s.reps > SET_LIMITS.reps) {
+      return { set_entry_id: s.set_entry_id, field: "reps", value: s.reps };
+    }
+    if (s.weight_kg != null && s.weight_kg > SET_LIMITS.weight_kg) {
+      return { set_entry_id: s.set_entry_id, field: "weight_kg", value: s.weight_kg };
+    }
+    if (s.duration_seconds != null && s.duration_seconds > SET_LIMITS.duration_seconds) {
+      return { set_entry_id: s.set_entry_id, field: "duration_seconds", value: s.duration_seconds };
+    }
+    if (s.distance_meters != null && s.distance_meters > SET_LIMITS.distance_meters) {
+      return { set_entry_id: s.set_entry_id, field: "distance_meters", value: s.distance_meters };
+    }
+  }
+  return null;
 }

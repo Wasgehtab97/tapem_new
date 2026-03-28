@@ -15,6 +15,8 @@ class PlansScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Restore plans from Supabase if SQLite is empty (reinstall case).
+    ref.watch(restorePlansFromSupabaseProvider);
     final plans = ref.watch(plansProvider);
     final l10n = context.l10n;
 
