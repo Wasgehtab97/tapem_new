@@ -33,14 +33,14 @@ ios-emu:
 	@xcrun simctl boot $(IOS_SIM_ID) 2>/dev/null || true
 	@open -a Simulator
 	@echo "→ Building and launching on iOS simulator..."
-	flutter run -d $(IOS_SIM_ID) --dart-define-from-file=$(ENV_FILE)
+	flutter run -d $(IOS_SIM_ID) --dart-define-from-file=$(ENV_FILE) --dart-define=BUILD_DATE=$$(date +'%d.%m.%Y')
 
 ios-iphone:
 	@echo "→ Killing any running Flutter instances..."
 	@pkill -f "flutter run" 2>/dev/null || true
 	@sleep 1
 	@echo "→ Building release build for iOS..."
-	flutter build ios --release --dart-define-from-file=$(ENV_FILE)
+	flutter build ios --release --dart-define-from-file=$(ENV_FILE) --dart-define=BUILD_DATE=$$(date +'%d.%m.%Y')
 	@echo "→ Installing on Daniels iPhone..."
 	xcrun devicectl device install app --device $(IOS_DEVICE_ID) build/ios/iphoneos/Runner.app
 	@echo "✓ App installiert — auf dem iPhone öffnen."
@@ -50,7 +50,7 @@ ios-iphone:
 ## Output: $(APK_PATH)
 apk:
 	@echo "→ Building release APK..."
-	flutter build apk --release --dart-define-from-file=$(ENV_FILE)
+	flutter build apk --release --dart-define-from-file=$(ENV_FILE) --dart-define=BUILD_DATE=$$(date +'%d.%m.%Y')
 	@echo ""
 	@echo "✓ APK built: $(APK_PATH)"
 	@echo "  Upload this file to Firebase App Distribution."
@@ -73,6 +73,7 @@ testflight:
 	@echo "→ Building release IPA..."
 	flutter build ipa --release \
 		--dart-define-from-file=$(ENV_FILE) \
+		--dart-define=BUILD_DATE=$$(date +'%d.%m.%Y') \
 		--export-options-plist=ios/ExportOptions.plist
 	@echo "→ Uploading to TestFlight (bundle: $(BUNDLE_ID))..."
 	@xcrun altool --upload-app \

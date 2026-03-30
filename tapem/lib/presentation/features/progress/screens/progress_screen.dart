@@ -35,7 +35,7 @@ class ProgressScreen extends ConsumerWidget {
           ref.invalidate(recentSessionsProvider);
         },
         child: ListView(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
           children: [
             // ── XP Overview (Konsistenz axis) ─────────────────────────────
             const _XpOverviewCard(),
@@ -147,62 +147,88 @@ class _XpAxisRow extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Container(width: 3, height: 14, color: color),
-            const SizedBox(width: 8),
-            Expanded(child: Text(label, style: AppTextStyles.labelSm)),
+            // Accent dot
+            Container(
+              width: 4,
+              height: 4,
+              decoration: BoxDecoration(
+                color: color,
+                shape: BoxShape.circle,
+                boxShadow: [BoxShadow(color: color.withAlpha(120), blurRadius: 6)],
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(child: Text(label, style: AppTextStyles.labelMd.copyWith(fontSize: 13))),
             if (!isEmpty && !isLoading) ...[
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
                 decoration: BoxDecoration(
-                  color: color.withAlpha(20),
-                  borderRadius: BorderRadius.circular(3),
-                  border: Border.all(color: color.withAlpha(70)),
+                  color: color.withAlpha(22),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: color.withAlpha(80)),
+                  boxShadow: [BoxShadow(color: color.withAlpha(18), blurRadius: 8)],
                 ),
                 child: Text(
                   'LVL $level',
-                  style: AppTextStyles.monoSm.copyWith(
-                    color: color,
-                    fontSize: 10,
-                  ),
+                  style: AppTextStyles.monoSm.copyWith(color: color, fontSize: 11),
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 10),
               Text(
                 '$totalXp XP',
-                style: AppTextStyles.monoSm.copyWith(fontSize: 11),
+                style: AppTextStyles.monoSm.copyWith(fontSize: 12, color: AppColors.textSecondary),
               ),
             ] else if (isEmpty && !isLoading) ...[
-              Text(
-                '—',
-                style: AppTextStyles.bodySm.copyWith(
-                  color: AppColors.textDisabled,
-                ),
-              ),
+              Text('—', style: AppTextStyles.bodySm.copyWith(color: AppColors.textDisabled)),
             ],
           ],
         ),
-        const SizedBox(height: 5),
+        const SizedBox(height: 10),
         if (isLoading)
-          const LinearProgressIndicator(minHeight: 4)
+          Container(
+            height: 5,
+            decoration: BoxDecoration(
+              color: AppColors.surface600,
+              borderRadius: BorderRadius.circular(3),
+            ),
+          )
         else
-          ClipRRect(
-            borderRadius: BorderRadius.circular(2),
-            child: LinearProgressIndicator(
-              value: progress,
-              minHeight: 4,
-              backgroundColor: AppColors.surface600,
-              valueColor: AlwaysStoppedAnimation(color),
+          TweenAnimationBuilder<double>(
+            tween: Tween<double>(begin: 0.0, end: progress),
+            duration: const Duration(milliseconds: 1100),
+            curve: Curves.easeOutCubic,
+            builder: (_, val, __) => Stack(
+              children: [
+                Container(
+                  height: 5,
+                  decoration: BoxDecoration(
+                    color: AppColors.surface600,
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                ),
+                FractionallySizedBox(
+                  widthFactor: val,
+                  child: Container(
+                    height: 5,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [color, color.withAlpha(160)],
+                      ),
+                      borderRadius: BorderRadius.circular(3),
+                      boxShadow: [BoxShadow(color: color.withAlpha(100), blurRadius: 8)],
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         if (!isEmpty && !isLoading) ...[
-          const SizedBox(height: 3),
+          const SizedBox(height: 4),
           Text(
-            '$xpToNext XP → LVL ${level + 1}',
-            style: AppTextStyles.bodySm.copyWith(
-              color: AppColors.textDisabled,
-              fontSize: 10,
-            ),
+            'noch $xpToNext XP bis Lvl ${level + 1}',
+            style: AppTextStyles.bodySm.copyWith(color: AppColors.textDisabled, fontSize: 10),
           ),
         ],
       ],
@@ -223,7 +249,7 @@ class _EquipmentXpCard extends StatelessWidget {
     final l10n = context.l10n;
 
     return ClipRRect(
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(20),
       child: Material(
         color: AppColors.surface800,
         child: InkWell(
@@ -233,10 +259,14 @@ class _EquipmentXpCard extends StatelessWidget {
           splashColor: AppColors.neonMagenta.withAlpha(15),
           highlightColor: AppColors.neonMagenta.withAlpha(8),
           child: Container(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: AppColors.surface500),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: AppColors.neonMagenta.withAlpha(40)),
+              boxShadow: [
+                BoxShadow(color: AppColors.neonMagenta.withAlpha(12), blurRadius: 20),
+                BoxShadow(color: Colors.black.withAlpha(50), blurRadius: 12),
+              ],
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -863,67 +893,12 @@ class _MuscleGroupBar extends StatelessWidget {
 class _NutritionTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(8),
-      child: Material(
-        color: AppColors.surface800,
-        child: InkWell(
-          onTap: () => context.push(RouteNames.nutrition),
-          splashColor: AppColors.neonCyan.withAlpha(15),
-          highlightColor: AppColors.neonCyan.withAlpha(8),
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: AppColors.surface500),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: AppColors.neonCyan.withAlpha(20),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: AppColors.neonCyan.withAlpha(60),
-                    ),
-                  ),
-                  child: const Icon(
-                    Icons.restaurant_outlined,
-                    color: AppColors.neonCyan,
-                    size: 22,
-                  ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'KALORIEN & ERNÄHRUNG',
-                        style: AppTextStyles.labelMd,
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        'Mahlzeiten loggen & Makros tracken',
-                        style: AppTextStyles.bodySm.copyWith(
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const Icon(
-                  Icons.chevron_right,
-                  color: AppColors.textSecondary,
-                  size: 20,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
+    return _NavTile(
+      color: AppColors.neonCyan,
+      icon: Icons.restaurant_rounded,
+      title: 'KALORIEN & ERNÄHRUNG',
+      subtitle: 'Mahlzeiten loggen & Makros tracken',
+      onTap: () => context.push(RouteNames.nutrition),
     );
   }
 }
@@ -934,62 +909,85 @@ class _TrainingPlansTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
+    return _NavTile(
+      color: AppColors.neonMagenta,
+      icon: Icons.list_alt_rounded,
+      title: l10n.trainingPlansTile,
+      subtitle: l10n.createManagePlans,
+      onTap: () => context.push(RouteNames.plans),
+    );
+  }
+}
+
+// ─── Shared premium nav tile ──────────────────────────────────────────────────
+
+class _NavTile extends StatelessWidget {
+  const _NavTile({
+    required this.color,
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final Color color;
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
     return ClipRRect(
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(20),
       child: Material(
         color: AppColors.surface800,
         child: InkWell(
-          onTap: () => context.push(RouteNames.plans),
-          splashColor: AppColors.neonMagenta.withAlpha(15),
-          highlightColor: AppColors.neonMagenta.withAlpha(8),
+          onTap: onTap,
+          splashColor: color.withAlpha(20),
+          highlightColor: color.withAlpha(10),
           child: Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: AppColors.surface500),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: color.withAlpha(50)),
+              boxShadow: [
+                BoxShadow(color: color.withAlpha(15), blurRadius: 20),
+                BoxShadow(color: Colors.black.withAlpha(50), blurRadius: 10),
+              ],
             ),
             child: Row(
               children: [
                 Container(
-                  width: 44,
-                  height: 44,
+                  width: 48,
+                  height: 48,
                   decoration: BoxDecoration(
-                    color: AppColors.neonMagenta.withAlpha(20),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: AppColors.neonMagenta.withAlpha(60),
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [color.withAlpha(35), color.withAlpha(12)],
                     ),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: color.withAlpha(80)),
+                    boxShadow: [BoxShadow(color: color.withAlpha(20), blurRadius: 10)],
                   ),
-                  child: const Icon(
-                    Icons.list_alt_outlined,
-                    color: AppColors.neonMagenta,
-                    size: 22,
-                  ),
+                  child: Icon(icon, color: color, size: 22),
                 ),
-                const SizedBox(width: 14),
+                const SizedBox(width: 16),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        l10n.trainingPlansTile,
-                        style: AppTextStyles.labelMd,
-                      ),
+                      Text(title, style: AppTextStyles.labelLg.copyWith(fontSize: 13)),
                       const SizedBox(height: 3),
                       Text(
-                        l10n.createManagePlans,
-                        style: AppTextStyles.bodySm.copyWith(
-                          color: AppColors.textSecondary,
-                        ),
+                        subtitle,
+                        style: AppTextStyles.bodySm.copyWith(color: AppColors.textSecondary),
                       ),
                     ],
                   ),
                 ),
-                const Icon(
-                  Icons.chevron_right,
-                  color: AppColors.textSecondary,
-                  size: 20,
-                ),
+                Icon(Icons.chevron_right_rounded, color: color.withAlpha(180), size: 22),
               ],
             ),
           ),
@@ -1105,11 +1103,14 @@ class _RecentSessionsCard extends ConsumerWidget {
 
   static Widget _shell({required String title, required Widget child}) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: AppColors.surface800,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppColors.surface500),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.surface500.withAlpha(150)),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withAlpha(50), blurRadius: 12),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1350,11 +1351,14 @@ class _SectionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: AppColors.surface800,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppColors.surface500),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.surface500.withAlpha(150)),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withAlpha(50), blurRadius: 12, offset: const Offset(0, 3)),
+        ],
       ),
       child: child,
     );

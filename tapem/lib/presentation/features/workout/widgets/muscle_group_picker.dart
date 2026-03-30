@@ -35,7 +35,7 @@ class MuscleGroupPicker extends StatelessWidget {
         // ── Primary (required) ─────────────────────────────────────────────────
         Row(
           children: [
-            Text('PRIMÄRE MUSKELGRUPPE', style: AppTextStyles.labelSm),
+            const Text('PRIMÄRE MUSKELGRUPPE', style: AppTextStyles.labelSm),
             const SizedBox(width: 6),
             Text(
               '(Pflichtfeld)',
@@ -67,7 +67,7 @@ class MuscleGroupPicker extends StatelessWidget {
         // ── Secondary (optional) ───────────────────────────────────────────────
         Row(
           children: [
-            Text('SEKUNDÄRE MUSKELGRUPPEN', style: AppTextStyles.labelSm),
+            const Text('SEKUNDÄRE MUSKELGRUPPEN', style: AppTextStyles.labelSm),
             const SizedBox(width: 6),
             Text(
               '(Optional, max. $_maxSecondary)',

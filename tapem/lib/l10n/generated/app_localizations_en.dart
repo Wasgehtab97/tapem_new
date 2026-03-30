@@ -450,6 +450,52 @@ class AppLocalizationsEn extends AppLocalizations {
   String get rankingsTab => 'RANKINGS';
 
   @override
+  String get dealsTab => 'DEALS';
+
+  @override
+  String get dealsHeaderTitle => 'EXCLUSIVE DEALS';
+
+  @override
+  String get dealsHeaderSubtitle => 'Offers selected for your gym.';
+
+  @override
+  String get dealsCategorySupplements => 'SUPPLEMENTS';
+
+  @override
+  String get dealsCategoryClothing => 'CLOTHING';
+
+  @override
+  String get dealsCategoryFood => 'NUTRITION';
+
+  @override
+  String get dealsCategoryEquipment => 'EQUIPMENT';
+
+  @override
+  String get dealsCategoryWellness => 'WELLNESS';
+
+  @override
+  String get dealsShopNow => 'SHOP NOW';
+
+  @override
+  String get dealsCopied => 'Code copied!';
+
+  @override
+  String get dealsNoDeals => 'NO DEALS AVAILABLE';
+
+  @override
+  String get dealsNoDealsSubtitle => 'Deals for your gym are coming soon.';
+
+  @override
+  String get dealsInfoTitle => 'SNEAK PEEK';
+
+  @override
+  String get dealsInfoBody =>
+      'The deals you see here are demo content — no real codes yet. But this is exactly what\'s coming: exclusive discounts, curated for your gym, right inside the app. Every partner that joins supports Tap\'em\'s development and your gym. Stay tuned.';
+
+  @override
+  String get dealsInfoGotIt => 'GOT IT';
+
+  @override
   String requestsSection(int count) {
     return 'REQUESTS ($count)';
   }

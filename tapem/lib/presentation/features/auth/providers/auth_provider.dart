@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 // ─── Supabase client ──────────────────────────────────────────────────────────
@@ -27,8 +28,12 @@ final authSessionProvider = StreamProvider<Session?>((ref) {
 // ─── Current user ─────────────────────────────────────────────────────────────
 
 final currentUserProvider = Provider<User?>((ref) {
-  final session = ref.watch(authSessionProvider).valueOrNull;
-  return session?.user;
+  final streamUser = ref.watch(authSessionProvider).valueOrNull?.user;
+  if (streamUser != null) return streamUser;
+  // Fall back to the synchronous SDK value during stream startup or transient
+  // token-refresh gaps — prevents data providers from seeing a spurious null
+  // and clearing cached data (e.g. profile screen showing "Kein Profil").
+  return ref.watch(supabaseClientProvider).auth.currentUser;
 });
 
 // ─── Auth route state (for router guard) ──────────────────────────────────────
@@ -73,6 +78,10 @@ final authRouteStreamProvider = StreamProvider<AuthRouteState?>((ref) async* {
   }
 });
 
+// Must match kActiveWorkoutSessionKey in gym_service.dart — kept separate to
+// avoid a circular import (gym_service.dart imports auth_provider.dart).
+const _kActiveWorkoutSessionKey = 'tapem_active_session_id_v1';
+
 // ─── Auth actions notifier ────────────────────────────────────────────────────
 
 class AuthNotifier extends AsyncNotifier<void> {
@@ -104,7 +113,21 @@ class AuthNotifier extends AsyncNotifier<void> {
   Future<void> signOut() async {
     state = const AsyncLoading();
     state = await AsyncValue.guard(() async {
-      await _client.auth.signOut();
+      // Clear the workout anchor key BEFORE signing out so the router's
+      // active-workout guard cannot block the redirect to /auth/login.
+      // This also covers the case where the server-side revocation fails
+      // (expired token, offline) and we fall back to a local-only sign-out.
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_kActiveWorkoutSessionKey);
+
+      try {
+        await _client.auth.signOut();
+      } catch (_) {
+        // Server-side token revocation failed (e.g. expired token, no network).
+        // Local-only sign-out always clears the stored session and emits the
+        // signedOut event, ensuring the router redirects to login.
+        await _client.auth.signOut(scope: SignOutScope.local);
+      }
     });
   }
 

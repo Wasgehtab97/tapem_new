@@ -12,7 +12,6 @@ import '../../../../core/services/sync_service.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../data/datasources/local/app_database.dart';
-import '../../../../domain/entities/gym/exercise_muscle_group.dart';
 import '../../../../domain/entities/gym/gym_equipment.dart';
 import '../../../../domain/entities/gym/muscle_group.dart';
 import '../../../../domain/entities/gym/muscle_group_role.dart';
@@ -679,7 +678,7 @@ class _CreateExerciseInline extends HookConsumerWidget {
         children: [
           Row(
             children: [
-              Text('NEUE ÜBUNG', style: AppTextStyles.labelMd),
+              const Text('NEUE ÜBUNG', style: AppTextStyles.labelMd),
               const Spacer(),
               // Step indicator
               Text(

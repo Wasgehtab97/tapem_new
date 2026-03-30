@@ -235,6 +235,27 @@ serve(async (req) => {
         .upsert(mgRows, { onConflict: "user_custom_exercise_id,muscle_group", ignoreDuplicates: false });
     }
 
+    // ── Reconcile sets: delete orphaned Supabase rows ──────────────────────────
+    // Mirrors the client's current set list — rows not in the payload were
+    // unchecked (deleted from SQLite) and must be removed from the server too.
+    // Without this step, re-checking a set at the same position would conflict
+    // with the orphaned row's UNIQUE (session_exercise_id, set_number) constraint
+    // and cause every subsequent sync to return HTTP 500.
+    const currentSetIds = exercise.sets.map((s) => s.set_entry_id);
+    const orphanQuery = supabase
+      .from("set_entries")
+      .delete()
+      .eq("session_exercise_id", exercise.session_exercise_id);
+
+    const { error: orphanErr } = await (currentSetIds.length > 0
+      ? orphanQuery.not("id", "in", `(${currentSetIds.join(",")})`)
+      : orphanQuery);
+
+    if (orphanErr) {
+      console.error("[sync-workout] orphan set delete failed:", orphanErr);
+      return jsonResponse({ error: "Failed to persist sets" }, 500);
+    }
+
     if (exercise.sets.length > 0) {
       // ── Validate set metrics before persisting ──────────────────────────────
       const metricErr = validateSetMetrics(exercise.sets);

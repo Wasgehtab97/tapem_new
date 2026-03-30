@@ -17,7 +17,6 @@ class NutritionRecipeEditScreen extends HookConsumerWidget {
   const NutritionRecipeEditScreen({super.key, required this.extra});
 
   final Map<String, dynamic> extra;
-
   static const _uuid = Uuid();
 
   @override
@@ -45,6 +44,7 @@ class NutritionRecipeEditScreen extends HookConsumerWidget {
     );
 
     Future<void> handleSave() async {
+      FocusScope.of(context).unfocus();
       nameError.value = null;
       final name = nameCtrl.text.trim();
       if (name.isEmpty) {
@@ -106,152 +106,153 @@ class NutritionRecipeEditScreen extends HookConsumerWidget {
       ingredients.value = list;
     }
 
-    return Scaffold(
-      backgroundColor: AppColors.surface900,
-      appBar: AppBar(
+    return GestureDetector(
+      onTap: () => FocusScope.of(context).unfocus(),
+      behavior: HitTestBehavior.opaque,
+      child: Scaffold(
         backgroundColor: AppColors.surface900,
-        surfaceTintColor: Colors.transparent,
-        title: Text(
-          isNew ? 'NEUES REZEPT' : 'REZEPT BEARBEITEN',
-          style: AppTextStyles.h3,
-        ),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(1),
-          child: Container(
-            height: 1,
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  Colors.transparent,
-                  AppColors.neonCyan,
-                  Colors.transparent,
-                ],
+        appBar: AppBar(
+          backgroundColor: AppColors.surface900.withValues(alpha: 0.9),
+          surfaceTintColor: Colors.transparent,
+          title: Text(
+            isNew ? 'NEUES REZEPT' : 'REZEPT BEARBEITEN',
+            style: AppTextStyles.h3.copyWith(letterSpacing: 1.2),
+          ),
+          bottom: PreferredSize(
+            preferredSize: const Size.fromHeight(1),
+            child: Container(
+              height: 1,
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Colors.transparent, AppColors.neonCyan, Colors.transparent],
+                ),
               ),
             ),
           ),
         ),
-        actions: [
-          if (isSaving.value)
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16),
-              child: SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: AppColors.neonCyan,
-                ),
-              ),
-            )
-          else
-            TextButton(
-              onPressed: handleSave,
-              child: Text(
-                'SPEICHERN',
-                style: AppTextStyles.buttonMd.copyWith(color: AppColors.neonCyan),
-              ),
-            ),
-        ],
-      ),
-      body: Form(
-        key: formKey,
-        child: ListView(
-          padding: const EdgeInsets.all(16),
+        body: Column(
           children: [
-            // ── Recipe name ──────────────────────────────────────────
-            TextFormField(
-              controller: nameCtrl,
-              style: AppTextStyles.h3,
-              decoration: InputDecoration(
-                labelText: 'Rezeptname',
-                labelStyle: AppTextStyles.labelLg.copyWith(color: AppColors.textSecondary),
-                hintText: 'z. B. Haferflocken Frühstück',
-                hintStyle: AppTextStyles.bodySm,
-                filled: true,
-                fillColor: AppColors.surface600,
-                errorText: nameError.value,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(color: AppColors.surface500),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(color: AppColors.surface500),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(color: AppColors.neonCyan),
-                ),
-                errorBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(color: AppColors.error),
-                ),
-              ),
-            ),
-            const Gap(20),
+             Expanded(
+               child: Form(
+                 key: formKey,
+                 child: ListView(
+                   physics: const BouncingScrollPhysics(),
+                   keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                   padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+                   children: [
+                     // ── Recipe name ──────────────────────────────────────────
+                     TextFormField(
+                       controller: nameCtrl,
+                       style: AppTextStyles.h3,
+                       decoration: InputDecoration(
+                         labelText: 'Rezeptname',
+                         labelStyle: AppTextStyles.labelLg.copyWith(color: AppColors.neonCyan),
+                         hintText: 'z. B. Haferflocken Frühstück',
+                         hintStyle: AppTextStyles.bodySm.copyWith(color: AppColors.textDisabled),
+                         filled: true,
+                         fillColor: AppColors.surface700.withValues(alpha: 0.5),
+                         errorText: nameError.value,
+                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                         enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AppColors.surface500.withValues(alpha: 0.5))),
+                         focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.neonCyan, width: 1.5)),
+                         errorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AppColors.error.withValues(alpha: 0.5))),
+                         contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+                       ),
+                     ),
+                     const Gap(24),
 
-            // ── Summary card ─────────────────────────────────────────
-            _SummaryCard(summary: summary, ingredientCount: ingredients.value.length),
-            const Gap(20),
+                     // ── Summary card ─────────────────────────────────────────
+                     _SummaryCard(summary: summary, ingredientCount: ingredients.value.length),
+                     const Gap(32),
 
-            // ── Ingredients header ────────────────────────────────────
-            Row(
-              children: [
-                Text('ZUTATEN', style: AppTextStyles.labelSm.copyWith(color: AppColors.textSecondary)),
-                const Spacer(),
-                Text(
-                  '${ingredients.value.length} Einträge',
-                  style: AppTextStyles.labelSm,
-                ),
-              ],
-            ),
-            const Gap(8),
+                     // ── Ingredients header ────────────────────────────────────
+                     Row(
+                       children: [
+                         Text('ZUTATEN', style: AppTextStyles.labelSm.copyWith(color: AppColors.textDisabled, letterSpacing: 2.0)),
+                         const Spacer(),
+                         Container(
+                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                           decoration: BoxDecoration(color: AppColors.surface800, borderRadius: BorderRadius.circular(12)),
+                           child: Text('${ingredients.value.length} Einträge', style: AppTextStyles.labelSm),
+                         ),
+                       ],
+                     ),
+                     const Gap(16),
 
-            // ── Ingredient forms ──────────────────────────────────────
-            ...ingredients.value.asMap().entries.map((entry) {
-              final i = entry.key;
-              final ing = entry.value;
-              return _IngredientForm(
-                key: ValueKey('ing_$i'),
-                ingredient: ing,
-                index: i,
-                onUpdate: (updated) => updateIngredient(i, updated),
-                onDelete: () => removeIngredient(i),
-                onBarcodeScanned: (product) {
-                  updateIngredient(
-                    i,
-                    ing.copyWith(
-                      name: ing.name.isEmpty ? product.name : ing.name,
-                      kcalPer100: product.kcalPer100,
-                      proteinPer100: product.proteinPer100,
-                      carbsPer100: product.carbsPer100,
-                      fatPer100: product.fatPer100,
-                    ),
-                  );
-                },
-                extra: extra,
-              );
-            }),
+                     // ── Add ingredient button ─────────────────────────────────
+                     OutlinedButton.icon(
+                       icon: const Icon(Icons.add, color: AppColors.neonCyan),
+                       label: Text('ZUTAT HINZUFÜGEN', style: AppTextStyles.buttonMd.copyWith(color: AppColors.neonCyan)),
+                       style: OutlinedButton.styleFrom(
+                         padding: const EdgeInsets.symmetric(vertical: 16),
+                         side: BorderSide(color: AppColors.neonCyan.withValues(alpha: 0.4)),
+                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                         backgroundColor: AppColors.neonCyan.withValues(alpha: 0.05),
+                       ),
+                       onPressed: addIngredient,
+                     ),
+                     const Gap(16),
 
-            const Gap(8),
-
-            // ── Add ingredient button ─────────────────────────────────
-            OutlinedButton.icon(
-              icon: const Icon(Icons.add, color: AppColors.neonCyan),
-              label: Text(
-                'ZUTAT HINZUFÜGEN',
-                style: AppTextStyles.buttonMd.copyWith(color: AppColors.neonCyan),
-              ),
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                side: const BorderSide(color: AppColors.neonCyanDim),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-              onPressed: addIngredient,
-            ),
-            const Gap(32),
+                     // ── Ingredient forms ──────────────────────────────────────
+                     ...ingredients.value.asMap().entries.map((entry) {
+                       final i = entry.key;
+                       final ing = entry.value;
+                       return _IngredientForm(
+                         key: ValueKey('ing_$i'),
+                         ingredient: ing,
+                         index: i,
+                         onUpdate: (updated) => updateIngredient(i, updated),
+                         onDelete: () => removeIngredient(i),
+                         onBarcodeScanned: (product) {
+                           updateIngredient(
+                             i,
+                             ing.copyWith(
+                               name: ing.name.isEmpty ? product.name : ing.name,
+                               kcalPer100: product.kcalPer100,
+                               proteinPer100: product.proteinPer100,
+                               carbsPer100: product.carbsPer100,
+                               fatPer100: product.fatPer100,
+                             ),
+                           );
+                         },
+                         extra: extra,
+                       );
+                     }),
+                     const Gap(32),
+                   ],
+                 ),
+               ),
+             ),
+             
+             // ── Sticky Bottom Action Bar ────────────────────────────────────────
+             Container(
+               padding: EdgeInsets.fromLTRB(24, 16, 24, MediaQuery.of(context).padding.bottom + 16),
+               decoration: BoxDecoration(
+                 color: AppColors.surface800.withValues(alpha: 0.95),
+                 boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.3), blurRadius: 10, offset: const Offset(0, -4))],
+                 border: Border(top: BorderSide(color: AppColors.surface500.withValues(alpha: 0.5))),
+               ),
+               child: GestureDetector(
+                 onTap: isSaving.value ? null : handleSave,
+                 child: AnimatedContainer(
+                   duration: const Duration(milliseconds: 200),
+                   width: double.infinity,
+                   padding: const EdgeInsets.symmetric(vertical: 16),
+                   decoration: BoxDecoration(
+                     color: isSaving.value ? AppColors.neonCyan.withValues(alpha: 0.5) : AppColors.neonCyan,
+                     borderRadius: BorderRadius.circular(16),
+                     boxShadow: [
+                       if (!isSaving.value) BoxShadow(color: AppColors.neonCyan.withValues(alpha: 0.3), blurRadius: 12, offset: const Offset(0, 4)),
+                     ],
+                   ),
+                   child: Center(
+                     child: isSaving.value
+                         ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.textOnAction))
+                         : Text(isNew ? 'REZEPT SPEICHERN' : 'ÄNDERUNGEN SPEICHERN', style: AppTextStyles.buttonLg.copyWith(color: AppColors.textOnAction)),
+                   ),
+                 ),
+               ),
+             ),
           ],
         ),
       ),
@@ -270,46 +271,36 @@ class _SummaryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: AppColors.surface800,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.neonCyanGlow.withValues(alpha: 0.5)),
+        color: AppColors.surface800.withValues(alpha: 0.8),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.neonCyan.withValues(alpha: 0.2)),
+        boxShadow: [BoxShadow(color: AppColors.neonCyan.withValues(alpha: 0.05), blurRadius: 20, spreadRadius: 2)],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Text(
-                'ZUSAMMENFASSUNG',
-                style: AppTextStyles.labelSm.copyWith(color: AppColors.textSecondary),
-              ),
+              Text('ZUSAMMENFASSUNG', style: AppTextStyles.labelSm.copyWith(color: AppColors.textDisabled, letterSpacing: 1.5)),
               const Spacer(),
-              Text(
-                '${summary.totalGrams.toStringAsFixed(0)} g gesamt',
-                style: AppTextStyles.labelSm,
-              ),
+              Text('${summary.totalGrams.toStringAsFixed(0)} g gesamt', style: AppTextStyles.labelSm.copyWith(color: AppColors.textSecondary)),
             ],
           ),
-          const Gap(10),
+          const Gap(24),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
               _SummaryCell('KCAL', '${summary.totalKcal}', Colors.orangeAccent),
-              _SummaryCell('PROTEIN', '${summary.totalProtein}g', Colors.blueAccent),
-              _SummaryCell('KOHLENH.', '${summary.totalCarbs}g', Colors.amberAccent),
-              _SummaryCell('FETT', '${summary.totalFat}g', Colors.lightGreenAccent),
+              _SummaryCell('PROTEIN', '${summary.totalProtein}g', const Color(0xFF42A5F5)),
+              _SummaryCell('KOHLENH.', '${summary.totalCarbs}g', const Color(0xFFFFCA28)),
+              _SummaryCell('FETT', '${summary.totalFat}g', const Color(0xFF66BB6A)),
             ],
           ),
           if (ingredientCount == 0) ...[
-            const Gap(8),
-            Center(
-              child: Text(
-                'Noch keine Zutaten.',
-                style: AppTextStyles.bodySm,
-              ),
-            ),
+            const Gap(16),
+            Center(child: Text('Füge Zutaten hinzu.', style: AppTextStyles.bodySm.copyWith(color: AppColors.textDisabled, fontStyle: FontStyle.italic))),
           ],
         ],
       ),
@@ -329,9 +320,9 @@ class _SummaryCell extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(value, style: AppTextStyles.labelLg.copyWith(color: color)),
-        const Gap(2),
-        Text(label, style: AppTextStyles.labelSm),
+        Text(value, style: AppTextStyles.h2.copyWith(color: color, fontSize: 22)),
+        const Gap(4),
+        Text(label, style: AppTextStyles.labelSm.copyWith(color: AppColors.textDisabled, letterSpacing: 1.2, fontSize: 9)),
       ],
     );
   }
@@ -339,7 +330,7 @@ class _SummaryCell extends StatelessWidget {
 
 // ─── Ingredient form ──────────────────────────────────────────────────────────
 
-class _IngredientForm extends HookConsumerWidget {
+class _IngredientForm extends HookWidget {
   const _IngredientForm({
     super.key,
     required this.ingredient,
@@ -358,23 +349,13 @@ class _IngredientForm extends HookConsumerWidget {
   final Map<String, dynamic> extra;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final nameCtrl = useTextEditingController(text: ingredient.name);
-    final gramsCtrl = useTextEditingController(
-      text: ingredient.grams > 0 ? ingredient.grams.toStringAsFixed(0) : '',
-    );
-    final kcalCtrl = useTextEditingController(
-      text: ingredient.kcalPer100 > 0 ? '${ingredient.kcalPer100}' : '',
-    );
-    final proteinCtrl = useTextEditingController(
-      text: ingredient.proteinPer100 > 0 ? '${ingredient.proteinPer100}' : '',
-    );
-    final carbsCtrl = useTextEditingController(
-      text: ingredient.carbsPer100 > 0 ? '${ingredient.carbsPer100}' : '',
-    );
-    final fatCtrl = useTextEditingController(
-      text: ingredient.fatPer100 > 0 ? '${ingredient.fatPer100}' : '',
-    );
+    final gramsCtrl = useTextEditingController(text: ingredient.grams > 0 ? ingredient.grams.toStringAsFixed(0) : '');
+    final kcalCtrl = useTextEditingController(text: ingredient.kcalPer100 > 0 ? '${ingredient.kcalPer100}' : '');
+    final proteinCtrl = useTextEditingController(text: ingredient.proteinPer100 > 0 ? '${ingredient.proteinPer100}' : '');
+    final carbsCtrl = useTextEditingController(text: ingredient.carbsPer100 > 0 ? '${ingredient.carbsPer100}' : '');
+    final fatCtrl = useTextEditingController(text: ingredient.fatPer100 > 0 ? '${ingredient.fatPer100}' : '');
 
     void notifyUpdate() {
       onUpdate(RecipeIngredient(
@@ -404,8 +385,7 @@ class _IngredientForm extends HookConsumerWidget {
       };
     }, []);
 
-    // When ingredient prop changes externally (e.g. barcode scan fills values),
-    // sync controllers only if value differs to avoid cursor jumps
+    // When ingredient prop changes externally
     useEffect(() {
       if (nameCtrl.text != ingredient.name) nameCtrl.text = ingredient.name;
       final gramsStr = ingredient.grams > 0 ? ingredient.grams.toStringAsFixed(0) : '';
@@ -422,12 +402,12 @@ class _IngredientForm extends HookConsumerWidget {
     }, [ingredient]);
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(14),
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: AppColors.surface800,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.surface500),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.surface500.withValues(alpha: 0.5)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -435,115 +415,73 @@ class _IngredientForm extends HookConsumerWidget {
           // Header with index and delete
           Row(
             children: [
-              Text(
-                'ZUTAT ${index + 1}',
-                style: AppTextStyles.labelSm.copyWith(color: AppColors.textSecondary),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(color: AppColors.neonCyan.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(6)),
+                child: Text('ZUTAT ${index + 1}', style: AppTextStyles.labelSm.copyWith(color: AppColors.neonCyan, letterSpacing: 1.2)),
               ),
               const Spacer(),
               // Barcode scan button
               OutlinedButton.icon(
-                icon: const Icon(Icons.qr_code_scanner, size: 14),
-                label: Text('BARCODE', style: AppTextStyles.labelSm),
+                icon: const Icon(Icons.qr_code_scanner, size: 16),
+                label: Text('SCAN', style: AppTextStyles.labelMd.copyWith(color: AppColors.neonCyan)),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppColors.neonCyan,
-                  side: const BorderSide(color: AppColors.neonCyanDim),
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  side: BorderSide(color: AppColors.neonCyan.withValues(alpha: 0.4)),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   minimumSize: Size.zero,
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(6),
-                  ),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 ),
                 onPressed: () async {
+                  FocusScope.of(context).unfocus();
                   final result = await context.push<NutritionProduct>(
                     '/nutrition/scan',
-                    extra: {
-                      ...extra,
-                      'returnProduct': true,
-                    },
+                    extra: {...extra, 'returnProduct': true},
                   );
-                  if (result != null) {
-                    onBarcodeScanned(result);
-                  }
+                  if (result != null) onBarcodeScanned(result);
                 },
               ),
-              const Gap(8),
+              const Gap(12),
               GestureDetector(
                 onTap: onDelete,
-                child: const Icon(Icons.delete_outline, color: AppColors.error, size: 20),
+                child: Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(color: AppColors.errorGlow, borderRadius: BorderRadius.circular(6)),
+                  child: const Icon(Icons.delete_outline, color: AppColors.error, size: 20),
+                ),
               ),
             ],
           ),
-          const Gap(10),
+          const Gap(16),
 
           // Name field
-          _IngField(
-            controller: nameCtrl,
-            label: 'Name',
-            hint: 'z. B. Haferflocken',
-            keyboardType: TextInputType.text,
-            isNumeric: false,
-          ),
-          const Gap(8),
+          _IngField(controller: nameCtrl, label: 'Name', hint: 'z. B. Haferflocken', keyboardType: TextInputType.text, isNumeric: false),
+          const Gap(12),
 
           // Grams field
-          _IngField(
-            controller: gramsCtrl,
-            label: 'Menge (g)',
-            hint: '100',
-            keyboardType: TextInputType.number,
-            isNumeric: true,
-          ),
-          const Gap(8),
+          _IngField(controller: gramsCtrl, label: 'Menge (g)', hint: '100', keyboardType: TextInputType.number, isNumeric: true),
+          const Gap(24),
+          
+          Text('PRO 100 G', style: AppTextStyles.labelSm.copyWith(color: AppColors.textDisabled, letterSpacing: 1.5)),
+          const Gap(12),
 
           // Per-100g row 1
           Row(
             children: [
-              Expanded(
-                child: _IngField(
-                  controller: kcalCtrl,
-                  label: 'kcal/100g',
-                  hint: '0',
-                  keyboardType: TextInputType.number,
-                  isNumeric: true,
-                ),
-              ),
-              const Gap(8),
-              Expanded(
-                child: _IngField(
-                  controller: proteinCtrl,
-                  label: 'Protein/100g',
-                  hint: '0',
-                  keyboardType: TextInputType.number,
-                  isNumeric: true,
-                ),
-              ),
+              Expanded(child: _IngField(controller: kcalCtrl, label: 'kcal', hint: '0', keyboardType: TextInputType.number, isNumeric: true)),
+              const Gap(12),
+              Expanded(child: _IngField(controller: proteinCtrl, label: 'Protein (g)', hint: '0', keyboardType: TextInputType.number, isNumeric: true)),
             ],
           ),
-          const Gap(8),
+          const Gap(12),
 
           // Per-100g row 2
           Row(
             children: [
-              Expanded(
-                child: _IngField(
-                  controller: carbsCtrl,
-                  label: 'Kohlenh./100g',
-                  hint: '0',
-                  keyboardType: TextInputType.number,
-                  isNumeric: true,
-                ),
-              ),
-              const Gap(8),
-              Expanded(
-                child: _IngField(
-                  controller: fatCtrl,
-                  label: 'Fett/100g',
-                  hint: '0',
-                  keyboardType: TextInputType.number,
-                  isNumeric: true,
-                ),
-              ),
+              Expanded(child: _IngField(controller: carbsCtrl, label: 'Kohlenh. (g)', hint: '0', keyboardType: TextInputType.number, isNumeric: true)),
+              const Gap(12),
+              Expanded(child: _IngField(controller: fatCtrl, label: 'Fett (g)', hint: '0', keyboardType: TextInputType.number, isNumeric: true)),
             ],
           ),
         ],
@@ -554,7 +492,7 @@ class _IngredientForm extends HookConsumerWidget {
 
 // ─── Compact ingredient text field ────────────────────────────────────────────
 
-class _IngField extends StatelessWidget {
+class _IngField extends HookWidget {
   const _IngField({
     required this.controller,
     required this.label,
@@ -571,32 +509,32 @@ class _IngField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final focusNode = useFocusNode();
+    final isFocused = useState(focusNode.hasFocus);
+
+    useEffect(() {
+      void listener() => isFocused.value = focusNode.hasFocus;
+      focusNode.addListener(listener);
+      return () => focusNode.removeListener(listener);
+    }, [focusNode]);
+
     return TextField(
       controller: controller,
+      focusNode: focusNode,
       keyboardType: keyboardType,
-      inputFormatters: isNumeric ? [FilteringTextInputFormatter.digitsOnly] : null,
-      style: AppTextStyles.bodyMd,
+      inputFormatters: isNumeric ? [FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]'))] : null,
+      style: AppTextStyles.bodyLg,
       decoration: InputDecoration(
         labelText: label,
         hintText: hint,
-        labelStyle: AppTextStyles.labelSm.copyWith(color: AppColors.textSecondary),
-        hintStyle: AppTextStyles.bodySm,
-        isDense: true,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+        labelStyle: AppTextStyles.labelMd.copyWith(color: isFocused.value ? AppColors.neonCyan : AppColors.textSecondary),
+        hintStyle: AppTextStyles.bodySm.copyWith(color: AppColors.textDisabled),
         filled: true,
-        fillColor: AppColors.surface700,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(6),
-          borderSide: const BorderSide(color: AppColors.surface500),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(6),
-          borderSide: const BorderSide(color: AppColors.surface500),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(6),
-          borderSide: const BorderSide(color: AppColors.neonCyan),
-        ),
+        fillColor: isFocused.value ? AppColors.surface800 : AppColors.surface700.withValues(alpha: 0.4),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: AppColors.surface500.withValues(alpha: 0.5))),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.neonCyan, width: 1.5)),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       ),
     );
   }

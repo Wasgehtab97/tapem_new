@@ -77,13 +77,16 @@ class ActiveGymNotifier extends StateNotifier<String?> {
   Future<void> _load() async {
     final prefs = _ref.read(sharedPreferencesProvider);
     final storedId = prefs.getString(_kActiveGymIdKey);
-    if (storedId == null) return;
 
     // Only restore if a user session is currently active. On a cold start after
-    // sign-out the SharedPreferences key may still hold the previous user's gym.
+    // sign-out the SharedPreferences keys may still hold the previous user's gym
+    // and workout anchor, which would block the router redirect to login.
     final client = _ref.read(supabaseClientProvider);
-    if (client.auth.currentSession == null) {
-      await prefs.remove(_kActiveGymIdKey);
+    if (storedId == null || client.auth.currentSession == null) {
+      if (storedId != null) await prefs.remove(_kActiveGymIdKey);
+      // Clear any stale workout key — without an active session it would block
+      // the router's active-workout guard from ever redirecting to login.
+      await prefs.remove(kActiveWorkoutSessionKey);
       return;
     }
     state = storedId;

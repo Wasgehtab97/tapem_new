@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/services/gym_service.dart';
 import '../../../../core/services/database_service.dart';
+import '../../../../core/utils/logger.dart';
 import '../../../../core/utils/xp_rules.dart';
 import '../../../../data/datasources/local/app_database.dart';
 import '../../../../domain/entities/gym/muscle_group.dart';
@@ -18,17 +19,26 @@ typedef _LocalXpBase = ({
   Map<String, _EquipmentEntry> equipmentXpMap,
 });
 
-/// Computes both XP axes from local SQLite in one pass.
+/// Computes both XP axes by merging local SQLite data with the Supabase
+/// server state.  This ensures cross-device correctness: sessions tracked on
+/// a previous device (or before a reinstall) that exist only on the server are
+/// always included, as long as a network connection is available.
 ///
-/// Training-Days axis: unique calendar days × [XpRules.trainingDayBase].
-/// Exercise axis: per-equipment-id, one flat award of
-/// [XpRules.exerciseSessionBase] per (session, exercise) pair.
+/// Training-days axis:
+///   Authoritative value = user_gym_xp.total_xp (server — only aggregates real
+///   xp_events, never inflated by calendar-only seed sessions).
+///   Plus: locally-pending sessions whose day has not yet been confirmed by the
+///   server (i.e. syncStatus != 'sync_confirmed' AND no confirmed session exists
+///   for that same day already).
+///   Offline fallback: unique local calendar days × XpRules.trainingDayBase.
 ///
-/// For exercises recorded before schema v3 (equipmentId == null), the
-/// exerciseKey itself is used as the grouping key so no history is lost.
+/// Exercise/equipment axis:
+///   Start from local SQLite exercises (instant, works offline).
+///   Augment with server sessions whose IDs are absent from local SQLite —
+///   seeded sessions (no exercises) contribute nothing.
+///   Offline fallback: local-only map.
 ///
-/// Public so it can be invalidated by [invalidateLocalXpProviders] from
-/// outside this file (e.g. [SyncNotifier] after a successful upload).
+/// Public so it can be invalidated by [invalidateLocalXpProviders].
 final localXpBaseProvider = FutureProvider<_LocalXpBase>((ref) async {
   final user = ref.watch(currentUserProvider);
   final gymId = ref.watch(activeGymIdProvider);
@@ -37,53 +47,151 @@ final localXpBaseProvider = FutureProvider<_LocalXpBase>((ref) async {
   }
 
   final db = ref.watch(appDatabaseProvider);
+  final client = ref.watch(supabaseClientProvider);
 
-  // Build equipment-id → display-name map from local cache (no network call).
+  // Equipment name resolution from local cache (no network call).
   final cachedEquipment = await db.getEquipmentForGym(gymId);
   final equipNameMap = <String, String>{
     for (final e in cachedEquipment) e.id: e.name,
   };
 
-  final sessions = await db.getRecentSessions(gymId, user.id, limit: 1000);
+  final localSessions = await db.getRecentSessions(gymId, user.id, limit: 1000);
+  final localSessionIds = {for (final s in localSessions) s.id};
 
-  // ── Training-Days XP ──────────────────────────────────────────────────────
-  final uniqueDays = {for (final s in sessions) s.sessionDayAnchor};
-  final trainingDayXp = uniqueDays.length * XpRules.trainingDayBase;
+  // Split local sessions by sync status to identify which days are
+  // already confirmed on the server vs. pending upload.
+  final confirmedDays = <String>{};
+  final pendingDays = <String>{};
+  for (final s in localSessions) {
+    if (s.syncStatus == 'sync_confirmed') {
+      confirmedDays.add(s.sessionDayAnchor);
+    } else {
+      pendingDays.add(s.sessionDayAnchor);
+    }
+  }
+  // Days that are ONLY in pending (no confirmed session for the same day).
+  // These are not yet counted in user_gym_xp.total_xp on the server.
+  final newPendingDays = pendingDays.difference(confirmedDays);
 
-  // ── Per-Equipment XP ──────────────────────────────────────────────────────
+  // ── Equipment XP: local pass ──────────────────────────────────────────────
   final equipmentXpMap = <String, _EquipmentEntry>{};
 
-  for (final session in sessions) {
+  for (final session in localSessions) {
     final exercises = await db.getExercisesForSession(session.id);
 
     for (final exercise in exercises) {
-      // Resolve the grouping key and a human-readable name.
       final String key;
       final String name;
 
       if (exercise.equipmentId != null) {
-        // v3+ data: authoritative equipment ID stored on the exercise row.
         key = exercise.equipmentId!;
         name = equipNameMap[key] ?? exercise.displayName;
       } else if (exercise.exerciseKey.startsWith('cardio:')) {
-        // Legacy cardio: key encoded in exerciseKey as "cardio:{equipmentId}".
         key = exercise.exerciseKey.substring(7);
         name = equipNameMap[key] ?? exercise.displayName;
       } else {
-        // Legacy fixed-machine or open-station: group by exerciseKey and use
-        // the stored display name as label.
         key = exercise.exerciseKey;
         name = exercise.displayName;
       }
 
       final prev = equipmentXpMap[key];
       equipmentXpMap[key] = (
-        // Keep the first name we resolved — avoids display flicker if the same
-        // key appears with slightly different display names across sessions.
         name: prev?.name ?? name,
         xp: (prev?.xp ?? 0) + XpRules.exerciseSessionBase,
       );
     }
+  }
+
+  // ── Augment from Supabase ─────────────────────────────────────────────────
+  // Handles reinstall / device-switch: sessions confirmed on the server that
+  // no longer exist in local SQLite are fetched and merged in.
+  //
+  // Two independent Supabase calls so that a failure in one does not block
+  // the other.  Both are wrapped in try/catch for offline resilience.
+
+  // 1. Training-day XP — server aggregate is the single source of truth.
+  int? serverTrainingDayXp; // null = fetch failed (offline / error)
+  try {
+    final row = await client
+        .from('user_gym_xp')
+        .select('total_xp')
+        .eq('user_id', user.id)
+        .eq('gym_id', gymId)
+        .maybeSingle();
+    serverTrainingDayXp = (row?['total_xp'] as num?)?.toInt() ?? 0;
+  } catch (_) {
+    // Offline or auth error — will fall back to local count below.
+  }
+
+  // 2. Equipment XP — augment with server sessions absent from local SQLite.
+  try {
+    final remoteRows = await client
+        .from('workout_sessions')
+        .select(
+          'id, session_exercises(exercise_key, display_name, equipment_id)',
+        )
+        .eq('user_id', user.id)
+        .eq('gym_id', gymId)
+        .not('finished_at', 'is', null);
+
+    for (final row in (remoteRows as List)) {
+      final r = Map<String, Object?>.from(row as Map);
+      final sessionId = r['id'] as String;
+      if (localSessionIds.contains(sessionId)) continue; // already counted above
+
+      final exercises = ((r['session_exercises'] as List?) ?? [])
+          .cast<Map<dynamic, dynamic>>()
+          .map((e) => Map<String, Object?>.from(e))
+          .toList();
+
+      // Seeded / calendar-only sessions have no exercises — skip them so they
+      // do not inflate the equipment XP map.
+      if (exercises.isEmpty) continue;
+
+      for (final ex in exercises) {
+        final equipmentId = ex['equipment_id'] as String?;
+        final exerciseKey = ex['exercise_key'] as String? ?? '';
+        final displayName = ex['display_name'] as String? ?? '';
+
+        final String key;
+        final String name;
+        if (equipmentId != null) {
+          key = equipmentId;
+          name = equipNameMap[key] ?? displayName;
+        } else if (exerciseKey.startsWith('cardio:')) {
+          key = exerciseKey.substring(7);
+          name = equipNameMap[key] ?? displayName;
+        } else {
+          key = exerciseKey;
+          name = displayName;
+        }
+        if (key.isEmpty) continue;
+
+        final prev = equipmentXpMap[key];
+        equipmentXpMap[key] = (
+          name: prev?.name ?? name,
+          xp: (prev?.xp ?? 0) + XpRules.exerciseSessionBase,
+        );
+      }
+    }
+  } catch (e, st) {
+    AppLogger.e('[localXpBaseProvider] equipment augment from server failed', e, st);
+  }
+
+  // ── Final training-day XP ─────────────────────────────────────────────────
+  final int trainingDayXp;
+  if (serverTrainingDayXp != null) {
+    // Online path: server-confirmed XP (cross-device, seeded-session-safe)
+    // plus any locally-pending days not yet uploaded.
+    trainingDayXp = serverTrainingDayXp +
+        (newPendingDays.length * XpRules.trainingDayBase);
+  } else {
+    // Offline path: count unique days from local SQLite only.
+    final allLocalDays = {
+      ...confirmedDays,
+      ...pendingDays,
+    };
+    trainingDayXp = allLocalDays.length * XpRules.trainingDayBase;
   }
 
   return (trainingDayXp: trainingDayXp, equipmentXpMap: equipmentXpMap);
@@ -97,49 +205,22 @@ final userGymXpProvider = FutureProvider<UserGymXp?>((ref) async {
   if (user == null || gymId == null) return null;
 
   final base = await ref.watch(localXpBaseProvider.future);
-  if (base.trainingDayXp > 0) {
-    // Local SQLite has data — fast path, works offline + immediate post-workout.
-    return UserGymXp(
-      userId: user.id,
-      gymId: gymId,
-      totalXp: base.trainingDayXp,
-      currentLevel: XpRules.levelFromXp(
-        base.trainingDayXp,
-        XpRules.trainingDayXpPerLevel,
-      ),
-      xpToNextLevel: XpRules.xpToNextLevel(
-        base.trainingDayXp,
-        XpRules.trainingDayXpPerLevel,
-      ),
-      updatedAt: DateTime.now(),
-    );
-  }
+  if (base.trainingDayXp == 0) return null;
 
-  // Local empty (fresh install / reinstall) — fall back to Supabase.
-  try {
-    final client = ref.watch(supabaseClientProvider);
-    final row = await client
-        .from('user_gym_xp')
-        .select('total_xp, current_level, xp_to_next_level, updated_at')
-        .eq('user_id', user.id)
-        .eq('gym_id', gymId)
-        .maybeSingle();
-    if (row == null) return null;
-    final totalXp = (row['total_xp'] as num?)?.toInt() ?? 0;
-    if (totalXp == 0) return null;
-    return UserGymXp(
-      userId: user.id,
-      gymId: gymId,
-      totalXp: totalXp,
-      currentLevel: XpRules.levelFromXp(totalXp, XpRules.trainingDayXpPerLevel),
-      xpToNextLevel: XpRules.xpToNextLevel(totalXp, XpRules.trainingDayXpPerLevel),
-      updatedAt:
-          DateTime.tryParse(row['updated_at'] as String? ?? '') ??
-          DateTime.now(),
-    );
-  } catch (_) {
-    return null;
-  }
+  return UserGymXp(
+    userId: user.id,
+    gymId: gymId,
+    totalXp: base.trainingDayXp,
+    currentLevel: XpRules.levelFromXp(
+      base.trainingDayXp,
+      XpRules.trainingDayXpPerLevel,
+    ),
+    xpToNextLevel: XpRules.xpToNextLevel(
+      base.trainingDayXp,
+      XpRules.trainingDayXpPerLevel,
+    ),
+    updatedAt: DateTime.now(),
+  );
 });
 
 // ─── Per-equipment Exercise XP ────────────────────────────────────────────────
@@ -165,100 +246,22 @@ class ExerciseXp {
 final userExerciseXpProvider = FutureProvider<List<ExerciseXp>>((ref) async {
   final base = await ref.watch(localXpBaseProvider.future);
 
-  if (base.equipmentXpMap.isNotEmpty) {
-    // Local SQLite has data — fast path.
-    final sorted = base.equipmentXpMap.entries.toList()
-      ..sort((a, b) => b.value.xp.compareTo(a.value.xp));
-    return sorted.map((entry) {
-      return ExerciseXp(
-        label: entry.value.name,
-        equipmentKey: entry.key,
-        totalXp: entry.value.xp,
-        currentLevel: XpRules.levelFromXp(
-          entry.value.xp,
-          XpRules.exerciseXpPerLevel,
-        ),
-      );
-    }).toList();
-  }
+  if (base.equipmentXpMap.isEmpty) return [];
 
-  // Local empty — fall back to Supabase user_exercise_xp.
-  final user = ref.watch(currentUserProvider);
-  final gymId = ref.watch(activeGymIdProvider);
-  if (user == null || gymId == null) return [];
-
-  try {
-    final client = ref.watch(supabaseClientProvider);
-
-    // Fetch XP rows and custom-exercise names in parallel.
-    final results = await Future.wait([
-      client
-          .from('user_exercise_xp')
-          .select('exercise_key, total_xp, current_level')
-          .eq('user_id', user.id)
-          .eq('gym_id', gymId)
-          .order('total_xp', ascending: false),
-      client
-          .from('user_custom_exercises')
-          .select('id, display_name')
-          .eq('user_id', user.id),
-    ]);
-
-    final rows = results[0] as List;
-    final customRows = results[1] as List;
-
-    // custom_exercise_id → display_name (user-created exercise names).
-    final customNameMap = <String, String>{
-      for (final row in customRows)
-        '${row['id']}': '${row['display_name'] ?? ''}',
-    };
-
-    // Best-effort name resolution from local equipment cache.
-    final db = ref.watch(appDatabaseProvider);
-    final cachedEquipment = await db.getEquipmentForGym(gymId);
-    final equipNameMap = {for (final e in cachedEquipment) e.id: e.name};
-
-    return rows
-        .map((row) {
-          final r = Map<String, Object?>.from(row as Map);
-          final key = r['exercise_key'] as String? ?? '';
-          final xp = (r['total_xp'] as num?)?.toInt() ?? 0;
-          if (xp == 0) return null;
-          return ExerciseXp(
-            label: _resolveExerciseLabel(key, equipNameMap, customNameMap),
-            equipmentKey: key,
-            totalXp: xp,
-            currentLevel: (r['current_level'] as num?)?.toInt() ?? 1,
-          );
-        })
-        .whereType<ExerciseXp>()
-        .toList();
-  } catch (_) {
-    return [];
-  }
+  final sorted = base.equipmentXpMap.entries.toList()
+    ..sort((a, b) => b.value.xp.compareTo(a.value.xp));
+  return sorted.map((entry) {
+    return ExerciseXp(
+      label: entry.value.name,
+      equipmentKey: entry.key,
+      totalXp: entry.value.xp,
+      currentLevel: XpRules.levelFromXp(
+        entry.value.xp,
+        XpRules.exerciseXpPerLevel,
+      ),
+    );
+  }).toList();
 });
-
-/// Resolves a human-readable label for an [exerciseKey].
-///
-/// Priority (for custom:UUID keys): user_custom_exercises name →
-///   local equipment cache → raw key.
-/// Priority (for regular keys): local equipment cache → snake_case humanisation.
-String _resolveExerciseLabel(
-  String key,
-  Map<String, String> equipNameMap, [
-  Map<String, String> customNameMap = const {},
-]) {
-  if (key.startsWith('custom:')) {
-    final id = key.substring(7);
-    return customNameMap[id] ?? equipNameMap[id] ?? key;
-  }
-  if (equipNameMap.containsKey(key)) return equipNameMap[key]!;
-  // snake_case → Title Case fallback (e.g. "bench_press" → "Bench Press").
-  return key
-      .split('_')
-      .map((w) => w.isEmpty ? '' : w[0].toUpperCase() + w.substring(1))
-      .join(' ');
-}
 
 // ─── Per-muscle-group XP (populated after server sync) ────────────────────────
 
@@ -327,11 +330,12 @@ final userMuscleGroupXpProvider = FutureProvider<List<MuscleGroupXp>>((
 
 // ─── Invalidation helper ──────────────────────────────────────────────────────
 
-/// Invalidates all locally-computed XP providers so they re-read from SQLite.
+/// Invalidates all locally-computed XP providers so they re-read from SQLite
+/// and re-fetch from the server.
 ///
 /// Call this immediately after a workout session is finished (data already in
 /// SQLite → instant refresh) AND after a successful server sync (picks up any
-/// server-side corrections).
+/// server-side corrections or cross-device sessions).
 ///
 /// [localXpBaseProvider] is watched by [userGymXpProvider] and
 /// [userExerciseXpProvider] via `ref.watch`, so invalidating the base
@@ -345,10 +349,11 @@ void invalidateLocalXpProviders(Ref ref) {
 
 // ─── Training days (for calendar heatmap) ─────────────────────────────────────
 //
-// Reads from Supabase rather than local SQLite so that:
+// Reads from both local SQLite and Supabase so that:
 //   • seeded / historical sessions are visible even on a fresh install
 //   • the calendar works correctly across devices
 //   • navigating to past years (via year picker in _CalendarCard) always works
+//   • locally-saved sessions appear immediately without waiting for sync
 //
 // The query is scoped to a single calendar year via date-range filters and
 // guarded by the existing RLS policy (user_id = auth.uid() AND membership).
@@ -428,37 +433,36 @@ final recentSessionsProvider = FutureProvider<List<SessionSummary>>((
   if (user == null || gymId == null) return [];
 
   final db = ref.watch(appDatabaseProvider);
-  final sessions = await db.getRecentSessions(gymId, user.id, limit: 20);
+  final localSessions = await db.getRecentSessions(gymId, user.id, limit: 20);
+  final localSessionIds = {for (final s in localSessions) s.id};
 
-  if (sessions.isNotEmpty) {
-    // Local SQLite has data — read full detail (exercises + sets).
-    final summaries = <SessionSummary>[];
-    for (final session in sessions) {
-      final exercises = await db.getExercisesForSession(session.id);
-      var totalSets = 0;
-      for (final exercise in exercises) {
-        final sets = await db.getSetsForExercise(exercise.id);
-        totalSets += sets.length;
-      }
-      summaries.add(
-        SessionSummary(
-          id: session.id,
-          sessionDayAnchor: session.sessionDayAnchor,
-          startedAt: session.startedAt,
-          finishedAt: session.finishedAt,
-          exerciseNames: exercises.map((e) => e.displayName).toList(),
-          totalSets: totalSets,
-        ),
-      );
+  // Build summaries from local SQLite — always the fast path.
+  final summaries = <SessionSummary>[];
+  for (final session in localSessions) {
+    final exercises = await db.getExercisesForSession(session.id);
+    var totalSets = 0;
+    for (final exercise in exercises) {
+      final sets = await db.getSetsForExercise(exercise.id);
+      totalSets += sets.length;
     }
-    return summaries;
+    summaries.add(
+      SessionSummary(
+        id: session.id,
+        sessionDayAnchor: session.sessionDayAnchor,
+        startedAt: session.startedAt,
+        finishedAt: session.finishedAt,
+        exerciseNames: exercises.map((e) => e.displayName).toList(),
+        totalSets: totalSets,
+      ),
+    );
   }
 
-  // Local empty (reinstall / fresh install) — fall back to Supabase.
-  // session_exercises.display_name is synced by sync-workout, so names are available.
+  // Augment with server sessions not in local SQLite.
+  // This surfaces sessions from other devices or before a reinstall.
+  // Seeded / calendar-only sessions (no exercises) are silently skipped.
   try {
     final client = ref.watch(supabaseClientProvider);
-    final rows = await client
+    final remoteRows = await client
         .from('workout_sessions')
         .select(
           'id, started_at, finished_at, session_day_anchor, '
@@ -470,18 +474,24 @@ final recentSessionsProvider = FutureProvider<List<SessionSummary>>((
         .order('finished_at', ascending: false)
         .limit(20);
 
-    return (rows as List).map((row) {
+    for (final row in (remoteRows as List)) {
       final r = Map<String, Object?>.from(row as Map);
-      final exercises =
-          ((r['session_exercises'] as List?) ?? [])
-              .cast<Map<dynamic, dynamic>>()
-              .map((e) => Map<String, Object?>.from(e))
-              .toList()
-            ..sort(
-              (a, b) => ((a['sort_order'] as num?) ?? 0).compareTo(
-                (b['sort_order'] as num?) ?? 0,
-              ),
-            );
+      final sessionId = r['id'] as String;
+      if (localSessionIds.contains(sessionId)) continue;
+
+      final exercises = ((r['session_exercises'] as List?) ?? [])
+          .cast<Map<dynamic, dynamic>>()
+          .map((e) => Map<String, Object?>.from(e))
+          .toList()
+        ..sort(
+          (a, b) => ((a['sort_order'] as num?) ?? 0).compareTo(
+            (b['sort_order'] as num?) ?? 0,
+          ),
+        );
+
+      // Skip seeded / placeholder sessions that have no exercises.
+      if (exercises.isEmpty) continue;
+
       final exerciseNames = exercises
           .map((e) => e['display_name'] as String? ?? '')
           .where((n) => n.isNotEmpty)
@@ -490,20 +500,29 @@ final recentSessionsProvider = FutureProvider<List<SessionSummary>>((
       for (final ex in exercises) {
         totalSets += ((ex['set_entries'] as List?) ?? []).length;
       }
-      return SessionSummary(
-        id: r['id'] as String,
-        sessionDayAnchor: r['session_day_anchor'] as String? ?? '',
-        startedAt: DateTime.parse(r['started_at'] as String),
-        finishedAt: r['finished_at'] != null
-            ? DateTime.parse(r['finished_at'] as String)
-            : null,
-        exerciseNames: exerciseNames,
-        totalSets: totalSets,
+
+      summaries.add(
+        SessionSummary(
+          id: sessionId,
+          sessionDayAnchor: r['session_day_anchor'] as String? ?? '',
+          startedAt: DateTime.parse(r['started_at'] as String),
+          finishedAt: r['finished_at'] != null
+              ? DateTime.parse(r['finished_at'] as String)
+              : null,
+          exerciseNames: exerciseNames,
+          totalSets: totalSets,
+        ),
       );
-    }).toList();
+    }
   } catch (_) {
-    return [];
+    // Network unavailable — local data is sufficient.
   }
+
+  summaries.sort((a, b) {
+    final cmp = b.startedAt.compareTo(a.startedAt);
+    return cmp;
+  });
+  return summaries.take(20).toList();
 });
 
 /// Loads **all** finished sessions for the current user without any limit.
@@ -515,35 +534,33 @@ final allSessionsProvider = FutureProvider<List<SessionSummary>>((ref) async {
   if (user == null || gymId == null) return [];
 
   final db = ref.watch(appDatabaseProvider);
-  final sessions = await db.getRecentSessions(gymId, user.id); // no limit
+  final localSessions = await db.getRecentSessions(gymId, user.id); // no limit
+  final localSessionIds = {for (final s in localSessions) s.id};
 
-  if (sessions.isNotEmpty) {
-    final summaries = <SessionSummary>[];
-    for (final session in sessions) {
-      final exercises = await db.getExercisesForSession(session.id);
-      var totalSets = 0;
-      for (final exercise in exercises) {
-        final sets = await db.getSetsForExercise(exercise.id);
-        totalSets += sets.length;
-      }
-      summaries.add(
-        SessionSummary(
-          id: session.id,
-          sessionDayAnchor: session.sessionDayAnchor,
-          startedAt: session.startedAt,
-          finishedAt: session.finishedAt,
-          exerciseNames: exercises.map((e) => e.displayName).toList(),
-          totalSets: totalSets,
-        ),
-      );
+  final summaries = <SessionSummary>[];
+  for (final session in localSessions) {
+    final exercises = await db.getExercisesForSession(session.id);
+    var totalSets = 0;
+    for (final exercise in exercises) {
+      final sets = await db.getSetsForExercise(exercise.id);
+      totalSets += sets.length;
     }
-    return summaries;
+    summaries.add(
+      SessionSummary(
+        id: session.id,
+        sessionDayAnchor: session.sessionDayAnchor,
+        startedAt: session.startedAt,
+        finishedAt: session.finishedAt,
+        exerciseNames: exercises.map((e) => e.displayName).toList(),
+        totalSets: totalSets,
+      ),
+    );
   }
 
-  // Supabase fallback — no limit so the full history is returned.
+  // Augment with all server sessions not present in local SQLite.
   try {
     final client = ref.watch(supabaseClientProvider);
-    final rows = await client
+    final remoteRows = await client
         .from('workout_sessions')
         .select(
           'id, started_at, finished_at, session_day_anchor, '
@@ -554,18 +571,23 @@ final allSessionsProvider = FutureProvider<List<SessionSummary>>((ref) async {
         .not('finished_at', 'is', null)
         .order('finished_at', ascending: false);
 
-    return (rows as List).map((row) {
+    for (final row in (remoteRows as List)) {
       final r = Map<String, Object?>.from(row as Map);
-      final exercises =
-          ((r['session_exercises'] as List?) ?? [])
-              .cast<Map<dynamic, dynamic>>()
-              .map((e) => Map<String, Object?>.from(e))
-              .toList()
-            ..sort(
-              (a, b) => ((a['sort_order'] as num?) ?? 0).compareTo(
-                (b['sort_order'] as num?) ?? 0,
-              ),
-            );
+      final sessionId = r['id'] as String;
+      if (localSessionIds.contains(sessionId)) continue;
+
+      final exercises = ((r['session_exercises'] as List?) ?? [])
+          .cast<Map<dynamic, dynamic>>()
+          .map((e) => Map<String, Object?>.from(e))
+          .toList()
+        ..sort(
+          (a, b) => ((a['sort_order'] as num?) ?? 0).compareTo(
+            (b['sort_order'] as num?) ?? 0,
+          ),
+        );
+
+      if (exercises.isEmpty) continue;
+
       final exerciseNames = exercises
           .map((e) => e['display_name'] as String? ?? '')
           .where((n) => n.isNotEmpty)
@@ -574,20 +596,26 @@ final allSessionsProvider = FutureProvider<List<SessionSummary>>((ref) async {
       for (final ex in exercises) {
         totalSets += ((ex['set_entries'] as List?) ?? []).length;
       }
-      return SessionSummary(
-        id: r['id'] as String,
-        sessionDayAnchor: r['session_day_anchor'] as String? ?? '',
-        startedAt: DateTime.parse(r['started_at'] as String),
-        finishedAt: r['finished_at'] != null
-            ? DateTime.parse(r['finished_at'] as String)
-            : null,
-        exerciseNames: exerciseNames,
-        totalSets: totalSets,
+
+      summaries.add(
+        SessionSummary(
+          id: sessionId,
+          sessionDayAnchor: r['session_day_anchor'] as String? ?? '',
+          startedAt: DateTime.parse(r['started_at'] as String),
+          finishedAt: r['finished_at'] != null
+              ? DateTime.parse(r['finished_at'] as String)
+              : null,
+          exerciseNames: exerciseNames,
+          totalSets: totalSets,
+        ),
       );
-    }).toList();
+    }
   } catch (_) {
-    return [];
+    // Network unavailable — local data is sufficient.
   }
+
+  summaries.sort((a, b) => b.startedAt.compareTo(a.startedAt));
+  return summaries;
 });
 
 // ─── Session detail (exercises + sets + progress comparison) ──────────────────

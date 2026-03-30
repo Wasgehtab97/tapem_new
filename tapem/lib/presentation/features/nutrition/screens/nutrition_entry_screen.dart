@@ -13,6 +13,12 @@ import '../../../../domain/entities/nutrition/nutrition_product.dart';
 import '../../../../domain/utils/nutrition_date_utils.dart';
 import '../providers/nutrition_providers.dart';
 
+// ─── Nutrition accent colors ───────────────────────────────────────────────────
+const _accentColor = Color(0xFFFF7043);
+const _proteinColor = Color(0xFF42A5F5);
+const _carbsColor = Color(0xFFFFCA28);
+const _fatColor = Color(0xFF66BB6A);
+
 class NutritionEntryScreen extends HookConsumerWidget {
   const NutritionEntryScreen({super.key});
 
@@ -72,7 +78,6 @@ class NutritionEntryScreen extends HookConsumerWidget {
               : '',
     );
 
-    // Computed actual values (derived from per100 * grams/100)
     final actualKcal = useState<int>(existingEntry?.kcal ?? 0);
     final actualProtein = useState<int>(existingEntry?.protein ?? 0);
     final actualCarbs = useState<int>(existingEntry?.carbs ?? 0);
@@ -82,10 +87,11 @@ class NutritionEntryScreen extends HookConsumerWidget {
     final errorMsg = useState<String?>(null);
     final formKey = useMemoized(GlobalKey<FormState>.new);
 
-    // ── Recalculate when grams or per100 values change ───────────────────────
+    // ── Recalculate when any value changes ───────────────────────────────────
 
     void recalculate() {
-      final grams = double.tryParse(gramsCtrl.text.trim()) ?? 0;
+      final raw = gramsCtrl.text.trim().replaceAll(',', '.');
+      final grams = double.tryParse(raw) ?? 0;
       final effectiveGrams = grams > 0 ? grams : 100;
 
       final k100 = int.tryParse(kcalPer100Ctrl.text.trim()) ?? 0;
@@ -99,7 +105,6 @@ class NutritionEntryScreen extends HookConsumerWidget {
       actualFat.value = (f100 * effectiveGrams / 100).round();
     }
 
-    // Wire up listeners once
     useEffect(() {
       void listener() => recalculate();
       gramsCtrl.addListener(listener);
@@ -107,7 +112,6 @@ class NutritionEntryScreen extends HookConsumerWidget {
       proteinPer100Ctrl.addListener(listener);
       carbsPer100Ctrl.addListener(listener);
       fatPer100Ctrl.addListener(listener);
-      // Initial calculation
       recalculate();
       return () {
         gramsCtrl.removeListener(listener);
@@ -118,22 +122,18 @@ class NutritionEntryScreen extends HookConsumerWidget {
       };
     }, []);
 
-    // ── Pre-fill from product when navigating back from search/scan ──────────
-
-    // Watch for product passed back via route args (handled on re-push)
-    // The search/scan screens push back a NutritionProduct via context.pop(product)
-    // We handle that via a separate callback approach below.
-
     // ── Save ─────────────────────────────────────────────────────────────────
 
     final notifier = ref.read(nutritionNotifierProvider.notifier);
 
     Future<void> handleSave() async {
+      FocusScope.of(context).unfocus();
       errorMsg.value = null;
       if (!(formKey.currentState?.validate() ?? false)) return;
 
       final name = nameCtrl.text.trim();
-      final grams = double.tryParse(gramsCtrl.text.trim());
+      final raw = gramsCtrl.text.trim().replaceAll(',', '.');
+      final grams = double.tryParse(raw);
       final effectiveGrams = (grams != null && grams > 0) ? grams : 100.0;
 
       final kcal = actualKcal.value;
@@ -172,7 +172,6 @@ class NutritionEntryScreen extends HookConsumerWidget {
           await notifier.addEntries([entry]);
 
           if (context.mounted) {
-            // Reset form for next entry
             nameCtrl.clear();
             gramsCtrl.text = '100';
             kcalPer100Ctrl.clear();
@@ -186,9 +185,10 @@ class NutritionEntryScreen extends HookConsumerWidget {
 
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text('$name gespeichert'),
-                backgroundColor: AppColors.surface700,
+                content: Text('$name gespeichert', style: AppTextStyles.labelMd.copyWith(color: Colors.white)),
+                backgroundColor: AppColors.success,
                 behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
             );
           }
@@ -202,288 +202,374 @@ class NutritionEntryScreen extends HookConsumerWidget {
 
     // ── UI ───────────────────────────────────────────────────────────────────
 
-    return Scaffold(
-      backgroundColor: AppColors.surface900,
-      appBar: AppBar(
+    return GestureDetector(
+      onTap: () => FocusScope.of(context).unfocus(),
+      behavior: HitTestBehavior.opaque,
+      child: Scaffold(
         backgroundColor: AppColors.surface900,
-        surfaceTintColor: Colors.transparent,
-        title: Text(
-          isEditMode ? 'EINTRAG BEARBEITEN' : 'EINTRAG HINZUFÜGEN',
-          style: AppTextStyles.h3,
-        ),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(1),
-          child: Container(
-            height: 1,
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  Colors.transparent,
-                  AppColors.neonCyan,
-                  Colors.transparent,
-                ],
+        appBar: AppBar(
+          backgroundColor: AppColors.surface900.withValues(alpha: 0.9),
+          surfaceTintColor: Colors.transparent,
+          elevation: 0,
+          title: Text(
+            isEditMode ? 'EINTRAG BEARBEITEN' : 'EINTRAG HINZUFÜGEN',
+            style: AppTextStyles.h3.copyWith(letterSpacing: 1.2),
+          ),
+          bottom: PreferredSize(
+            preferredSize: const Size.fromHeight(1),
+            child: Container(
+              height: 1,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Colors.transparent, _accentColor.withValues(alpha: 0.8), Colors.transparent],
+                ),
               ),
             ),
           ),
         ),
-      ),
-      body: Form(
-        key: formKey,
-        child: ListView(
-          padding: const EdgeInsets.all(16),
+        body: Column(
           children: [
-            // ── Search / Scan shortcuts ────────────────────────────────
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    icon: const Icon(Icons.search, size: 18),
-                    label: Text('SUCHEN', style: AppTextStyles.buttonMd),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.neonCyan,
-                      side: const BorderSide(color: AppColors.neonCyanDim),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                    onPressed: () async {
-                      final result = await context.push<NutritionProduct>(
-                        '/nutrition/search',
-                        extra: {
-                          'meal': selectedMeal.value,
-                          'dateKey': dateKey,
-                          'uid': uid,
-                        },
-                      );
-                      if (result != null) {
-                        nameCtrl.text = result.name;
-                        kcalPer100Ctrl.text = '${result.kcalPer100}';
-                        proteinPer100Ctrl.text = '${result.proteinPer100}';
-                        carbsPer100Ctrl.text = '${result.carbsPer100}';
-                        fatPer100Ctrl.text = '${result.fatPer100}';
-                        if (gramsCtrl.text.isEmpty) gramsCtrl.text = '100';
-                      }
-                    },
-                  ),
-                ),
-                const Gap(8),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    icon: const Icon(Icons.qr_code_scanner, size: 18),
-                    label: Text('SCAN', style: AppTextStyles.buttonMd),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.neonCyan,
-                      side: const BorderSide(color: AppColors.neonCyanDim),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                    onPressed: () async {
-                      final result = await context.push<NutritionProduct>(
-                        '/nutrition/scan',
-                        extra: {
-                          'meal': selectedMeal.value,
-                          'dateKey': dateKey,
-                          'uid': uid,
-                        },
-                      );
-                      if (result != null) {
-                        nameCtrl.text = result.name;
-                        kcalPer100Ctrl.text = '${result.kcalPer100}';
-                        proteinPer100Ctrl.text = '${result.proteinPer100}';
-                        carbsPer100Ctrl.text = '${result.carbsPer100}';
-                        fatPer100Ctrl.text = '${result.fatPer100}';
-                        if (gramsCtrl.text.isEmpty) gramsCtrl.text = '100';
-                      }
-                    },
-                  ),
-                ),
-              ],
-            ),
-            const Gap(16),
-
-            // ── Meal selector ──────────────────────────────────────────
-            Text(
-              'MAHLZEIT',
-              style: AppTextStyles.labelSm.copyWith(
-                color: AppColors.textSecondary,
-              ),
-            ),
-            const Gap(8),
-            _MealSelector(
-              selected: selectedMeal.value,
-              onChanged: (m) => selectedMeal.value = m,
-            ),
-            const Gap(16),
-
-            // ── Product name ───────────────────────────────────────────
-            _EntryField(
-              controller: nameCtrl,
-              label: 'Name',
-              hintText: 'z. B. Hühnerbrust',
-              keyboardType: TextInputType.text,
-              inputFormatters: const [],
-              validator: (v) {
-                if (v == null || v.trim().isEmpty) return 'Name ist erforderlich';
-                return null;
-              },
-            ),
-            const Gap(12),
-
-            // ── Menge ──────────────────────────────────────────────────
-            _EntryField(
-              controller: gramsCtrl,
-              label: 'Menge (g)',
-              hintText: '100',
-              keyboardType: TextInputType.number,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              validator: null,
-            ),
-            const Gap(16),
-
-            // ── Per-100g values ────────────────────────────────────────
-            Text(
-              'NÄHRWERTE PRO 100 G',
-              style: AppTextStyles.labelSm.copyWith(
-                color: AppColors.textSecondary,
-                letterSpacing: 1.2,
-              ),
-            ),
-            const Gap(8),
-            Row(
-              children: [
-                Expanded(
-                  child: _EntryField(
-                    controller: kcalPer100Ctrl,
-                    label: 'kcal',
-                    hintText: '0',
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    validator: (v) {
-                      final n = int.tryParse(v ?? '');
-                      if (n == null || n < 0) return 'Ungültig';
-                      return null;
-                    },
-                  ),
-                ),
-                const Gap(8),
-                Expanded(
-                  child: _EntryField(
-                    controller: proteinPer100Ctrl,
-                    label: 'Protein (g)',
-                    hintText: '0',
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    validator: null,
-                  ),
-                ),
-              ],
-            ),
-            const Gap(8),
-            Row(
-              children: [
-                Expanded(
-                  child: _EntryField(
-                    controller: carbsPer100Ctrl,
-                    label: 'Kohlenh. (g)',
-                    hintText: '0',
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    validator: null,
-                  ),
-                ),
-                const Gap(8),
-                Expanded(
-                  child: _EntryField(
-                    controller: fatPer100Ctrl,
-                    label: 'Fett (g)',
-                    hintText: '0',
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    validator: null,
-                  ),
-                ),
-              ],
-            ),
-            const Gap(16),
-
-            // ── Calculated preview ─────────────────────────────────────
-            _CalcPreview(
-              kcal: actualKcal.value,
-              protein: actualProtein.value,
-              carbs: actualCarbs.value,
-              fat: actualFat.value,
-              grams: double.tryParse(gramsCtrl.text.trim()) ?? 100,
-            ),
-            const Gap(24),
-
-            // ── Error ──────────────────────────────────────────────────
-            if (errorMsg.value != null) ...[
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: AppColors.errorGlow,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: AppColors.error),
-                ),
-                child: Text(
-                  errorMsg.value!,
-                  style: AppTextStyles.bodySm.copyWith(color: AppColors.error),
-                ),
-              ),
-              const Gap(16),
-            ],
-
-            // ── Save button ────────────────────────────────────────────
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: isSaving.value ? null : handleSave,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.neonCyan,
-                  foregroundColor: AppColors.textOnAction,
-                  disabledBackgroundColor: AppColors.neonCyanDim,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                child: isSaving.value
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: AppColors.textOnAction,
+            Expanded(
+              child: Form(
+                key: formKey,
+                child: ListView(
+                  physics: const BouncingScrollPhysics(),
+                  keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+                  children: [
+                    // ── Search / Scan shortcuts ────────────────────────────
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _ShortcutButton(
+                            icon: Icons.search,
+                            label: 'SUCHEN',
+                            onTap: () async {
+                              FocusScope.of(context).unfocus();
+                              final result = await context.push<NutritionProduct>(
+                                '/nutrition/search',
+                                extra: {
+                                  'meal': selectedMeal.value,
+                                  'dateKey': dateKey,
+                                  'uid': uid,
+                                },
+                              );
+                              if (result != null) {
+                                nameCtrl.text = result.name;
+                                kcalPer100Ctrl.text = '${result.kcalPer100}';
+                                proteinPer100Ctrl.text = '${result.proteinPer100}';
+                                carbsPer100Ctrl.text = '${result.carbsPer100}';
+                                fatPer100Ctrl.text = '${result.fatPer100}';
+                                if (gramsCtrl.text.isEmpty) gramsCtrl.text = '100';
+                              }
+                            },
+                          ),
                         ),
-                      )
-                    : Text(
-                        isEditMode ? 'AKTUALISIEREN' : 'SPEICHERN',
-                        style: AppTextStyles.buttonMd,
-                      ),
-              ),
-            ),
-
-            if (!isEditMode) ...[
-              const Gap(8),
-              SizedBox(
-                width: double.infinity,
-                child: TextButton(
-                  onPressed: () => context.pop(),
-                  child: Text(
-                    'FERTIG',
-                    style: AppTextStyles.buttonMd.copyWith(
-                      color: AppColors.textSecondary,
+                        const Gap(16),
+                        Expanded(
+                          child: _ShortcutButton(
+                            icon: Icons.qr_code_scanner,
+                            label: 'SCAN',
+                            onTap: () async {
+                              FocusScope.of(context).unfocus();
+                              final result = await context.push<NutritionProduct>(
+                                '/nutrition/scan',
+                                extra: {
+                                  'meal': selectedMeal.value,
+                                  'dateKey': dateKey,
+                                  'uid': uid,
+                                },
+                              );
+                              if (result != null) {
+                                nameCtrl.text = result.name;
+                                kcalPer100Ctrl.text = '${result.kcalPer100}';
+                                proteinPer100Ctrl.text = '${result.proteinPer100}';
+                                carbsPer100Ctrl.text = '${result.carbsPer100}';
+                                fatPer100Ctrl.text = '${result.fatPer100}';
+                                if (gramsCtrl.text.isEmpty) gramsCtrl.text = '100';
+                              }
+                            },
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
+                    const Gap(24),
+                    Divider(color: AppColors.surface500.withValues(alpha: 0.3), height: 1),
+                    const Gap(24),
+
+                    // ── Meal selector ──────────────────────────────────────
+                    Text(
+                      'MAHLZEIT',
+                      style: AppTextStyles.labelSm.copyWith(
+                        color: AppColors.textDisabled,
+                        letterSpacing: 2.0,
+                      ),
+                    ),
+                    const Gap(12),
+                    _MealSelector(
+                      selected: selectedMeal.value,
+                      onChanged: (m) => selectedMeal.value = m,
+                    ),
+                    const Gap(32),
+
+                    // ── Product name ───────────────────────────────────────
+                    _EntryField(
+                      controller: nameCtrl,
+                      label: 'Name',
+                      hintText: 'z. B. Hühnerbrust',
+                      keyboardType: TextInputType.text,
+                      inputFormatters: const [],
+                      textInputAction: TextInputAction.next,
+                      validator: (v) {
+                        if (v == null || v.trim().isEmpty) return 'Name ist erforderlich';
+                        return null;
+                      },
+                    ),
+                    const Gap(20),
+
+                    // ── Menge ──────────────────────────────────────────────
+                    _EntryField(
+                      controller: gramsCtrl,
+                      label: 'Menge (g)',
+                      hintText: '100',
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
+                      ],
+                      selectAllOnFocus: true,
+                      textInputAction: TextInputAction.next,
+                    ),
+                    const Gap(32),
+
+                    // ── Per-100g section ───────────────────────────────────
+                    Text(
+                      'NÄHRWERTE PRO 100 G',
+                      style: AppTextStyles.labelSm.copyWith(
+                        color: AppColors.textDisabled,
+                        letterSpacing: 2.0,
+                      ),
+                    ),
+                    const Gap(16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _EntryField(
+                            controller: kcalPer100Ctrl,
+                            label: 'kcal',
+                            hintText: '0',
+                            keyboardType: TextInputType.number,
+                            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                            selectAllOnFocus: true,
+                            textInputAction: TextInputAction.next,
+                            validator: (v) {
+                              final n = int.tryParse(v ?? '');
+                              if (n == null || n < 0) return 'Ungültig';
+                              return null;
+                            },
+                          ),
+                        ),
+                        const Gap(12),
+                        Expanded(
+                          child: _EntryField(
+                            controller: proteinPer100Ctrl,
+                            label: 'Protein (g)',
+                            hintText: '0',
+                            keyboardType: TextInputType.number,
+                            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                            selectAllOnFocus: true,
+                            textInputAction: TextInputAction.next,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const Gap(12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _EntryField(
+                            controller: carbsPer100Ctrl,
+                            label: 'Kohlenh. (g)',
+                            hintText: '0',
+                            keyboardType: TextInputType.number,
+                            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                            selectAllOnFocus: true,
+                            textInputAction: TextInputAction.next,
+                          ),
+                        ),
+                        const Gap(12),
+                        Expanded(
+                          child: _EntryField(
+                            controller: fatPer100Ctrl,
+                            label: 'Fett (g)',
+                            hintText: '0',
+                            keyboardType: TextInputType.number,
+                            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                            selectAllOnFocus: true,
+                            textInputAction: TextInputAction.done,
+                            onSubmitted: (_) => FocusScope.of(context).unfocus(),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const Gap(40),
+
+                    // ── Preview card ───────────────────────────────────────
+                    _CalcPreview(
+                      kcal: actualKcal.value,
+                      protein: actualProtein.value,
+                      carbs: actualCarbs.value,
+                      fat: actualFat.value,
+                      grams: double.tryParse(
+                            gramsCtrl.text.trim().replaceAll(',', '.'),
+                          ) ??
+                          100,
+                    ),
+                    const Gap(32),
+
+                    // ── Error ──────────────────────────────────────────────
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 300),
+                      child: errorMsg.value != null
+                          ? Container(
+                              key: const ValueKey('error'),
+                              margin: const EdgeInsets.only(bottom: 24),
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                              decoration: BoxDecoration(
+                                color: AppColors.errorGlow,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: AppColors.error.withValues(alpha: 0.5)),
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.error_outline, color: AppColors.error, size: 20),
+                                  const Gap(12),
+                                  Expanded(
+                                    child: Text(
+                                      errorMsg.value!,
+                                      style: AppTextStyles.bodySm.copyWith(color: AppColors.error),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            )
+                          : const SizedBox.shrink(key: ValueKey('no_error')),
+                    ),
+                  ],
                 ),
               ),
-            ],
-
-            const Gap(32),
+            ),
+            
+            // ── Sticky Bottom Action Bar ────────────────────────────────────────
+            Container(
+              padding: EdgeInsets.fromLTRB(24, 16, 24, MediaQuery.of(context).padding.bottom + 16),
+              decoration: BoxDecoration(
+                color: AppColors.surface800.withValues(alpha: 0.95),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.3),
+                    blurRadius: 10,
+                    offset: const Offset(0, -4),
+                  ),
+                ],
+                border: Border(top: BorderSide(color: AppColors.surface500.withValues(alpha: 0.5))),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  GestureDetector(
+                    onTap: isSaving.value ? null : handleSave,
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      decoration: BoxDecoration(
+                        color: isSaving.value ? _accentColor.withValues(alpha: 0.5) : _accentColor,
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          if (!isSaving.value)
+                            BoxShadow(
+                              color: _accentColor.withValues(alpha: 0.3),
+                              blurRadius: 12,
+                              offset: const Offset(0, 4),
+                            ),
+                        ],
+                      ),
+                      child: Center(
+                        child: isSaving.value
+                            ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                              )
+                            : Text(
+                                isEditMode ? 'AKTUALISIEREN' : 'SPEICHERN',
+                                style: AppTextStyles.buttonLg.copyWith(color: Colors.white),
+                              ),
+                      ),
+                    ),
+                  ),
+                  if (!isEditMode) ...[
+                    const Gap(12),
+                    GestureDetector(
+                      onTap: () => context.pop(),
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        alignment: Alignment.center,
+                        child: Text(
+                          'ABBRECHEN',
+                          style: AppTextStyles.buttonMd.copyWith(color: AppColors.textDisabled),
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Search / Scan Button Helper ──────────────────────────────────────────────
+class _ShortcutButton extends HookWidget {
+  const _ShortcutButton({required this.icon, required this.label, required this.onTap});
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final isPressed = useState(false);
+
+    return GestureDetector(
+      onTapDown: (_) => isPressed.value = true,
+      onTapUp: (_) {
+        isPressed.value = false;
+        onTap();
+      },
+      onTapCancel: () => isPressed.value = false,
+      child: AnimatedScale(
+        scale: isPressed.value ? 0.95 : 1.0,
+        duration: const Duration(milliseconds: 100),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          decoration: BoxDecoration(
+            color: AppColors.surface800,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: _accentColor.withValues(alpha: 0.3)),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 20, color: _accentColor),
+              const Gap(8),
+              Text(label, style: AppTextStyles.labelMd.copyWith(color: _accentColor)),
+            ],
+          ),
         ),
       ),
     );
@@ -505,34 +591,30 @@ class _MealSelector extends StatelessWidget {
   Widget build(BuildContext context) {
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
+      physics: const BouncingScrollPhysics(),
+      clipBehavior: Clip.none,
       child: Row(
         children: MealType.values.map((meal) {
           final isSelected = meal == selected;
           return Padding(
-            padding: const EdgeInsets.only(right: 8),
+            padding: const EdgeInsets.only(right: 12),
             child: GestureDetector(
               onTap: () => onChanged(meal),
               child: AnimatedContainer(
-                duration: const Duration(milliseconds: 150),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 8,
-                ),
+                duration: const Duration(milliseconds: 200),
+                curve: Curves.easeOutCubic,
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                 decoration: BoxDecoration(
-                  color: isSelected ? AppColors.neonCyan : AppColors.surface700,
-                  borderRadius: BorderRadius.circular(20),
+                  color: isSelected ? _accentColor.withValues(alpha: 0.15) : AppColors.surface800,
+                  borderRadius: BorderRadius.circular(24),
                   border: Border.all(
-                    color: isSelected
-                        ? AppColors.neonCyan
-                        : AppColors.surface500,
+                    color: isSelected ? _accentColor.withValues(alpha: 0.8) : AppColors.surface500.withValues(alpha: 0.5),
                   ),
                 ),
                 child: Text(
                   meal.displayName,
                   style: AppTextStyles.labelLg.copyWith(
-                    color: isSelected
-                        ? AppColors.textOnAction
-                        : AppColors.textSecondary,
+                    color: isSelected ? _accentColor : AppColors.textSecondary,
                   ),
                 ),
               ),
@@ -563,12 +645,27 @@ class _CalcPreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
+    final hasData = kcal > 0;
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOutCubic,
+      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: AppColors.surface800,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppColors.surface500),
+        color: AppColors.surface800.withValues(alpha: 0.8),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: hasData ? _accentColor.withValues(alpha: 0.3) : AppColors.surface500.withValues(alpha: 0.5),
+          width: hasData ? 1.5 : 1.0,
+        ),
+        boxShadow: hasData
+            ? [
+                BoxShadow(
+                  color: _accentColor.withValues(alpha: 0.05),
+                  blurRadius: 20,
+                  spreadRadius: 2,
+                )
+              ]
+            : [],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -578,23 +675,31 @@ class _CalcPreview extends StatelessWidget {
               Text(
                 'FÜR ${grams.toStringAsFixed(0)} G',
                 style: AppTextStyles.labelSm.copyWith(
-                  color: AppColors.textSecondary,
+                  color: AppColors.textDisabled,
+                  letterSpacing: 1.5,
                 ),
               ),
               const Spacer(),
               Text(
-                '$kcal kcal',
-                style: AppTextStyles.h3.copyWith(color: AppColors.neonCyan),
+                '$kcal',
+                style: AppTextStyles.displayMd.copyWith(color: hasData ? _accentColor : AppColors.textSecondary, fontSize: 32),
+              ),
+              const Gap(4),
+              Text(
+                'kcal',
+                style: AppTextStyles.labelMd.copyWith(color: AppColors.textDisabled),
               ),
             ],
           ),
-          const Gap(8),
+          const Gap(24),
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
-              _MacroChip(label: 'Protein', value: protein, color: Colors.blueAccent),
-              _MacroChip(label: 'Kohlenh.', value: carbs, color: Colors.amberAccent),
-              _MacroChip(label: 'Fett', value: fat, color: Colors.orangeAccent),
+              _MacroChip(label: 'PROTEIN', value: protein, color: _proteinColor),
+              Container(height: 30, width: 1, color: AppColors.surface500.withValues(alpha: 0.5)),
+              _MacroChip(label: 'KOHLENH.', value: carbs, color: _carbsColor),
+              Container(height: 30, width: 1, color: AppColors.surface500.withValues(alpha: 0.5)),
+              _MacroChip(label: 'FETT', value: fat, color: _fatColor),
             ],
           ),
         ],
@@ -620,9 +725,13 @@ class _MacroChip extends StatelessWidget {
       children: [
         Text(
           '${value}g',
-          style: AppTextStyles.labelLg.copyWith(color: color),
+          style: AppTextStyles.h3.copyWith(color: color),
         ),
-        Text(label, style: AppTextStyles.bodySm),
+        const Gap(4),
+        Text(
+          label,
+          style: AppTextStyles.labelSm.copyWith(color: AppColors.textDisabled, letterSpacing: 1.2, fontSize: 9),
+        ),
       ],
     );
   }
@@ -630,14 +739,17 @@ class _MacroChip extends StatelessWidget {
 
 // ─── Reusable text form field ─────────────────────────────────────────────────
 
-class _EntryField extends StatelessWidget {
+class _EntryField extends HookWidget {
   const _EntryField({
     required this.controller,
     required this.label,
     required this.hintText,
     required this.keyboardType,
     required this.inputFormatters,
-    required this.validator,
+    this.validator,
+    this.textInputAction = TextInputAction.next,
+    this.onSubmitted,
+    this.selectAllOnFocus = false,
   });
 
   final TextEditingController controller;
@@ -646,44 +758,68 @@ class _EntryField extends StatelessWidget {
   final TextInputType keyboardType;
   final List<TextInputFormatter> inputFormatters;
   final String? Function(String?)? validator;
+  final TextInputAction textInputAction;
+  final ValueChanged<String>? onSubmitted;
+  final bool selectAllOnFocus;
 
   @override
   Widget build(BuildContext context) {
+    final focusNode = useFocusNode();
+    final isFocused = useState(focusNode.hasFocus);
+
+    useEffect(() {
+      void listener() => isFocused.value = focusNode.hasFocus;
+      focusNode.addListener(listener);
+      return () => focusNode.removeListener(listener);
+    }, [focusNode]);
+
     return TextFormField(
       controller: controller,
+      focusNode: focusNode,
       keyboardType: keyboardType,
       inputFormatters: inputFormatters,
       style: AppTextStyles.bodyLg,
       validator: validator,
+      textInputAction: textInputAction,
+      onFieldSubmitted: onSubmitted ?? (_) => FocusScope.of(context).nextFocus(),
+      onTap: selectAllOnFocus
+          ? () {
+              controller.selection = TextSelection(
+                baseOffset: 0,
+                extentOffset: controller.text.length,
+              );
+            }
+          : null,
       decoration: InputDecoration(
         labelText: label,
         hintText: hintText,
-        labelStyle: AppTextStyles.labelLg.copyWith(
-          color: AppColors.textSecondary,
+        labelStyle: AppTextStyles.labelMd.copyWith(
+          color: isFocused.value ? _accentColor : AppColors.textSecondary,
         ),
-        hintStyle: AppTextStyles.bodySm,
+        hintStyle: AppTextStyles.bodyMd.copyWith(color: AppColors.textDisabled),
         filled: true,
-        fillColor: AppColors.surface600,
+        fillColor: isFocused.value ? AppColors.surface800 : AppColors.surface700.withValues(alpha: 0.5),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: const BorderSide(color: AppColors.surface500),
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide.none,
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: const BorderSide(color: AppColors.surface500),
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: AppColors.surface500.withValues(alpha: 0.5)),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: const BorderSide(color: AppColors.neonCyan),
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: _accentColor, width: 1.5),
         ),
         errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: const BorderSide(color: AppColors.error),
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: AppColors.error.withValues(alpha: 0.5)),
         ),
         focusedErrorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: const BorderSide(color: AppColors.error),
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: AppColors.error, width: 1.5),
         ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       ),
     );
   }

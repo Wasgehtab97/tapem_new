@@ -75,11 +75,60 @@ class SyncNotifier extends StateNotifier<SyncStatus> {
   /// 60 seconds is enough to prevent log spam while keeping recovery fast.
   static const _kAuthFailureCooldown = Duration(seconds: 60);
 
+  /// Exponential backoff schedule for transient sync failures.
+  /// Applied per-session after each consecutive failure — resets on success,
+  /// connectivity restore, or re-authentication.
+  static const _kBackoffSchedule = [
+    Duration(seconds: 30),  // 1st failure
+    Duration(minutes: 1),   // 2nd
+    Duration(minutes: 2),   // 3rd
+    Duration(minutes: 5),   // 4th
+    Duration(minutes: 10),  // 5th+ (cap)
+  ];
+
   DateTime? _lastHeartbeatAt;
 
   /// Set when sync is aborted due to a 401. Cleared on successful sync or
   /// when the Supabase auth state changes (new login).
   DateTime? _lastAuthFailureAt;
+
+  /// Consecutive failure counts and next-allowed-retry timestamps per session.
+  /// Prevents hammering the edge function on deterministic errors.
+  final Map<String, int> _sessionFailureCounts = {};
+  final Map<String, DateTime> _sessionNextRetryAt = {};
+
+  Duration _backoffFor(int failures) {
+    final idx = (failures - 1).clamp(0, _kBackoffSchedule.length - 1);
+    return _kBackoffSchedule[idx];
+  }
+
+  bool _isBackedOff(String sessionId) {
+    final next = _sessionNextRetryAt[sessionId];
+    return next != null && DateTime.now().isBefore(next);
+  }
+
+  void _recordSyncFailure(String sessionId) {
+    final n = (_sessionFailureCounts[sessionId] ?? 0) + 1;
+    _sessionFailureCounts[sessionId] = n;
+    final delay = _backoffFor(n);
+    _sessionNextRetryAt[sessionId] = DateTime.now().add(delay);
+    debugPrint(
+      '[SYNC] session $sessionId: failure #$n — next retry in ${delay.inSeconds}s',
+    );
+  }
+
+  void _recordSyncSuccess(String sessionId) {
+    _sessionFailureCounts.remove(sessionId);
+    _sessionNextRetryAt.remove(sessionId);
+  }
+
+  /// Clears all per-session backoff state — called on connectivity restore
+  /// and re-authentication, both of which are meaningful signals that the
+  /// environment has changed and previously-failing sessions should be retried.
+  void _clearBackoff() {
+    _sessionFailureCounts.clear();
+    _sessionNextRetryAt.clear();
+  }
 
   void start() {
     _periodicTimer?.cancel();
@@ -110,6 +159,9 @@ class SyncNotifier extends StateNotifier<SyncStatus> {
     _connectivitySub = Connectivity().onConnectivityChanged.listen((results) {
       if (results.any((r) => r != ConnectivityResult.none)) {
         debugPrint('[SYNC] connectivity restored — triggering sync');
+        // Network change is a meaningful signal: clear backoff so previously-
+        // failing sessions are retried immediately on reconnect.
+        _clearBackoff();
         unawaited(sync());
         // Also heartbeat on reconnect: picks up sets logged while offline.
         unawaited(heartbeatActiveSession());
@@ -122,6 +174,7 @@ class SyncNotifier extends StateNotifier<SyncStatus> {
     client.auth.onAuthStateChange.listen((data) {
       if (data.event == AuthChangeEvent.signedIn) {
         _lastAuthFailureAt = null;
+        _clearBackoff();
         unawaited(sync());
       }
     });
@@ -233,6 +286,12 @@ class SyncNotifier extends StateNotifier<SyncStatus> {
     int syncedCount = 0;
     String? lastErr;
     for (final session in pending) {
+      // Skip sessions that are within their exponential backoff window.
+      if (_isBackedOff(session.id)) {
+        debugPrint('[SYNC] session ${session.id}: in backoff window — skipping');
+        continue;
+      }
+
       try {
         debugPrint(
           '[SYNC] syncing session ${session.id} (${session.syncStatus})',
@@ -240,6 +299,7 @@ class SyncNotifier extends StateNotifier<SyncStatus> {
         await _syncSession(session, db, client, accessToken);
         syncedCount++;
         _lastAuthFailureAt = null;
+        _recordSyncSuccess(session.id);
         debugPrint('[SYNC] ✓ session ${session.id} confirmed');
       } catch (e, st) {
         final msg = e.toString();
@@ -249,10 +309,11 @@ class SyncNotifier extends StateNotifier<SyncStatus> {
         if (e is FunctionException && e.status == 401) {
           debugPrint('[SYNC] 401 — backing off for ${_kAuthFailureCooldown.inMinutes}m');
           _lastAuthFailureAt = DateTime.now();
-          unawaited(client.auth.refreshSession().catchError((_) {}));
+          unawaited(client.auth.refreshSession().then<void>((_) {}, onError: (_) {}));
           lastErr = msg;
           break;
         }
+        _recordSyncFailure(session.id);
         debugPrint('[SYNC] ✗ session ${session.id} failed: $msg');
         AppLogger.e('Sync failed for session ${session.id}', e, st);
         await db.updateSessionSyncStatus(session.id, 'sync_failed');

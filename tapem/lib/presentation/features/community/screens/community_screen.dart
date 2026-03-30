@@ -11,51 +11,21 @@ import '../../../../l10n/generated/app_localizations.dart';
 import '../../progress/widgets/training_heatmap.dart';
 import '../../../widgets/common/user_avatar.dart';
 import '../providers/community_provider.dart';
+import 'deals_tab.dart';
 
 // ─── Root screen ──────────────────────────────────────────────────────────────
 
-class CommunityScreen extends StatelessWidget {
+class CommunityScreen extends StatefulWidget {
   const CommunityScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final l10n = context.l10n;
+  State<CommunityScreen> createState() => _CommunityScreenState();
+}
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(l10n.communityTitle),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.person_add_outlined),
-            onPressed: () => _showFindFriends(context),
-            tooltip: l10n.findFriendsTooltip,
-          ),
-        ],
-      ),
-      body: DefaultTabController(
-        length: 2,
-        child: Column(
-          children: [
-            TabBar(
-              indicatorColor: AppColors.neonCyan,
-              labelColor: AppColors.neonCyan,
-              unselectedLabelColor: AppColors.textSecondary,
-              labelStyle: AppTextStyles.labelMd,
-              tabs: [
-                Tab(text: l10n.friendsTab),
-                Tab(text: l10n.rankingsTab),
-              ],
-            ),
-            const Expanded(
-              child: TabBarView(children: [_FriendsTab(), _RankingsTab()]),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+class _CommunityScreenState extends State<CommunityScreen> {
+  int _selectedTab = 0;
 
-  void _showFindFriends(BuildContext context) {
+  void _showFindFriends() {
     unawaited(
       showModalBottomSheet<void>(
         context: context,
@@ -66,6 +36,210 @@ class CommunityScreen extends StatelessWidget {
         ),
         builder: (_) => const _FindFriendsSheet(),
       ),
+    );
+  }
+
+  void _showDealsInfo(AppLocalizations l10n) {
+    unawaited(
+      showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (_) => _DealsInfoSheet(l10n: l10n),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(l10n.communityTitle),
+        actions: [
+          if (_selectedTab == 0)
+            IconButton(
+              icon: const Icon(Icons.person_add_outlined),
+              onPressed: _showFindFriends,
+              tooltip: l10n.findFriendsTooltip,
+            ),
+          if (_selectedTab == 2)
+            IconButton(
+              icon: const Icon(Icons.info_outline_rounded),
+              onPressed: () => _showDealsInfo(l10n),
+            ),
+        ],
+      ),
+      body: Column(
+        children: [
+          _CommunityTabBar(
+            selectedIndex: _selectedTab,
+            onTabChanged: (i) => setState(() => _selectedTab = i),
+            tabs: [l10n.friendsTab, l10n.rankingsTab, l10n.dealsTab],
+          ),
+          Expanded(
+            child: IndexedStack(
+              index: _selectedTab,
+              children: const [_FriendsTab(), _RankingsTab(), DealsTab()],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Deals info bottom sheet ──────────────────────────────────────────────────
+
+class _DealsInfoSheet extends StatelessWidget {
+  const _DealsInfoSheet({required this.l10n});
+  final AppLocalizations l10n;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: AppColors.surface800,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Handle
+          Padding(
+            padding: const EdgeInsets.only(top: 12),
+            child: Container(
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.surface500,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(28, 28, 28, 0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Icon with glow
+                Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    color: AppColors.neonCyan.withAlpha(20),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: AppColors.neonCyan.withAlpha(80),
+                      width: 1,
+                    ),
+                    boxShadow: [
+                      const BoxShadow(
+                        color: AppColors.neonCyanGlow,
+                        blurRadius: 20,
+                        spreadRadius: 1,
+                      ),
+                    ],
+                  ),
+                  child: const Icon(
+                    Icons.rocket_launch_rounded,
+                    color: AppColors.neonCyan,
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  l10n.dealsInfoTitle,
+                  style: AppTextStyles.h2.copyWith(
+                    color: AppColors.neonCyan,
+                    letterSpacing: 3,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  l10n.dealsInfoBody,
+                  style: AppTextStyles.bodyMd.copyWith(
+                    color: AppColors.textSecondary,
+                    height: 1.6,
+                  ),
+                ),
+                const SizedBox(height: 32),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.neonCyan.withAlpha(20),
+                      foregroundColor: AppColors.neonCyan,
+                      side: BorderSide(
+                        color: AppColors.neonCyan.withAlpha(80),
+                        width: 1,
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      textStyle: AppTextStyles.buttonMd,
+                    ),
+                    child: Text(l10n.dealsInfoGotIt),
+                  ),
+                ),
+                SizedBox(height: MediaQuery.of(context).padding.bottom + 24),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Custom tab bar (no PageView/swipe conflict) ──────────────────────────────
+
+class _CommunityTabBar extends StatelessWidget {
+  const _CommunityTabBar({
+    required this.selectedIndex,
+    required this.onTabChanged,
+    required this.tabs,
+  });
+
+  final int selectedIndex;
+  final ValueChanged<int> onTabChanged;
+  final List<String> tabs;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: List.generate(tabs.length, (i) {
+        final active = i == selectedIndex;
+        return Expanded(
+          child: GestureDetector(
+            onTap: () => onTabChanged(i),
+            behavior: HitTestBehavior.opaque,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  child: AnimatedDefaultTextStyle(
+                    duration: const Duration(milliseconds: 200),
+                    style: AppTextStyles.labelMd.copyWith(
+                      color: active ? AppColors.neonCyan : AppColors.textSecondary,
+                    ),
+                    child: Text(tabs[i]),
+                  ),
+                ),
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  height: 2,
+                  color: active ? AppColors.neonCyan : Colors.transparent,
+                ),
+              ],
+            ),
+          ),
+        );
+      }),
     );
   }
 }
@@ -107,7 +281,7 @@ class _FriendsTab extends ConsumerWidget {
               .toList();
 
           return ListView(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
             children: [
               if (pending.isNotEmpty) ...[
                 _SectionLabel(
@@ -228,53 +402,86 @@ class _FriendRequestTile extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
     return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(12),
+      margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
         color: AppColors.surface800,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppColors.neonYellow.withAlpha(60)),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.neonYellow.withAlpha(80)),
+        boxShadow: [
+          BoxShadow(color: AppColors.neonYellow.withAlpha(20), blurRadius: 20),
+          BoxShadow(color: Colors.black.withAlpha(50), blurRadius: 8),
+        ],
       ),
-      child: Row(
-        children: [
-          _Avatar(username: friend.username, avatarUrl: friend.avatarUrl),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('@${friend.username}', style: AppTextStyles.bodyMd),
-                if (friend.displayName != null)
-                  Text(
-                    friend.displayName!,
-                    style: AppTextStyles.bodySm.copyWith(
-                      color: AppColors.textSecondary,
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          children: [
+            _Avatar(username: friend.username, avatarUrl: friend.avatarUrl),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('@${friend.username}', style: AppTextStyles.labelLg),
+                  if (friend.displayName != null)
+                    Text(
+                      friend.displayName!,
+                      style: AppTextStyles.bodySm.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  const SizedBox(height: 2),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: AppColors.neonYellow.withAlpha(15),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: AppColors.neonYellow.withAlpha(50)),
+                    ),
+                    child: Text(
+                      'ANFRAGE',
+                      style: AppTextStyles.labelSm.copyWith(
+                        color: AppColors.neonYellow,
+                        fontSize: 9,
+                        letterSpacing: 1,
+                      ),
                     ),
                   ),
-              ],
+                ],
+              ),
             ),
-          ),
-          IconButton(
-            onPressed: () => ref
-                .read(friendActionsProvider.notifier)
-                .acceptRequest(friend.friendshipId),
-            icon: const Icon(
-              Icons.check_circle_outline,
-              color: AppColors.success,
+            IconButton(
+              onPressed: () => ref
+                  .read(friendActionsProvider.notifier)
+                  .acceptRequest(friend.friendshipId),
+              icon: Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: AppColors.success.withAlpha(20),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: AppColors.success.withAlpha(80)),
+                ),
+                child: const Icon(Icons.check_rounded, color: AppColors.success, size: 18),
+              ),
+              tooltip: l10n.acceptTooltip,
             ),
-            tooltip: l10n.acceptTooltip,
-          ),
-          IconButton(
-            onPressed: () => ref
-                .read(friendActionsProvider.notifier)
-                .declineRequest(friend.friendshipId),
-            icon: Icon(
-              Icons.cancel_outlined,
-              color: AppColors.textSecondary.withAlpha(180),
+            IconButton(
+              onPressed: () => ref
+                  .read(friendActionsProvider.notifier)
+                  .declineRequest(friend.friendshipId),
+              icon: Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: AppColors.surface700,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: AppColors.surface500),
+                ),
+                child: Icon(Icons.close_rounded, color: AppColors.textSecondary.withAlpha(180), size: 18),
+              ),
+              tooltip: l10n.declineTooltip,
             ),
-            tooltip: l10n.declineTooltip,
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -301,56 +508,91 @@ class _FriendTile extends ConsumerWidget {
           ? () => _showCancelDialog(context, ref, l10n)
           : null,
       child: Container(
-        margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.all(12),
+        margin: const EdgeInsets.only(bottom: 10),
         decoration: BoxDecoration(
           color: AppColors.surface800,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: AppColors.surface500),
-        ),
-        child: Row(
-          children: [
-            _Avatar(username: friend.username, avatarUrl: friend.avatarUrl),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('@${friend.username}', style: AppTextStyles.bodyMd),
-                  Text(
-                    friend.sharesActiveGym
-                        ? l10n.friendInYourGym
-                        : l10n.friendFromOtherGyms(friend.sharedGymCount),
-                    style: AppTextStyles.bodySm.copyWith(
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                  if (friend.lastTrainingDay != null)
-                    Text(
-                      _formatLastTraining(friend.lastTrainingDay!, l10n),
-                      style: AppTextStyles.bodySm.copyWith(
-                        color: AppColors.neonCyan.withAlpha(180),
-                      ),
-                    )
-                  else if (friend.status == 'accepted')
-                    Text(
-                      l10n.privacyPrivate,
-                      style: AppTextStyles.bodySm.copyWith(
-                        color: AppColors.textDisabled,
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            if (showPendingBadge)
-              _Badge(label: l10n.pendingBadge)
-            else if (friend.status == 'accepted')
-              const Icon(
-                Icons.chevron_right_rounded,
-                color: AppColors.textDisabled,
-                size: 22,
-              ),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: friend.sharesActiveGym
+                ? AppColors.neonCyan.withAlpha(60)
+                : AppColors.surface500.withAlpha(140),
+          ),
+          boxShadow: [
+            if (friend.sharesActiveGym)
+              BoxShadow(color: AppColors.neonCyan.withAlpha(18), blurRadius: 16),
+            BoxShadow(color: Colors.black.withAlpha(40), blurRadius: 8),
           ],
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          child: Row(
+            children: [
+              _Avatar(username: friend.username, avatarUrl: friend.avatarUrl),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '@${friend.username}',
+                      style: AppTextStyles.labelLg.copyWith(fontSize: 14),
+                    ),
+                    const SizedBox(height: 2),
+                    Row(
+                      children: [
+                        if (friend.sharesActiveGym) ...[
+                          Container(
+                            width: 6,
+                            height: 6,
+                            decoration: const BoxDecoration(
+                              color: AppColors.neonCyan,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 5),
+                        ],
+                        Text(
+                          friend.sharesActiveGym
+                              ? l10n.friendInYourGym
+                              : l10n.friendFromOtherGyms(friend.sharedGymCount),
+                          style: AppTextStyles.bodySm.copyWith(
+                            color: friend.sharesActiveGym
+                                ? AppColors.neonCyan.withAlpha(200)
+                                : AppColors.textSecondary,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (friend.lastTrainingDay != null)
+                      Text(
+                        _formatLastTraining(friend.lastTrainingDay!, l10n),
+                        style: AppTextStyles.bodySm.copyWith(
+                          color: AppColors.neonCyan.withAlpha(160),
+                          fontSize: 10,
+                        ),
+                      )
+                    else if (friend.status == 'accepted')
+                      Text(
+                        l10n.privacyPrivate,
+                        style: AppTextStyles.bodySm.copyWith(
+                          color: AppColors.textDisabled,
+                          fontSize: 10,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              if (showPendingBadge)
+                _Badge(label: l10n.pendingBadge)
+              else if (friend.status == 'accepted')
+                const Icon(
+                  Icons.chevron_right_rounded,
+                  color: AppColors.textDisabled,
+                  size: 22,
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -881,10 +1123,27 @@ class _LeaderboardSeasonHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-      decoration: const BoxDecoration(
-        color: AppColors.surface800,
-        border: Border(bottom: BorderSide(color: AppColors.surface500)),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+          colors: [
+            AppColors.surface800,
+            AppColors.neonCyan.withAlpha(14),
+            AppColors.surface800,
+          ],
+        ),
+        border: Border(
+          bottom: BorderSide(color: AppColors.neonCyan.withAlpha(50)),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.neonCyan.withAlpha(10),
+            blurRadius: 20,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
@@ -893,12 +1152,17 @@ class _LeaderboardSeasonHeader extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                'GYM LEADERBOARD',
-                style: AppTextStyles.h3.copyWith(
-                  color: AppColors.neonCyan,
-                  letterSpacing: 2.0,
-                  height: 1.1,
+              ShaderMask(
+                shaderCallback: (bounds) => LinearGradient(
+                  colors: [AppColors.neonCyan, AppColors.neonCyan.withAlpha(180)],
+                ).createShader(bounds),
+                child: Text(
+                  'GYM LEADERBOARD',
+                  style: AppTextStyles.h3.copyWith(
+                    color: Colors.white,
+                    letterSpacing: 2.0,
+                    height: 1.1,
+                  ),
                 ),
               ),
               if (gymName != null) ...[
@@ -917,13 +1181,25 @@ class _LeaderboardSeasonHeader extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
             decoration: BoxDecoration(
-              border: Border.all(color: AppColors.neonCyan.withAlpha(70)),
-              borderRadius: BorderRadius.circular(4),
+              gradient: LinearGradient(
+                colors: [
+                  AppColors.neonCyan.withAlpha(28),
+                  AppColors.neonCyan.withAlpha(10),
+                ],
+              ),
+              border: Border.all(color: AppColors.neonCyan.withAlpha(110)),
+              borderRadius: BorderRadius.circular(6),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.neonCyan.withAlpha(30),
+                  blurRadius: 10,
+                ),
+              ],
             ),
             child: Text(
               'SEASON 1',
               style: AppTextStyles.labelSm.copyWith(
-                color: AppColors.neonCyan.withAlpha(200),
+                color: AppColors.neonCyan,
                 letterSpacing: 1.5,
               ),
             ),
@@ -943,21 +1219,29 @@ class _LeaderboardAxisTabBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: AppColors.surface900,
+      decoration: BoxDecoration(
+        color: AppColors.surface900,
+        border: Border(
+          bottom: BorderSide(color: AppColors.surface500.withAlpha(120)),
+        ),
+      ),
       child: TabBar(
         controller: controller,
         indicatorColor: AppColors.neonCyan,
         indicatorWeight: 2,
+        indicatorSize: TabBarIndicatorSize.tab,
         labelColor: AppColors.neonCyan,
         unselectedLabelColor: AppColors.textSecondary,
         labelStyle: AppTextStyles.labelSm.copyWith(
           letterSpacing: 1.5,
           fontSize: 11,
+          fontWeight: FontWeight.w700,
         ),
         unselectedLabelStyle: AppTextStyles.labelSm.copyWith(
           letterSpacing: 1.5,
           fontSize: 11,
         ),
+        dividerColor: Colors.transparent,
         tabs: const [
           Tab(text: 'KONSISTENZ'),
           Tab(text: 'EQUIPMENT XP'),
@@ -1466,7 +1750,7 @@ class _EquipmentLeaderboardSheet extends ConsumerWidget {
                   }
                   return ListView.builder(
                     controller: scrollController,
-                    padding: const EdgeInsets.only(bottom: 32),
+                    padding: const EdgeInsets.only(bottom: 48),
                     itemCount: entries.length,
                     itemBuilder: (_, i) =>
                         _EquipmentLeaderboardRow(entry: entries[i]),
@@ -1669,22 +1953,18 @@ class _LeaderboardView extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final async = ref.watch(gymLeaderboardProvider(axis));
 
-    return Column(
-      children: [
+    return async.when(
+      skipLoadingOnReload: true,
+      loading: () => Column(children: [
         _TableColumnHeader(axis: axis),
-        Expanded(
-          child: async.when(
-            skipLoadingOnReload: true,
-            loading: () => _LeaderboardLoading(axis: axis),
-            error: (e, _) => _LeaderboardError(message: e.toString()),
-            data: (entries) => _LeaderboardLoaded(
-              entries: entries,
-              axis: axis,
-              onRefresh: () async => ref.refresh(gymLeaderboardProvider(axis)),
-            ),
-          ),
-        ),
-      ],
+        Expanded(child: _LeaderboardLoading(axis: axis)),
+      ]),
+      error: (e, _) => _LeaderboardError(message: e.toString()),
+      data: (entries) => _LeaderboardLoaded(
+        entries: entries,
+        axis: axis,
+        onRefresh: () async => ref.refresh(gymLeaderboardProvider(axis)),
+      ),
     );
   }
 }
@@ -1767,10 +2047,19 @@ class _LeaderboardLoaded extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (entries.isEmpty) {
-      return _EmptyLeaderboardBody(axis: axis);
+      return Column(
+        children: [
+          _TableColumnHeader(axis: axis),
+          Expanded(child: _EmptyLeaderboardBody(axis: axis)),
+        ],
+      );
     }
 
     final currentUserEntry = entries.where((e) => e.isCurrentUser).firstOrNull;
+    final showPodium = entries.length >= 3 && entries[0].totalXp > 0;
+    final listEntries = showPodium ? entries.skip(3).toList() : entries;
+    // items: [podium?] + [column header] + [N data rows] + [privacy]
+    final extraItems = showPodium ? 3 : 2;
 
     return Stack(
       children: [
@@ -1779,21 +2068,181 @@ class _LeaderboardLoaded extends StatelessWidget {
           color: AppColors.neonCyan,
           backgroundColor: AppColors.surface800,
           child: ListView.builder(
-            padding: EdgeInsets.only(
-              bottom: currentUserEntry != null ? 80 : 24,
-            ),
-            itemCount: entries.length + 1, // +1 for privacy note at end
+            padding: const EdgeInsets.only(bottom: 24),
+            itemCount: listEntries.length + extraItems,
             itemBuilder: (_, i) {
-              if (i == entries.length) {
-                return const _PrivacyFootnote();
+              int idx = i;
+              if (showPodium) {
+                if (idx == 0) {
+                  return _PodiumSection(top3: entries.take(3).toList());
+                }
+                idx--;
               }
-              return _LeaderboardDataRow(entry: entries[i]);
+              if (idx == 0) return _TableColumnHeader(axis: axis);
+              idx--;
+              if (idx == listEntries.length) return const _PrivacyFootnote();
+              return _LeaderboardDataRow(entry: listEntries[idx]);
             },
           ),
         ),
         if (currentUserEntry != null)
           _StickyCurrentUserBar(entry: currentUserEntry),
       ],
+    );
+  }
+}
+
+// ─── Podium section (top 3) ───────────────────────────────────────────────────
+
+class _PodiumSection extends StatelessWidget {
+  const _PodiumSection({required this.top3});
+  final List<LeaderboardEntry> top3;
+
+  static const _gold = Color(0xFFFFD700);
+  static const _silver = Color(0xFFC0C0C0);
+  static const _bronze = Color(0xFFCD7F32);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 24, 12, 0),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            AppColors.surface800,
+            AppColors.surface900,
+          ],
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          _PodiumSlot(
+            entry: top3[1],
+            rank: 2,
+            medalColor: _silver,
+            avatarRadius: 20,
+            pedestalHeight: 58,
+          ),
+          _PodiumSlot(
+            entry: top3[0],
+            rank: 1,
+            medalColor: _gold,
+            avatarRadius: 26,
+            pedestalHeight: 82,
+          ),
+          _PodiumSlot(
+            entry: top3[2],
+            rank: 3,
+            medalColor: _bronze,
+            avatarRadius: 20,
+            pedestalHeight: 44,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PodiumSlot extends StatelessWidget {
+  const _PodiumSlot({
+    required this.entry,
+    required this.rank,
+    required this.medalColor,
+    required this.avatarRadius,
+    required this.pedestalHeight,
+  });
+
+  final LeaderboardEntry entry;
+  final int rank;
+  final Color medalColor;
+  final double avatarRadius;
+  final double pedestalHeight;
+
+  @override
+  Widget build(BuildContext context) {
+    final isCurrent = entry.isCurrentUser;
+    final color = isCurrent ? AppColors.neonCyan : medalColor;
+
+    return Expanded(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          if (rank == 1)
+            Icon(Icons.workspace_premium_rounded, color: color, size: 18)
+          else
+            const SizedBox(height: 18),
+          const SizedBox(height: 4),
+          _LeaderboardAvatar(
+            username: entry.username,
+            accentColor: color,
+            size: avatarRadius * 2,
+            avatarUrl: entry.avatarUrl,
+          ),
+          const SizedBox(height: 6),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Text(
+              '@${entry.username}',
+              style: AppTextStyles.labelSm.copyWith(
+                color: isCurrent ? AppColors.neonCyan : AppColors.textPrimary,
+                fontSize: 9,
+                fontWeight: FontWeight.w600,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            '${entry.totalXp} XP',
+            style: AppTextStyles.monoSm.copyWith(
+              color: color.withAlpha(200),
+              fontSize: 8,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 6),
+          Container(
+            height: pedestalHeight,
+            margin: const EdgeInsets.symmetric(horizontal: 3),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [color.withAlpha(70), color.withAlpha(18)],
+              ),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(8),
+              ),
+              border: Border(
+                top: BorderSide(color: color.withAlpha(150), width: 1.5),
+                left: BorderSide(color: color.withAlpha(60)),
+                right: BorderSide(color: color.withAlpha(60)),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: color.withAlpha(rank == 1 ? 45 : 20),
+                  blurRadius: rank == 1 ? 22 : 12,
+                ),
+              ],
+            ),
+            child: Center(
+              child: Text(
+                '#$rank',
+                style: AppTextStyles.monoSm.copyWith(
+                  color: color,
+                  fontWeight: FontWeight.w700,
+                  fontSize: rank == 1 ? 20 : 15,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -2184,9 +2633,9 @@ class _StickyCurrentUserBar extends StatelessWidget {
       right: 0,
       bottom: 0,
       child: Container(
-        padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
         decoration: BoxDecoration(
-          color: AppColors.surface900,
+          color: AppColors.surface900.withAlpha(240),
           border: Border(
             top: BorderSide(color: AppColors.neonCyan.withAlpha(100)),
             left: const BorderSide(color: AppColors.neonCyan, width: 3),

@@ -1,3 +1,5 @@
+import 'dart:async' show unawaited;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:gap/gap.dart';
@@ -29,12 +31,12 @@ class NutritionSearchScreen extends HookConsumerWidget {
     // Debounce
     useEffect(() {
       final text = queryCtrl.text.trim();
-      Future.delayed(
+      unawaited(Future.delayed(
         const Duration(milliseconds: 400),
         () {
           debouncedQuery.value = text;
         },
-      );
+      ));
       return null;
     }, [query.text]);
 
@@ -44,12 +46,12 @@ class NutritionSearchScreen extends HookConsumerWidget {
       if (returnProduct) {
         context.pop<NutritionProduct>(product);
       } else {
-        context.push('/nutrition/entry', extra: {
+        unawaited(context.push('/nutrition/entry', extra: {
           'meal': meal,
           'dateKey': dateKey,
           'uid': uid,
           'product': product,
-        });
+        }));
       }
     }
 
@@ -148,17 +150,17 @@ class _RecentsList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (recents.isEmpty) {
-      return Center(
+      return const Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.history, color: AppColors.textDisabled, size: 48),
-            const Gap(12),
+            Icon(Icons.history, color: AppColors.textDisabled, size: 48),
+            Gap(12),
             Text(
               'Noch keine Produkte geloggt.',
               style: AppTextStyles.bodySm,
             ),
-            const Gap(4),
+            Gap(4),
             Text(
               'Suche nach einem Produkt oben.',
               style: AppTextStyles.bodySm,
@@ -298,7 +300,7 @@ class _ProductTile extends StatelessWidget {
                   Wrap(
                     spacing: 10,
                     children: [
-                      _MacroLabel('${kcalPer100} kcal', Colors.orangeAccent),
+                      _MacroLabel('$kcalPer100 kcal', Colors.orangeAccent),
                       _MacroLabel('P: ${proteinPer100}g', Colors.blueAccent),
                       _MacroLabel('K: ${carbsPer100}g', Colors.amberAccent),
                       _MacroLabel('F: ${fatPer100}g', Colors.lightGreenAccent),

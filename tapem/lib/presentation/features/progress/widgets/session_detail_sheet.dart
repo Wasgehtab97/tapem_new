@@ -54,9 +54,17 @@ class _SessionDetailSheet extends ConsumerWidget {
       minChildSize: 0.4,
       maxChildSize: 0.95,
       builder: (context, scrollCtrl) => Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           color: AppColors.surface800,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          border: Border.all(color: AppColors.neonMagenta.withAlpha(40)),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.neonMagenta.withAlpha(12),
+              blurRadius: 30,
+              offset: const Offset(0, -4),
+            ),
+          ],
         ),
         child: Column(
           children: [
@@ -64,10 +72,10 @@ class _SessionDetailSheet extends ConsumerWidget {
             const SizedBox(height: 12),
             Center(
               child: Container(
-                width: 40,
-                height: 4,
+                width: 36,
+                height: 3,
                 decoration: BoxDecoration(
-                  color: AppColors.surface500,
+                  color: AppColors.neonMagenta.withAlpha(80),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -119,7 +127,21 @@ class _SessionDetailSheet extends ConsumerWidget {
               ),
             ),
 
-            const Divider(color: AppColors.surface500, height: 24),
+            Container(
+              height: 1,
+              margin: const EdgeInsets.symmetric(vertical: 12),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    Colors.transparent,
+                    AppColors.neonMagenta.withAlpha(40),
+                    AppColors.surface500.withAlpha(180),
+                    AppColors.neonMagenta.withAlpha(40),
+                    Colors.transparent,
+                  ],
+                ),
+              ),
+            ),
 
             // ── Exercise list ────────────────────────────────────────────────
             Expanded(
@@ -288,15 +310,37 @@ class _ExerciseBlock extends StatelessWidget {
               final set = entry.value;
               final isBest = i == bestIdx;
               return Padding(
-                padding: const EdgeInsets.only(bottom: 4),
+                padding: const EdgeInsets.only(bottom: 5),
                 child: Row(
                   children: [
                     SizedBox(
                       width: 28,
-                      child: Text(
-                        '${i + 1}',
-                        style: AppTextStyles.monoSm.copyWith(
-                          color: AppColors.textSecondary,
+                      child: Center(
+                        child: Container(
+                          width: 20,
+                          height: 20,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: isBest
+                                ? AppColors.neonCyan.withAlpha(20)
+                                : AppColors.surface600,
+                            border: Border.all(
+                              color: isBest
+                                  ? AppColors.neonCyan.withAlpha(120)
+                                  : AppColors.surface500,
+                            ),
+                          ),
+                          child: Center(
+                            child: Text(
+                              '${i + 1}',
+                              style: AppTextStyles.monoSm.copyWith(
+                                color: isBest
+                                    ? AppColors.neonCyan
+                                    : AppColors.textSecondary,
+                                fontSize: 9,
+                              ),
+                            ),
+                          ),
                         ),
                       ),
                     ),
@@ -458,15 +502,24 @@ class _ExerciseBlock extends StatelessWidget {
 
   static Widget _badge(String text, Color color) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: color.withAlpha(25),
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: color.withAlpha(80)),
+        gradient: LinearGradient(
+          colors: [color.withAlpha(30), color.withAlpha(12)],
+        ),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color.withAlpha(100)),
+        boxShadow: [
+          BoxShadow(color: color.withAlpha(25), blurRadius: 8),
+        ],
       ),
       child: Text(
         text,
-        style: AppTextStyles.labelSm.copyWith(color: color, fontSize: 10),
+        style: AppTextStyles.labelSm.copyWith(
+          color: color,
+          fontSize: 10,
+          letterSpacing: 0.5,
+        ),
       ),
     );
   }

@@ -181,19 +181,27 @@ class EquipmentDetailSheet extends HookConsumerWidget {
       maxChildSize: 0.95,
       builder: (sheetContext, scrollController) {
         return Container(
-          decoration: const BoxDecoration(
+          decoration: BoxDecoration(
             color: AppColors.surface800,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+            border: Border.all(color: AppColors.neonCyan.withAlpha(40)),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.neonCyan.withAlpha(15),
+                blurRadius: 30,
+                offset: const Offset(0, -4),
+              ),
+            ],
           ),
           child: Column(
             children: [
               Center(
                 child: Container(
                   margin: const EdgeInsets.only(top: 12, bottom: 8),
-                  width: 40,
-                  height: 4,
+                  width: 36,
+                  height: 3,
                   decoration: BoxDecoration(
-                    color: AppColors.surface500,
+                    color: AppColors.neonCyan.withAlpha(80),
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -257,7 +265,20 @@ class EquipmentDetailSheet extends HookConsumerWidget {
                 ),
               ),
 
-              const Divider(color: AppColors.surface500, height: 1),
+              Container(
+                height: 1,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      Colors.transparent,
+                      AppColors.neonCyan.withAlpha(40),
+                      AppColors.surface500.withAlpha(180),
+                      AppColors.neonCyan.withAlpha(40),
+                      Colors.transparent,
+                    ],
+                  ),
+                ),
+              ),
 
               Expanded(
                 child: ListView(
@@ -490,13 +511,24 @@ class _TypeBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: color.withAlpha(20),
-        borderRadius: BorderRadius.circular(3),
-        border: Border.all(color: color.withAlpha(80)),
+        gradient: LinearGradient(
+          colors: [color.withAlpha(28), color.withAlpha(10)],
+        ),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color.withAlpha(100)),
+        boxShadow: [
+          BoxShadow(color: color.withAlpha(30), blurRadius: 8),
+        ],
       ),
-      child: Text(label, style: AppTextStyles.labelSm.copyWith(color: color)),
+      child: Text(
+        label,
+        style: AppTextStyles.labelSm.copyWith(
+          color: color,
+          letterSpacing: 0.8,
+        ),
+      ),
     );
   }
 }
@@ -615,11 +647,14 @@ class _HistoryRow extends StatelessWidget {
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
         color: AppColors.surface700,
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: AppColors.surface500),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.surface500.withAlpha(160)),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withAlpha(30), blurRadius: 8),
+        ],
       ),
       child: Row(
         children: [

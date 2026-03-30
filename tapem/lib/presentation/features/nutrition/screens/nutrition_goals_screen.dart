@@ -229,7 +229,7 @@ class NutritionGoalsScreen extends HookConsumerWidget {
                           color: AppColors.textOnAction,
                         ),
                       )
-                    : Text('SPEICHERN', style: AppTextStyles.buttonMd),
+                    : const Text('SPEICHERN', style: AppTextStyles.buttonMd),
               ),
             ),
 
@@ -253,7 +253,7 @@ class NutritionGoalsScreen extends HookConsumerWidget {
                     ),
                   ),
                   const Gap(8),
-                  Text(
+                  const Text(
                     'Diese Ziele gelten als Standardwert für alle Tage. '
                     'Änderungen wirken sich sofort auf die heutige Anzeige aus.',
                     style: AppTextStyles.bodySm,

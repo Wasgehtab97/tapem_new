@@ -331,7 +331,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get cancel => 'ABBRECHEN';
 
   @override
-  String get addExercise => 'GERÄT HINZUFÜGEN';
+  String get addExercise => 'ÜBUNG HINZUFÜGEN';
 
   @override
   String get discardWorkoutMenu => 'Training verwerfen';
@@ -359,7 +359,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get addExerciseHint =>
-      'Tippe unten auf \"Gerät hinzufügen\" oder wähle im Gym-Tab.';
+      'Tippe unten auf \"Übung hinzufügen\" oder wähle im Gym-Tab.';
 
   @override
   String get addSet => 'SATZ HINZUFÜGEN';
@@ -454,6 +454,52 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get rankingsTab => 'RANGLISTE';
+
+  @override
+  String get dealsTab => 'DEALS';
+
+  @override
+  String get dealsHeaderTitle => 'EXKLUSIVE DEALS';
+
+  @override
+  String get dealsHeaderSubtitle => 'Angebote ausgewählt für dein Gym.';
+
+  @override
+  String get dealsCategorySupplements => 'SUPPLEMENTS';
+
+  @override
+  String get dealsCategoryClothing => 'KLEIDUNG';
+
+  @override
+  String get dealsCategoryFood => 'ERNÄHRUNG';
+
+  @override
+  String get dealsCategoryEquipment => 'EQUIPMENT';
+
+  @override
+  String get dealsCategoryWellness => 'WELLNESS';
+
+  @override
+  String get dealsShopNow => 'JETZT SHOPPEN';
+
+  @override
+  String get dealsCopied => 'Code kopiert!';
+
+  @override
+  String get dealsNoDeals => 'KEINE DEALS VERFÜGBAR';
+
+  @override
+  String get dealsNoDealsSubtitle => 'Deals für dein Gym kommen bald.';
+
+  @override
+  String get dealsInfoTitle => 'SNEAK PEEK';
+
+  @override
+  String get dealsInfoBody =>
+      'Die Deals hier sind Demo-Inhalte — noch keine echten Codes. Aber genau so wird\'s aussehen: exklusive Rabatte, kuratiert für dein Gym, direkt in der App. Jeder Partner, der an Bord kommt, unterstützt die Weiterentwicklung von Tap\'em und dein Gym. Stay tuned.';
+
+  @override
+  String get dealsInfoGotIt => 'ALLES KLAR';
 
   @override
   String requestsSection(int count) {

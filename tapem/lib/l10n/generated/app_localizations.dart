@@ -896,6 +896,96 @@ abstract class AppLocalizations {
   /// **'RANKINGS'**
   String get rankingsTab;
 
+  /// No description provided for @dealsTab.
+  ///
+  /// In en, this message translates to:
+  /// **'DEALS'**
+  String get dealsTab;
+
+  /// No description provided for @dealsHeaderTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'EXCLUSIVE DEALS'**
+  String get dealsHeaderTitle;
+
+  /// No description provided for @dealsHeaderSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Offers selected for your gym.'**
+  String get dealsHeaderSubtitle;
+
+  /// No description provided for @dealsCategorySupplements.
+  ///
+  /// In en, this message translates to:
+  /// **'SUPPLEMENTS'**
+  String get dealsCategorySupplements;
+
+  /// No description provided for @dealsCategoryClothing.
+  ///
+  /// In en, this message translates to:
+  /// **'CLOTHING'**
+  String get dealsCategoryClothing;
+
+  /// No description provided for @dealsCategoryFood.
+  ///
+  /// In en, this message translates to:
+  /// **'NUTRITION'**
+  String get dealsCategoryFood;
+
+  /// No description provided for @dealsCategoryEquipment.
+  ///
+  /// In en, this message translates to:
+  /// **'EQUIPMENT'**
+  String get dealsCategoryEquipment;
+
+  /// No description provided for @dealsCategoryWellness.
+  ///
+  /// In en, this message translates to:
+  /// **'WELLNESS'**
+  String get dealsCategoryWellness;
+
+  /// No description provided for @dealsShopNow.
+  ///
+  /// In en, this message translates to:
+  /// **'SHOP NOW'**
+  String get dealsShopNow;
+
+  /// No description provided for @dealsCopied.
+  ///
+  /// In en, this message translates to:
+  /// **'Code copied!'**
+  String get dealsCopied;
+
+  /// No description provided for @dealsNoDeals.
+  ///
+  /// In en, this message translates to:
+  /// **'NO DEALS AVAILABLE'**
+  String get dealsNoDeals;
+
+  /// No description provided for @dealsNoDealsSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Deals for your gym are coming soon.'**
+  String get dealsNoDealsSubtitle;
+
+  /// No description provided for @dealsInfoTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'SNEAK PEEK'**
+  String get dealsInfoTitle;
+
+  /// No description provided for @dealsInfoBody.
+  ///
+  /// In en, this message translates to:
+  /// **'The deals you see here are demo content — no real codes yet. But this is exactly what\'s coming: exclusive discounts, curated for your gym, right inside the app. Every partner that joins supports Tap\'em\'s development and your gym. Stay tuned.'**
+  String get dealsInfoBody;
+
+  /// No description provided for @dealsInfoGotIt.
+  ///
+  /// In en, this message translates to:
+  /// **'GOT IT'**
+  String get dealsInfoGotIt;
+
   /// No description provided for @requestsSection.
   ///
   /// In en, this message translates to:

@@ -1,4 +1,5 @@
 import 'dart:async' show Timer, unawaited;
+import 'dart:math' show pi, cos, sin;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
@@ -13,6 +14,7 @@ import '../../../widgets/common/tapem_button.dart';
 import '../../auth/providers/profile_provider.dart';
 import '../../../../data/datasources/local/app_database.dart';
 import '../../../../domain/entities/streak/streak_info.dart';
+import '../../../../core/utils/xp_rules.dart';
 import '../../plans/providers/plans_provider.dart';
 import '../../progress/providers/xp_provider.dart';
 import '../../progress/widgets/session_detail_sheet.dart';
@@ -99,10 +101,10 @@ class HomeScreen extends ConsumerWidget {
           ref.invalidate(streakProvider);
         },
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
           children: const [
             _HeroCard(),
-            SizedBox(height: 12),
+            SizedBox(height: 16),
             _StatsRow(),
             SizedBox(height: 20),
             _WorkoutQuickStart(),
@@ -127,145 +129,138 @@ class _HeroCard extends ConsumerWidget {
     final profile = ref.watch(currentProfileProvider);
     final gymXp = ref.watch(userGymXpProvider);
     final l10n = context.l10n;
+    final accent = Theme.of(context).colorScheme.primary;
+
+    final xpData = gymXp.valueOrNull;
+    final totalXp = xpData?.totalXp ?? 0;
+    final xpToNext = xpData?.xpToNextLevel ?? XpRules.trainingDayXpPerLevel;
+    final level = XpRules.levelFromXp(totalXp, XpRules.trainingDayXpPerLevel);
+    const xpPerLevel = XpRules.trainingDayXpPerLevel;
+    final ringProgress = (totalXp > 0 && !gymXp.isLoading)
+        ? (1.0 - xpToNext / xpPerLevel).clamp(0.0, 1.0)
+        : 0.0;
 
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
+        gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [AppColors.surface800, AppColors.surface900],
+          colors: [
+            AppColors.surface800,
+            AppColors.surface900,
+            accent.withAlpha(15),
+          ],
+          stops: const [0.0, 0.55, 1.0],
         ),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.neonCyan.withAlpha(50)),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: accent.withAlpha(55)),
         boxShadow: [
           BoxShadow(
-            color: AppColors.neonCyan.withAlpha(18),
-            blurRadius: 28,
-            offset: const Offset(0, 6),
+            color: accent.withAlpha(28),
+            blurRadius: 40,
+            offset: const Offset(0, 8),
+          ),
+          BoxShadow(
+            color: Colors.black.withAlpha(80),
+            blurRadius: 20,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          // Time-based greeting
-          Text(
-            _timeGreeting(),
-            textAlign: TextAlign.center,
-            style: AppTextStyles.labelSm.copyWith(
-              color: AppColors.textSecondary,
-              letterSpacing: 2.5,
-            ),
+          // Greeting + ring badge side by side
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(
+                child: Text(
+                  _timeGreeting(),
+                  style: AppTextStyles.labelSm.copyWith(
+                    color: AppColors.textSecondary,
+                    letterSpacing: 2.0,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              // XP level ring badge
+              TweenAnimationBuilder<double>(
+                tween: Tween<double>(begin: 0.0, end: ringProgress),
+                duration: const Duration(milliseconds: 1400),
+                curve: Curves.easeOutCubic,
+                builder: (context, value, _) => SizedBox(
+                  width: 72,
+                  height: 72,
+                  child: CustomPaint(
+                    painter: _XpRingPainter(
+                      progress: value,
+                      accentColor: accent,
+                      trackColor: AppColors.surface600,
+                    ),
+                    child: Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'LVL',
+                            style: AppTextStyles.labelSm.copyWith(
+                              fontSize: 8,
+                              color: AppColors.textSecondary,
+                              letterSpacing: 1.5,
+                            ),
+                          ),
+                          Text(
+                            '$level',
+                            style: AppTextStyles.monoLg.copyWith(
+                              color: accent,
+                              fontSize: 20,
+                              height: 1.0,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 8),
 
-          // Username (without level badge to avoid overlap)
+          // Full-width username — never clipped
           profile.when(
             data: (p) {
               if (p == null) return const SizedBox.shrink();
               return ShaderMask(
-                shaderCallback: (bounds) => const LinearGradient(
-                  colors: [AppColors.neonCyan, AppColors.textPrimary],
+                shaderCallback: (bounds) => LinearGradient(
+                  colors: [accent, AppColors.textPrimary],
                   begin: Alignment.centerLeft,
                   end: Alignment.centerRight,
                 ).createShader(bounds),
                 child: Text(
                   p.username.toUpperCase(),
-                  textAlign: TextAlign.center,
                   style: AppTextStyles.h1.copyWith(
                     color: Colors.white,
                     letterSpacing: 2,
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
                 ),
               );
             },
             loading: () => Container(
               height: 32,
-              width: 180,
+              width: 160,
               decoration: BoxDecoration(
                 color: AppColors.surface700,
                 borderRadius: BorderRadius.circular(4),
               ),
-              child: const LinearProgressIndicator(
-                color: AppColors.neonCyan,
-                backgroundColor: Colors.transparent,
-              ),
             ),
             error: (_, __) => Text(
               l10n.errorLoadingProfile,
-              textAlign: TextAlign.center,
               style: AppTextStyles.bodyMd,
             ),
-          ),
-
-          // XP progress bar — only when XP data is available
-          gymXp.maybeWhen(
-            data: (xp) {
-              if (xp == null) return const SizedBox.shrink();
-              final progress = ((100 - xp.xpToNextLevel) / 100.0).clamp(
-                0.0,
-                1.0,
-              );
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SizedBox(height: 16),
-                  Stack(
-                    children: [
-                      Container(
-                        height: 3,
-                        decoration: BoxDecoration(
-                          color: AppColors.surface600,
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                      ),
-                      FractionallySizedBox(
-                        widthFactor: progress,
-                        child: Container(
-                          height: 3,
-                          decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              colors: [
-                                AppColors.neonCyan,
-                                AppColors.neonMagenta,
-                              ],
-                            ),
-                            borderRadius: BorderRadius.circular(2),
-                            boxShadow: [
-                              BoxShadow(
-                                color: AppColors.neonCyan.withAlpha(120),
-                                blurRadius: 6,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  Row(
-                    children: [
-                      Text(
-                        '${xp.totalXp} XP',
-                        style: AppTextStyles.monoSm.copyWith(
-                          color: AppColors.neonCyan,
-                          fontSize: 11,
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        '·  noch ${xp.xpToNextLevel} XP bis Lvl ${xp.currentLevel + 1}',
-                        style: AppTextStyles.bodySm.copyWith(fontSize: 11),
-                      ),
-                    ],
-                  ),
-                ],
-              );
-            },
-            orElse: () => const SizedBox.shrink(),
           ),
         ],
       ),
@@ -279,6 +274,95 @@ class _HeroCard extends ConsumerWidget {
     if (hour >= 17 && hour < 22) return 'GUTEN ABEND';
     return 'GUTE NACHT';
   }
+}
+
+// ─── XP ring painter ───────────────────────────────────────────────────────────
+
+class _XpRingPainter extends CustomPainter {
+  const _XpRingPainter({
+    required this.progress,
+    required this.accentColor,
+    required this.trackColor,
+  });
+
+  final double progress;
+  final Color accentColor;
+  final Color trackColor;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = (size.shortestSide / 2) - 7;
+    const strokeWidth = 5.5;
+    const startAngle = -pi / 2;
+
+    // Track
+    canvas.drawArc(
+      Rect.fromCircle(center: center, radius: radius),
+      0,
+      2 * pi,
+      false,
+      Paint()
+        ..color = trackColor
+        ..strokeWidth = strokeWidth
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round,
+    );
+
+    if (progress <= 0) return;
+
+    final sweepAngle = 2 * pi * progress;
+
+    // Glow
+    canvas.drawArc(
+      Rect.fromCircle(center: center, radius: radius),
+      startAngle,
+      sweepAngle,
+      false,
+      Paint()
+        ..color = accentColor.withAlpha(70)
+        ..strokeWidth = strokeWidth + 10
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 9),
+    );
+
+    // Arc
+    canvas.drawArc(
+      Rect.fromCircle(center: center, radius: radius),
+      startAngle,
+      sweepAngle,
+      false,
+      Paint()
+        ..color = accentColor
+        ..strokeWidth = strokeWidth
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round,
+    );
+
+    // Tip dot
+    if (progress > 0.02) {
+      final endAngle = startAngle + sweepAngle;
+      final dotX = center.dx + radius * cos(endAngle);
+      final dotY = center.dy + radius * sin(endAngle);
+      canvas.drawCircle(
+        Offset(dotX, dotY),
+        strokeWidth / 2 + 1,
+        Paint()..color = accentColor,
+      );
+      canvas.drawCircle(
+        Offset(dotX, dotY),
+        strokeWidth / 2 + 4,
+        Paint()
+          ..color = accentColor.withAlpha(55)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5),
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_XpRingPainter old) =>
+      old.progress != progress || old.accentColor != accentColor;
 }
 
 // ─── Stats row ────────────────────────────────────────────────────────────────
@@ -365,23 +449,33 @@ class _StatChip extends StatelessWidget {
   Widget build(BuildContext context) {
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
         decoration: BoxDecoration(
-          color: AppColors.surface800,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withAlpha(50)),
-          boxShadow: [BoxShadow(color: color.withAlpha(12), blurRadius: 12)],
+          gradient: const LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              AppColors.surface800,
+              AppColors.surface900,
+            ],
+          ),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: color.withAlpha(60)),
+          boxShadow: [
+            BoxShadow(color: color.withAlpha(20), blurRadius: 20, offset: const Offset(0, 4)),
+            BoxShadow(color: Colors.black.withAlpha(60), blurRadius: 8),
+          ],
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 16, color: color.withAlpha(200)),
-            const SizedBox(height: 5),
+            Icon(icon, size: 18, color: color.withAlpha(220)),
+            const SizedBox(height: 6),
             Text(
               value,
-              style: AppTextStyles.monoSm.copyWith(color: color, fontSize: 17),
+              style: AppTextStyles.monoSm.copyWith(color: color, fontSize: 20, height: 1.0),
             ),
-            const SizedBox(height: 2),
+            const SizedBox(height: 3),
             Text(
               label,
               style: AppTextStyles.labelSm.copyWith(
@@ -448,14 +542,15 @@ class _CalendarCardState extends ConsumerState<_CalendarCard> {
     return Container(
       decoration: BoxDecoration(
         color: AppColors.surface800,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.neonCyan.withAlpha(30)),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.neonCyan.withAlpha(35)),
         boxShadow: [
-          BoxShadow(color: AppColors.neonCyan.withAlpha(10), blurRadius: 20),
+          BoxShadow(color: AppColors.neonCyan.withAlpha(15), blurRadius: 28, offset: const Offset(0, 4)),
+          BoxShadow(color: Colors.black.withAlpha(60), blurRadius: 12),
         ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(15),
+        borderRadius: BorderRadius.circular(20),
         child: Material(
           color: Colors.transparent,
           child: InkWell(
@@ -1331,7 +1426,7 @@ class _RecentActivityCard extends ConsumerWidget {
         final latest = list.first;
 
         return ClipRRect(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(20),
           child: Material(
             color: AppColors.surface800,
             child: InkWell(
@@ -1341,8 +1436,11 @@ class _RecentActivityCard extends ConsumerWidget {
               child: Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppColors.surface500),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: AppColors.surface500.withAlpha(160)),
+                  boxShadow: [
+                    BoxShadow(color: Colors.black.withAlpha(50), blurRadius: 12),
+                  ],
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1387,8 +1485,11 @@ class _RecentActivityCard extends ConsumerWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.surface800,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.surface500),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.surface500.withAlpha(160)),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withAlpha(50), blurRadius: 12),
+        ],
       ),
       child: Column(
         crossAxisAlignment: centered

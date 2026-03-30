@@ -354,20 +354,20 @@ void main() {
     group('XP stacking', () {
       test('two exercises on same muscle group stack XP', () {
         const primaryPerExercise = XpRules.muscleGroupPrimaryXp;
-        final twoExercises = 2 * primaryPerExercise;
+        const twoExercises = 2 * primaryPerExercise;
         expect(twoExercises, 20.0);
         expect(XpRules.levelFromXpDouble(twoExercises, 100), 1);
       });
 
       test('10 exercises → level 2', () {
-        final xp = 10 * XpRules.muscleGroupPrimaryXp;
+        const xp = 10 * XpRules.muscleGroupPrimaryXp;
         expect(xp, 100.0);
         expect(XpRules.levelFromXpDouble(xp, 100), 2);
       });
 
       test('mix of primary and secondary XP sums correctly', () {
         // 5 primary (50 XP) + 4 secondary (10 XP) = 60 XP
-        final xp = 5 * XpRules.muscleGroupPrimaryXp
+        const xp = 5 * XpRules.muscleGroupPrimaryXp
             + 4 * XpRules.muscleGroupSecondaryXp;
         expect(xp, closeTo(60.0, 1e-10));
         expect(XpRules.levelFromXpDouble(xp, 100), 1);

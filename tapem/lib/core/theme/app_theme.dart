@@ -61,9 +61,10 @@ ThemeData buildAppTheme(Color accentColor) {
     cardTheme: CardThemeData(
       color: AppColors.surface800,
       elevation: 0,
+      shadowColor: Colors.black.withAlpha(120),
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
-        side: const BorderSide(color: AppColors.surface500, width: 1),
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: AppColors.surface500.withAlpha(160), width: 1),
       ),
       margin: EdgeInsets.zero,
     ),
@@ -160,11 +161,22 @@ ThemeData buildAppTheme(Color accentColor) {
       contentTextStyle: AppTextStyles.bodyMd,
     ),
 
+    // ─── Bottom Sheet ──────────────────────────────────────────────────────
+    bottomSheetTheme: const BottomSheetThemeData(
+      backgroundColor: AppColors.surface800,
+      modalBackgroundColor: AppColors.surface800,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      elevation: 0,
+      modalElevation: 0,
+    ),
+
     // ─── SnackBar ──────────────────────────────────────────────────────────
     snackBarTheme: SnackBarThemeData(
       backgroundColor: AppColors.surface700,
       contentTextStyle: AppTextStyles.bodyMd,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       behavior: SnackBarBehavior.floating,
     ),
 

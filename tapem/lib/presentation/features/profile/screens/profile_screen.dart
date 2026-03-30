@@ -6,6 +6,9 @@ import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
+import 'package:package_info_plus/package_info_plus.dart';
+
+import '../../../../core/config/build_info.dart';
 import '../../../../core/providers/locale_provider.dart';
 import '../../../../core/services/gym_service.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -26,7 +29,17 @@ class ProfileScreen extends ConsumerWidget {
     final profile = ref.watch(currentProfileProvider);
 
     return Scaffold(
-      appBar: AppBar(title: Text(context.l10n.profileTitle)),
+      appBar: AppBar(
+        title: Text(context.l10n.profileTitle),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout),
+            tooltip: context.l10n.signOut,
+            onPressed: () =>
+                ref.read(authNotifierProvider.notifier).signOut(),
+          ),
+        ],
+      ),
       body: profile.when(
         data: (p) => p == null
             ? Center(child: Text(context.l10n.noProfile))
@@ -141,6 +154,9 @@ class _ProfileBody extends ConsumerWidget {
           variant: TapemButtonVariant.outlined,
           onPressed: () => ref.read(authNotifierProvider.notifier).signOut(),
         ),
+        const SizedBox(height: 24),
+        const _AppBuildInfo(),
+        const SizedBox(height: 8),
       ],
     );
   }
@@ -736,6 +752,32 @@ class _UpperCaseTextFormatter extends TextInputFormatter {
     TextEditingValue oldValue,
     TextEditingValue newValue,
   ) => newValue.copyWith(text: newValue.text.toUpperCase());
+}
+
+// ─── App build info ───────────────────────────────────────────────────────────
+
+class _AppBuildInfo extends StatelessWidget {
+  const _AppBuildInfo();
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<PackageInfo>(
+      future: PackageInfo.fromPlatform(),
+      builder: (context, snapshot) {
+        final version = snapshot.data?.version ?? '–';
+        final build = snapshot.data?.buildNumber ?? '–';
+        const date = BuildInfo.buildDate;
+        return Center(
+          child: Text(
+            'Version $version ($build) · $date',
+            style: AppTextStyles.labelSm.copyWith(
+              color: AppColors.textSecondary.withAlpha(100),
+            ),
+          ),
+        );
+      },
+    );
+  }
 }
 
 // ─── Language picker ──────────────────────────────────────────────────────────

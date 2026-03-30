@@ -1,3 +1,5 @@
+import 'dart:async' show unawaited;
+
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -21,9 +23,9 @@ class NutritionWeightScreen extends HookConsumerWidget {
 
     useEffect(() {
       if (uid.isNotEmpty) {
-        Future.microtask(
+        unawaited(Future.microtask(
           () => ref.read(nutritionWeightNotifierProvider.notifier).load(uid),
-        );
+        ));
       }
       return null;
     }, [uid]);
@@ -75,7 +77,7 @@ class NutritionWeightScreen extends HookConsumerWidget {
   }
 
   void _showAddWeightSheet(BuildContext context, WidgetRef ref, String uid) {
-    showModalBottomSheet(
+    unawaited(showModalBottomSheet(
       context: context,
       backgroundColor: AppColors.surface800,
       isScrollControlled: true,
@@ -91,7 +93,7 @@ class NutritionWeightScreen extends HookConsumerWidget {
               .saveWeight(uid, kg, DateTime.now());
         },
       ),
-    );
+    ));
   }
 }
 
@@ -118,7 +120,7 @@ class _WeightBody extends HookConsumerWidget {
         _RangeTabs(
           current: state.range,
           onChanged: (r) {
-            ref.read(nutritionWeightNotifierProvider.notifier).changeRange(uid, r);
+            unawaited(ref.read(nutritionWeightNotifierProvider.notifier).changeRange(uid, r));
           },
         ),
         const Gap(16),
@@ -132,7 +134,7 @@ class _WeightBody extends HookConsumerWidget {
 
         // ── History hint ─────────────────────────────────────────────
         if (hasData)
-          Center(
+          const Center(
             child: Text(
               'Tippe auf einen Punkt für Details.',
               style: AppTextStyles.bodySm,
@@ -194,7 +196,7 @@ class _CurrentWeightCard extends StatelessWidget {
           const Spacer(),
           Container(
             padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
+            decoration: const BoxDecoration(
               color: AppColors.neonCyanGlow,
               shape: BoxShape.circle,
             ),
@@ -299,7 +301,7 @@ class _WeightChart extends HookWidget {
             show: true,
             drawHorizontalLine: true,
             drawVerticalLine: false,
-            getDrawingHorizontalLine: (_) => FlLine(
+            getDrawingHorizontalLine: (_) => const FlLine(
               color: AppColors.surface500,
               strokeWidth: 0.5,
             ),
@@ -409,21 +411,21 @@ class _EmptyChart extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppColors.surface500),
       ),
-      child: Center(
+      child: const Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(
+            Icon(
               Icons.show_chart,
               color: AppColors.textDisabled,
               size: 40,
             ),
-            const Gap(10),
+            Gap(10),
             Text(
               'Noch keine Gewichtsdaten.',
               style: AppTextStyles.bodySm,
             ),
-            const Gap(4),
+            Gap(4),
             Text(
               'Füge dein erstes Gewicht hinzu.',
               style: AppTextStyles.bodySm,
@@ -492,7 +494,7 @@ class _AddWeightSheet extends HookWidget {
           const Gap(16),
           Text('GEWICHT EINTRAGEN', style: AppTextStyles.h3),
           const Gap(4),
-          Text('Heutiges Gewicht in kg', style: AppTextStyles.bodySm),
+          const Text('Heutiges Gewicht in kg', style: AppTextStyles.bodySm),
           const Gap(16),
           TextField(
             controller: kgCtrl,
@@ -553,7 +555,7 @@ class _AddWeightSheet extends HookWidget {
                         color: AppColors.textOnAction,
                       ),
                     )
-                  : Text('SPEICHERN', style: AppTextStyles.buttonLg),
+                  : const Text('SPEICHERN', style: AppTextStyles.buttonLg),
             ),
           ),
           const Gap(8),

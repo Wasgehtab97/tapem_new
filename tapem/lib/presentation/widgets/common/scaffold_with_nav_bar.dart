@@ -320,7 +320,7 @@ class ScaffoldWithNavBar extends HookConsumerWidget {
   }
 }
 
-// ─── Custom nav bar ───────────────────────────────────────────────────────────
+// ─── Cyberpunk bottom nav bar ─────────────────────────────────────────────────
 
 class _CyberpunkNavBar extends StatelessWidget {
   const _CyberpunkNavBar({
@@ -335,63 +335,108 @@ class _CyberpunkNavBar extends StatelessWidget {
   final int selectedIndex;
   final ValueChanged<int> onDestinationSelected;
 
-  List<NavigationDestination> _buildDestinations(BuildContext context) {
+  @override
+  Widget build(BuildContext context) {
+    final accent = Theme.of(context).colorScheme.primary;
     final l10n = context.l10n;
-    return [
+
+    final destinations = <NavigationDestination>[
       NavigationDestination(
         icon: const Icon(Icons.home_outlined),
-        selectedIcon: const Icon(Icons.home),
+        selectedIcon: const Icon(Icons.home_rounded),
         label: l10n.navHome,
       ),
       NavigationDestination(
         icon: const Icon(Icons.fitness_center_outlined),
-        selectedIcon: const Icon(Icons.fitness_center),
+        selectedIcon: const Icon(Icons.fitness_center_rounded),
         label: l10n.navGym,
       ),
       if (isWorkoutActive)
         NavigationDestination(
-          icon: const Icon(Icons.sports_gymnastics_outlined),
-          selectedIcon: const Icon(Icons.sports_gymnastics),
+          icon: _PulsingIcon(
+            icon: Icons.sports_gymnastics_outlined,
+            color: accent,
+          ),
+          selectedIcon: _PulsingIcon(
+            icon: Icons.sports_gymnastics,
+            color: accent,
+          ),
           label: l10n.navWorkout,
         ),
       NavigationDestination(
         icon: const Icon(Icons.bar_chart_outlined),
-        selectedIcon: const Icon(Icons.bar_chart),
+        selectedIcon: const Icon(Icons.bar_chart_rounded),
         label: l10n.navProgress,
       ),
       NavigationDestination(
         icon: const Icon(Icons.people_outline),
-        selectedIcon: const Icon(Icons.people),
+        selectedIcon: const Icon(Icons.people_rounded),
         label: l10n.navCommunity,
       ),
       if (isAdmin)
         NavigationDestination(
           icon: const Icon(Icons.admin_panel_settings_outlined),
-          selectedIcon: const Icon(Icons.admin_panel_settings),
+          selectedIcon: const Icon(Icons.admin_panel_settings_rounded),
           label: l10n.navAdmin,
         ),
     ];
+
+    return NavigationBar(
+      selectedIndex: selectedIndex,
+      onDestinationSelected: onDestinationSelected,
+      destinations: destinations,
+      backgroundColor: AppColors.surface800,
+      indicatorColor: accent.withAlpha(40),
+      surfaceTintColor: Colors.transparent,
+      shadowColor: Colors.transparent,
+      height: 72,
+      labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+    );
+  }
+}
+
+/// A continuously pulsing icon used for the active workout tab.
+class _PulsingIcon extends StatefulWidget {
+  const _PulsingIcon({required this.icon, required this.color});
+
+  final IconData icon;
+  final Color color;
+
+  @override
+  State<_PulsingIcon> createState() => _PulsingIconState();
+}
+
+class _PulsingIconState extends State<_PulsingIcon>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _anim;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    )..repeat(reverse: true);
+    _anim = Tween<double>(begin: 0.6, end: 1.0).animate(
+      CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final accent = Theme.of(context).colorScheme.primary;
-    final isOnWorkoutTab = isWorkoutActive && selectedIndex == 2;
-
-    return Container(
-      decoration: const BoxDecoration(
-        color: AppColors.surface800,
-        border: Border(top: BorderSide(color: AppColors.surface500, width: 1)),
-      ),
-      child: NavigationBar(
-        selectedIndex: selectedIndex,
-        onDestinationSelected: onDestinationSelected,
-        destinations: _buildDestinations(context),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        indicatorColor: isOnWorkoutTab
-            ? AppColors.neonCyan.withAlpha(60)
-            : accent.withAlpha(40),
+    return AnimatedBuilder(
+      animation: _anim,
+      builder: (_, __) => Icon(
+        widget.icon,
+        size: 22,
+        color: widget.color.withValues(alpha: _anim.value),
       ),
     );
   }

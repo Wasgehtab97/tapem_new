@@ -188,12 +188,12 @@ class _CalendarBody extends StatelessWidget {
         const Gap(16),
 
         // ── Legend ─────────────────────────────────────────────────
-        Row(
+        const Row(
           children: [
             _LegendDot(AppColors.success, 'Im/Unter Ziel'),
-            const Gap(16),
+            Gap(16),
             _LegendDot(AppColors.error, 'Über Ziel'),
-            const Gap(16),
+            Gap(16),
             _LegendDot(AppColors.surface600, 'Keine Daten'),
           ],
         ),

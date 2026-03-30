@@ -1,3 +1,5 @@
+import 'dart:async' show unawaited;
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
@@ -26,7 +28,7 @@ class _NutritionScanScreenState extends ConsumerState<NutritionScanScreen> {
 
   @override
   void dispose() {
-    _controller.dispose();
+    unawaited(_controller.dispose());
     super.dispose();
   }
 
@@ -104,7 +106,7 @@ class _NutritionScanScreenState extends ConsumerState<NutritionScanScreen> {
               color: _torchOn ? AppColors.neonCyan : Colors.white70,
             ),
             onPressed: () {
-              _controller.toggleTorch();
+              unawaited(_controller.toggleTorch());
               setState(() => _torchOn = !_torchOn);
             },
           ),
@@ -211,8 +213,8 @@ class _ScanOverlay extends StatelessWidget {
 class _OverlayPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
-    final cutoutWidth = 280.0;
-    final cutoutHeight = 140.0;
+    const cutoutWidth = 280.0;
+    const cutoutHeight = 140.0;
     final left = (size.width - cutoutWidth) / 2;
     final top = (size.height - cutoutHeight) / 2;
 

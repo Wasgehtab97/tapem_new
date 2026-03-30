@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -64,7 +66,15 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       if (!isLoggedIn && !isAuthRoute) {
         final prefs = ref.read(sharedPreferencesProvider);
         if (prefs.containsKey(kActiveWorkoutSessionKey)) {
-          return null; // Stay on current screen — do NOT interrupt the workout.
+          // Only protect an active workout when the SDK still has a user in
+          // memory (mid-session token-refresh failure scenario). If there is
+          // no user at all the key is a stale leftover — clear it immediately
+          // so the redirect to login is never blocked again.
+          final client = ref.read(supabaseClientProvider);
+          if (client.auth.currentUser != null) {
+            return null; // Workout in progress — do NOT interrupt.
+          }
+          unawaited(prefs.remove(kActiveWorkoutSessionKey));
         }
         return RouteNames.login;
       }

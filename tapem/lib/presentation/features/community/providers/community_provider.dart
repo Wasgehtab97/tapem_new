@@ -513,7 +513,9 @@ class EquipmentExerciseEntry {
   final int myLevel;
   final bool isCurrentUser;
 
-  bool get hasData => topUserId != null;
+  // topUsername is guaranteed non-null by the SQL RPC when topUserId is set,
+  // but we guard here too so a stale client never renders "@null".
+  bool get hasData => topUserId != null && topUsername != null;
   bool get hasMyData => myXp > 0;
 }
 
@@ -703,3 +705,82 @@ final friendActionsProvider =
     AsyncNotifierProvider<FriendActionsNotifier, void>(
       FriendActionsNotifier.new,
     );
+
+// ─── Deals ────────────────────────────────────────────────────────────────────
+
+class GymDeal {
+  const GymDeal({
+    required this.id,
+    required this.gymId,
+    required this.brandName,
+    required this.tagline,
+    required this.description,
+    this.logoUrl,
+    required this.bannerGradientStart,
+    required this.bannerGradientEnd,
+    required this.affiliateUrl,
+    this.discountCode,
+    this.discountLabel,
+    required this.category,
+    required this.sortOrder,
+  });
+
+  final String id;
+  final String gymId;
+  final String brandName;
+  final String tagline;
+  final String description;
+  final String? logoUrl;
+  final String bannerGradientStart;
+  final String bannerGradientEnd;
+  final String affiliateUrl;
+  final String? discountCode;
+  final String? discountLabel;
+  final String category; // 'supplements'|'clothing'|'food'|'equipment'|'wellness'
+  final int sortOrder;
+}
+
+/// Fetches active deals for the user's current gym, ordered by [sortOrder].
+/// Automatically re-fetches when [activeGymIdProvider] changes (gym switch).
+final gymDealsProvider = FutureProvider<List<GymDeal>>((ref) async {
+  final gymId = ref.watch(activeGymIdProvider);
+  if (gymId == null) return [];
+
+  final client = ref.watch(supabaseClientProvider);
+  final rows = _asJsonRows(
+    await client
+        .from('gym_deals')
+        .select()
+        .eq('gym_id', gymId)
+        .eq('is_active', true)
+        .order('sort_order'),
+  );
+
+  return rows
+      .map(
+        (r) => GymDeal(
+          id: _readString(r, 'id'),
+          gymId: _readString(r, 'gym_id'),
+          brandName: _readString(r, 'brand_name'),
+          tagline: _readString(r, 'tagline'),
+          description: _readString(r, 'description'),
+          logoUrl: _readStringOrNull(r, 'logo_url'),
+          bannerGradientStart: _readString(
+            r,
+            'banner_gradient_start',
+            fallback: '#12121A',
+          ),
+          bannerGradientEnd: _readString(
+            r,
+            'banner_gradient_end',
+            fallback: '#0A0A0F',
+          ),
+          affiliateUrl: _readString(r, 'affiliate_url'),
+          discountCode: _readStringOrNull(r, 'discount_code'),
+          discountLabel: _readStringOrNull(r, 'discount_label'),
+          category: _readString(r, 'category', fallback: 'supplements'),
+          sortOrder: _readInt(r, 'sort_order'),
+        ),
+      )
+      .toList();
+});
