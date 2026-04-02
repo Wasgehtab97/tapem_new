@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1500 700" width="1500" height="700" style="background:white">
+  <!-- White background -->
+  <rect x="0" y="0" width="1500" height="700" fill="white"/>
+
+  <!-- Outer gym boundary -->
+  <rect x="60" y="40" width="1380" height="620" fill="none" stroke="#111111" stroke-width="4"/>
+
+  <!-- Upper interior horizontal line (from left wall to ~58% width) -->
+  <line x1="60" y1="265" x2="860" y2="265" stroke="#111111" stroke-width="3"/>
+
+  <!-- Left room: top wall (from left wall to ~29% width) -->
+  <line x1="60" y1="415" x2="450" y2="415" stroke="#111111" stroke-width="3"/>
+
+  <!-- Left room: right wall (partial — door gap at bottom) -->
+  <line x1="450" y1="415" x2="450" y2="535" stroke="#111111" stroke-width="3"/>
+
+  <!-- Left room: door frame marker at bottom outer wall -->
+  <line x1="450" y1="625" x2="450" y2="660" stroke="#111111" stroke-width="3"/>
+
+  <!-- Center room: top wall (from ~44% to ~58% width, gap from left room) -->
+  <line x1="655" y1="415" x2="860" y2="415" stroke="#111111" stroke-width="3"/>
+
+  <!-- Center room: right wall (partial — door gap at bottom) -->
+  <line x1="860" y1="415" x2="860" y2="535" stroke="#111111" stroke-width="3"/>
+
+  <!-- Center room: door frame marker at bottom outer wall -->
+  <line x1="755" y1="638" x2="755" y2="660" stroke="#111111" stroke-width="3"/>
+</svg>
