@@ -56,10 +56,10 @@ final localXpBaseProvider = FutureProvider<_LocalXpBase>((ref) async {
   };
 
   final localSessions = await db.getRecentSessions(gymId, user.id, limit: 1000);
-  final localSessionIds = {for (final s in localSessions) s.id};
 
-  // Split local sessions by sync status to identify which days are
-  // already confirmed on the server vs. pending upload.
+  // Split by sync status for two purposes:
+  //   1) training-day XP pending-days delta calculation
+  //   2) equipment XP local pass (only pending sessions when server loaded)
   final confirmedDays = <String>{};
   final pendingDays = <String>{};
   for (final s in localSessions) {
@@ -69,16 +69,73 @@ final localXpBaseProvider = FutureProvider<_LocalXpBase>((ref) async {
       pendingDays.add(s.sessionDayAnchor);
     }
   }
-  // Days that are ONLY in pending (no confirmed session for the same day).
-  // These are not yet counted in user_gym_xp.total_xp on the server.
+  // Days that are ONLY in pending (not yet counted in user_gym_xp on the server).
   final newPendingDays = pendingDays.difference(confirmedDays);
 
-  // ── Equipment XP: local pass ──────────────────────────────────────────────
+  // ── Training-day XP — server aggregate is authoritative ──────────────────
+  int? serverTrainingDayXp; // null = offline / fetch failed
+  try {
+    final row = await client
+        .from('user_gym_xp')
+        .select('total_xp')
+        .eq('user_id', user.id)
+        .eq('gym_id', gymId)
+        .maybeSingle();
+    serverTrainingDayXp = (row?['total_xp'] as num?)?.toInt() ?? 0;
+  } catch (_) {
+    // Offline — fall back to local count below.
+  }
+
+  // ── Equipment XP: server pass (slim RPC, ~4 KB) ───────────────────────────
+  // get_user_equipment_xp_summary returns pre-aggregated XP from user_exercise_xp,
+  // joined with gym_equipment to resolve the display key the Flutter client uses.
+  // Replaces a 250/1000-row workout_sessions→exercises nested JSON join
+  // (~80 KB normal path, ~750 KB on reinstall with empty SQLite).
   final equipmentXpMap = <String, _EquipmentEntry>{};
+  var serverXpLoaded = false;
+  try {
+    final remoteRows = await client.rpc(
+      'get_user_equipment_xp_summary',
+      params: {'p_user_id': user.id, 'p_gym_id': gymId},
+    );
+    for (final row in (remoteRows as List)) {
+      final r = Map<String, Object?>.from(row as Map);
+      final exerciseKey = r['exercise_key'] as String? ?? '';
+      final equipmentId = r['equipment_id'] as String?;
+      final equipmentName = r['equipment_name'] as String?;
+      final serverTotalXp = (r['total_xp'] as num?)?.toInt() ?? 0;
+      if (serverTotalXp <= 0) continue;
 
+      // Derive the display key — mirrors the client-side key logic.
+      final String key;
+      if (equipmentId != null) {
+        key = equipmentId; // fixed machine → equipment UUID
+      } else if (exerciseKey.startsWith('cardio:')) {
+        key = exerciseKey.substring(7); // cardio → equipment UUID after prefix
+      } else {
+        key = exerciseKey; // freeform / custom exercise
+      }
+      if (key.isEmpty) continue;
+
+      final name = equipmentName ?? equipNameMap[key] ?? exerciseKey;
+      final prev = equipmentXpMap[key];
+      if (prev == null || serverTotalXp > prev.xp) {
+        equipmentXpMap[key] = (name: prev?.name ?? name, xp: serverTotalXp);
+      }
+    }
+    serverXpLoaded = true;
+  } catch (e, st) {
+    AppLogger.e('[localXpBaseProvider] equipment XP server fetch failed', e, st);
+  }
+
+  // ── Equipment XP: local pass ──────────────────────────────────────────────
+  // Online (serverXpLoaded=true): only pending sessions — they are not yet
+  //   reflected in the server aggregate, so we add optimistic XP on top.
+  // Offline (serverXpLoaded=false): all local sessions as approximation.
   for (final session in localSessions) {
-    final exercises = await db.getExercisesForSession(session.id);
+    if (serverXpLoaded && session.syncStatus == 'sync_confirmed') continue;
 
+    final exercises = await db.getExercisesForSession(session.id);
     for (final exercise in exercises) {
       final String key;
       final String name;
@@ -93,6 +150,7 @@ final localXpBaseProvider = FutureProvider<_LocalXpBase>((ref) async {
         key = exercise.exerciseKey;
         name = exercise.displayName;
       }
+      if (key.isEmpty) continue;
 
       final prev = equipmentXpMap[key];
       equipmentXpMap[key] = (
@@ -102,95 +160,13 @@ final localXpBaseProvider = FutureProvider<_LocalXpBase>((ref) async {
     }
   }
 
-  // ── Augment from Supabase ─────────────────────────────────────────────────
-  // Handles reinstall / device-switch: sessions confirmed on the server that
-  // no longer exist in local SQLite are fetched and merged in.
-  //
-  // Two independent Supabase calls so that a failure in one does not block
-  // the other.  Both are wrapped in try/catch for offline resilience.
-
-  // 1. Training-day XP — server aggregate is the single source of truth.
-  int? serverTrainingDayXp; // null = fetch failed (offline / error)
-  try {
-    final row = await client
-        .from('user_gym_xp')
-        .select('total_xp')
-        .eq('user_id', user.id)
-        .eq('gym_id', gymId)
-        .maybeSingle();
-    serverTrainingDayXp = (row?['total_xp'] as num?)?.toInt() ?? 0;
-  } catch (_) {
-    // Offline or auth error — will fall back to local count below.
-  }
-
-  // 2. Equipment XP — augment with server sessions absent from local SQLite.
-  try {
-    final remoteRows = await client
-        .from('workout_sessions')
-        .select(
-          'id, session_exercises(exercise_key, display_name, equipment_id)',
-        )
-        .eq('user_id', user.id)
-        .eq('gym_id', gymId)
-        .not('finished_at', 'is', null);
-
-    for (final row in (remoteRows as List)) {
-      final r = Map<String, Object?>.from(row as Map);
-      final sessionId = r['id'] as String;
-      if (localSessionIds.contains(sessionId)) continue; // already counted above
-
-      final exercises = ((r['session_exercises'] as List?) ?? [])
-          .cast<Map<dynamic, dynamic>>()
-          .map((e) => Map<String, Object?>.from(e))
-          .toList();
-
-      // Seeded / calendar-only sessions have no exercises — skip them so they
-      // do not inflate the equipment XP map.
-      if (exercises.isEmpty) continue;
-
-      for (final ex in exercises) {
-        final equipmentId = ex['equipment_id'] as String?;
-        final exerciseKey = ex['exercise_key'] as String? ?? '';
-        final displayName = ex['display_name'] as String? ?? '';
-
-        final String key;
-        final String name;
-        if (equipmentId != null) {
-          key = equipmentId;
-          name = equipNameMap[key] ?? displayName;
-        } else if (exerciseKey.startsWith('cardio:')) {
-          key = exerciseKey.substring(7);
-          name = equipNameMap[key] ?? displayName;
-        } else {
-          key = exerciseKey;
-          name = displayName;
-        }
-        if (key.isEmpty) continue;
-
-        final prev = equipmentXpMap[key];
-        equipmentXpMap[key] = (
-          name: prev?.name ?? name,
-          xp: (prev?.xp ?? 0) + XpRules.exerciseSessionBase,
-        );
-      }
-    }
-  } catch (e, st) {
-    AppLogger.e('[localXpBaseProvider] equipment augment from server failed', e, st);
-  }
-
   // ── Final training-day XP ─────────────────────────────────────────────────
   final int trainingDayXp;
   if (serverTrainingDayXp != null) {
-    // Online path: server-confirmed XP (cross-device, seeded-session-safe)
-    // plus any locally-pending days not yet uploaded.
-    trainingDayXp = serverTrainingDayXp +
-        (newPendingDays.length * XpRules.trainingDayBase);
+    trainingDayXp =
+        serverTrainingDayXp + (newPendingDays.length * XpRules.trainingDayBase);
   } else {
-    // Offline path: count unique days from local SQLite only.
-    final allLocalDays = {
-      ...confirmedDays,
-      ...pendingDays,
-    };
+    final allLocalDays = {...confirmedDays, ...pendingDays};
     trainingDayXp = allLocalDays.length * XpRules.trainingDayBase;
   }
 
@@ -199,24 +175,66 @@ final localXpBaseProvider = FutureProvider<_LocalXpBase>((ref) async {
 
 // ─── Training-Days XP (global gym-level) ──────────────────────────────────────
 
+/// Lightweight training-day XP computation for high-frequency surfaces (home).
+///
+/// Intentionally avoids loading remote session payloads; it only reads:
+///   1) local session day anchors from SQLite
+///   2) aggregated server total from `user_gym_xp`
+final trainingDayXpProvider = FutureProvider<int>((ref) async {
+  final user = ref.watch(currentUserProvider);
+  final gymId = ref.watch(activeGymIdProvider);
+  if (user == null || gymId == null) return 0;
+
+  final db = ref.watch(appDatabaseProvider);
+  final client = ref.watch(supabaseClientProvider);
+
+  final localSessions = await db.getRecentSessions(gymId, user.id, limit: 1000);
+
+  final confirmedDays = <String>{};
+  final pendingDays = <String>{};
+  for (final s in localSessions) {
+    if (s.syncStatus == 'sync_confirmed') {
+      confirmedDays.add(s.sessionDayAnchor);
+    } else {
+      pendingDays.add(s.sessionDayAnchor);
+    }
+  }
+  final newPendingDays = pendingDays.difference(confirmedDays);
+
+  try {
+    final row = await client
+        .from('user_gym_xp')
+        .select('total_xp')
+        .eq('user_id', user.id)
+        .eq('gym_id', gymId)
+        .maybeSingle();
+    final serverTrainingDayXp = (row?['total_xp'] as num?)?.toInt() ?? 0;
+    return serverTrainingDayXp +
+        (newPendingDays.length * XpRules.trainingDayBase);
+  } catch (_) {
+    final allLocalDays = {...confirmedDays, ...pendingDays};
+    return allLocalDays.length * XpRules.trainingDayBase;
+  }
+});
+
 final userGymXpProvider = FutureProvider<UserGymXp?>((ref) async {
   final user = ref.watch(currentUserProvider);
   final gymId = ref.watch(activeGymIdProvider);
   if (user == null || gymId == null) return null;
 
-  final base = await ref.watch(localXpBaseProvider.future);
-  if (base.trainingDayXp == 0) return null;
+  final trainingDayXp = await ref.watch(trainingDayXpProvider.future);
+  if (trainingDayXp == 0) return null;
 
   return UserGymXp(
     userId: user.id,
     gymId: gymId,
-    totalXp: base.trainingDayXp,
+    totalXp: trainingDayXp,
     currentLevel: XpRules.levelFromXp(
-      base.trainingDayXp,
+      trainingDayXp,
       XpRules.trainingDayXpPerLevel,
     ),
     xpToNextLevel: XpRules.xpToNextLevel(
-      base.trainingDayXp,
+      trainingDayXp,
       XpRules.trainingDayXpPerLevel,
     ),
     updatedAt: DateTime.now(),
@@ -323,7 +341,10 @@ final userMuscleGroupXpProvider = FutureProvider<List<MuscleGroupXp>>((
     return MuscleGroupXp(
       muscleGroup: mg.value,
       totalXp: xp,
-      currentLevel: XpRules.levelFromXpDouble(xp, XpRules.muscleGroupXpPerLevel),
+      currentLevel: XpRules.levelFromXpDouble(
+        xp,
+        XpRules.muscleGroupXpPerLevel,
+      ),
     );
   }).toList();
 });
@@ -337,10 +358,10 @@ final userMuscleGroupXpProvider = FutureProvider<List<MuscleGroupXp>>((
 /// SQLite → instant refresh) AND after a successful server sync (picks up any
 /// server-side corrections or cross-device sessions).
 ///
-/// [localXpBaseProvider] is watched by [userGymXpProvider] and
-/// [userExerciseXpProvider] via `ref.watch`, so invalidating the base
-/// automatically cascades to both dependents — no need to list them explicitly.
+/// [userGymXpProvider] now depends on [trainingDayXpProvider], while
+/// [userExerciseXpProvider] depends on [localXpBaseProvider].
 void invalidateLocalXpProviders(Ref ref) {
+  ref.invalidate(trainingDayXpProvider);
   ref.invalidate(localXpBaseProvider);
   ref.invalidate(trainingDaysProvider);
   ref.invalidate(recentSessionsProvider);
@@ -379,7 +400,8 @@ final trainingDaysProvider = FutureProvider.family<Set<String>, int>((
         .select('session_day_anchor')
         .eq('user_id', user.id)
         .gte('session_day_anchor', '$year-01-01')
-        .lte('session_day_anchor', '$year-12-31');
+        .lte('session_day_anchor', '$year-12-31')
+        .limit(400); // 366 max days in a leap year + safety buffer
 
     // PostgREST returns DATE columns as 'yyyy-MM-dd' strings — exactly the
     // format TrainingHeatmap and streak computation expect.
@@ -405,7 +427,7 @@ class SessionSummary {
     required this.sessionDayAnchor,
     required this.startedAt,
     required this.finishedAt,
-    required this.exerciseNames,
+    required this.exerciseLabels,
     required this.totalSets,
   });
 
@@ -414,15 +436,78 @@ class SessionSummary {
   final DateTime startedAt;
   final DateTime? finishedAt;
 
-  /// Ordered list of exercise display names in this session.
-  final List<String> exerciseNames;
+  /// Ordered list of exercise labels with precise machine/station context.
+  final List<String> exerciseLabels;
 
   /// Total number of logged sets across all exercises in this session.
   final int totalSets;
 
-  int get exerciseCount => exerciseNames.length;
+  int get exerciseCount => exerciseLabels.length;
 
   Duration? get duration => finishedAt?.difference(startedAt);
+}
+
+String formatSessionExerciseLabel({
+  required String displayName,
+  required String? equipmentId,
+  required Map<String, LocalGymEquipmentData> equipmentById,
+  required Map<String, String> equipmentAliasesById,
+}) {
+  final trimmedName = displayName.trim();
+  final fallback = trimmedName.isEmpty ? '?' : trimmedName;
+  if (equipmentId == null || equipmentId.isEmpty) return fallback;
+
+  final equipment = equipmentById[equipmentId];
+  if (equipment == null) return fallback;
+
+  final alias = equipmentAliasesById[equipmentId]?.trim();
+  final equipmentName = (alias != null && alias.isNotEmpty)
+      ? alias
+      : equipment.name.trim();
+  final manufacturer = equipment.manufacturer?.trim();
+
+  if (equipment.equipmentType == 'open_station') {
+    if (equipmentName.isEmpty) return fallback;
+    if (manufacturer != null && manufacturer.isNotEmpty) {
+      return '$fallback · $equipmentName · $manufacturer';
+    }
+    return '$fallback · $equipmentName';
+  }
+
+  // For fixed machines we intentionally show the precise machine identity only
+  // (effective equipment name + manufacturer), not exercise displayName, to
+  // avoid duplicate labels like "Benchpress Main · Bench Press · Hammer".
+  if (equipmentName.isNotEmpty) {
+    if (manufacturer != null && manufacturer.isNotEmpty) {
+      return '$equipmentName · $manufacturer';
+    }
+    return equipmentName;
+  }
+  return fallback;
+}
+
+String? exerciseEquipmentContextLabel({
+  required String? equipmentId,
+  required Map<String, LocalGymEquipmentData> equipmentById,
+  required Map<String, String> equipmentAliasesById,
+}) {
+  if (equipmentId == null || equipmentId.isEmpty) return null;
+  final equipment = equipmentById[equipmentId];
+  if (equipment == null) return null;
+
+  final alias = equipmentAliasesById[equipmentId]?.trim();
+  final equipmentName = (alias != null && alias.isNotEmpty)
+      ? alias
+      : equipment.name.trim();
+  final manufacturer = equipment.manufacturer?.trim();
+
+  if (equipmentName.isNotEmpty &&
+      manufacturer != null &&
+      manufacturer.isNotEmpty) {
+    return '$equipmentName · $manufacturer';
+  }
+  if (equipmentName.isNotEmpty) return equipmentName;
+  return null;
 }
 
 final recentSessionsProvider = FutureProvider<List<SessionSummary>>((
@@ -435,6 +520,14 @@ final recentSessionsProvider = FutureProvider<List<SessionSummary>>((
   final db = ref.watch(appDatabaseProvider);
   final localSessions = await db.getRecentSessions(gymId, user.id, limit: 20);
   final localSessionIds = {for (final s in localSessions) s.id};
+  final equipmentRows = await db.getEquipmentForGym(gymId);
+  final equipmentAliases = await db.getEquipmentNameOverrides(user.id, gymId);
+  final equipmentById = {for (final e in equipmentRows) e.id: e};
+  final equipmentAliasesById = {
+    for (final alias in equipmentAliases)
+      if (!alias.isDeleted && alias.displayName.trim().isNotEmpty)
+        alias.equipmentId: alias.displayName.trim(),
+  };
 
   // Build summaries from local SQLite — always the fast path.
   final summaries = <SessionSummary>[];
@@ -451,7 +544,16 @@ final recentSessionsProvider = FutureProvider<List<SessionSummary>>((
         sessionDayAnchor: session.sessionDayAnchor,
         startedAt: session.startedAt,
         finishedAt: session.finishedAt,
-        exerciseNames: exercises.map((e) => e.displayName).toList(),
+        exerciseLabels: exercises
+            .map(
+              (e) => formatSessionExerciseLabel(
+                displayName: e.displayName,
+                equipmentId: e.equipmentId,
+                equipmentById: equipmentById,
+                equipmentAliasesById: equipmentAliasesById,
+              ),
+            )
+            .toList(),
         totalSets: totalSets,
       ),
     );
@@ -466,7 +568,7 @@ final recentSessionsProvider = FutureProvider<List<SessionSummary>>((
         .from('workout_sessions')
         .select(
           'id, started_at, finished_at, session_day_anchor, '
-          'session_exercises(display_name, sort_order, set_entries(id))',
+          'session_exercises(display_name, equipment_id, sort_order, set_entries(id))',
         )
         .eq('user_id', user.id)
         .eq('gym_id', gymId)
@@ -479,21 +581,29 @@ final recentSessionsProvider = FutureProvider<List<SessionSummary>>((
       final sessionId = r['id'] as String;
       if (localSessionIds.contains(sessionId)) continue;
 
-      final exercises = ((r['session_exercises'] as List?) ?? [])
-          .cast<Map<dynamic, dynamic>>()
-          .map((e) => Map<String, Object?>.from(e))
-          .toList()
-        ..sort(
-          (a, b) => ((a['sort_order'] as num?) ?? 0).compareTo(
-            (b['sort_order'] as num?) ?? 0,
-          ),
-        );
+      final exercises =
+          ((r['session_exercises'] as List?) ?? [])
+              .cast<Map<dynamic, dynamic>>()
+              .map((e) => Map<String, Object?>.from(e))
+              .toList()
+            ..sort(
+              (a, b) => ((a['sort_order'] as num?) ?? 0).compareTo(
+                (b['sort_order'] as num?) ?? 0,
+              ),
+            );
 
       // Skip seeded / placeholder sessions that have no exercises.
       if (exercises.isEmpty) continue;
 
-      final exerciseNames = exercises
-          .map((e) => e['display_name'] as String? ?? '')
+      final exerciseLabels = exercises
+          .map(
+            (e) => formatSessionExerciseLabel(
+              displayName: e['display_name'] as String? ?? '',
+              equipmentId: e['equipment_id'] as String?,
+              equipmentById: equipmentById,
+              equipmentAliasesById: equipmentAliasesById,
+            ),
+          )
           .where((n) => n.isNotEmpty)
           .toList();
       var totalSets = 0;
@@ -509,7 +619,7 @@ final recentSessionsProvider = FutureProvider<List<SessionSummary>>((
           finishedAt: r['finished_at'] != null
               ? DateTime.parse(r['finished_at'] as String)
               : null,
-          exerciseNames: exerciseNames,
+          exerciseLabels: exerciseLabels,
           totalSets: totalSets,
         ),
       );
@@ -534,8 +644,20 @@ final allSessionsProvider = FutureProvider<List<SessionSummary>>((ref) async {
   if (user == null || gymId == null) return [];
 
   final db = ref.watch(appDatabaseProvider);
-  final localSessions = await db.getRecentSessions(gymId, user.id); // no limit
+  final localSessions = await db.getRecentSessions(gymId, user.id); // local: no limit
   final localSessionIds = {for (final s in localSessions) s.id};
+  // Hard cap on remote augmentation. Most sessions are already in local SQLite;
+  // the remote fetch only fills in cross-device sessions. 100 is enough for a
+  // meaningful history view and keeps the nested-join payload bounded.
+  const remoteAugmentLimit = 100;
+  final equipmentRows = await db.getEquipmentForGym(gymId);
+  final equipmentAliases = await db.getEquipmentNameOverrides(user.id, gymId);
+  final equipmentById = {for (final e in equipmentRows) e.id: e};
+  final equipmentAliasesById = {
+    for (final alias in equipmentAliases)
+      if (!alias.isDeleted && alias.displayName.trim().isNotEmpty)
+        alias.equipmentId: alias.displayName.trim(),
+  };
 
   final summaries = <SessionSummary>[];
   for (final session in localSessions) {
@@ -551,7 +673,16 @@ final allSessionsProvider = FutureProvider<List<SessionSummary>>((ref) async {
         sessionDayAnchor: session.sessionDayAnchor,
         startedAt: session.startedAt,
         finishedAt: session.finishedAt,
-        exerciseNames: exercises.map((e) => e.displayName).toList(),
+        exerciseLabels: exercises
+            .map(
+              (e) => formatSessionExerciseLabel(
+                displayName: e.displayName,
+                equipmentId: e.equipmentId,
+                equipmentById: equipmentById,
+                equipmentAliasesById: equipmentAliasesById,
+              ),
+            )
+            .toList(),
         totalSets: totalSets,
       ),
     );
@@ -564,32 +695,41 @@ final allSessionsProvider = FutureProvider<List<SessionSummary>>((ref) async {
         .from('workout_sessions')
         .select(
           'id, started_at, finished_at, session_day_anchor, '
-          'session_exercises(display_name, sort_order, set_entries(id))',
+          'session_exercises(display_name, equipment_id, sort_order, set_entries(id))',
         )
         .eq('user_id', user.id)
         .eq('gym_id', gymId)
         .not('finished_at', 'is', null)
-        .order('finished_at', ascending: false);
+        .order('finished_at', ascending: false)
+        .limit(remoteAugmentLimit);
 
     for (final row in (remoteRows as List)) {
       final r = Map<String, Object?>.from(row as Map);
       final sessionId = r['id'] as String;
       if (localSessionIds.contains(sessionId)) continue;
 
-      final exercises = ((r['session_exercises'] as List?) ?? [])
-          .cast<Map<dynamic, dynamic>>()
-          .map((e) => Map<String, Object?>.from(e))
-          .toList()
-        ..sort(
-          (a, b) => ((a['sort_order'] as num?) ?? 0).compareTo(
-            (b['sort_order'] as num?) ?? 0,
-          ),
-        );
+      final exercises =
+          ((r['session_exercises'] as List?) ?? [])
+              .cast<Map<dynamic, dynamic>>()
+              .map((e) => Map<String, Object?>.from(e))
+              .toList()
+            ..sort(
+              (a, b) => ((a['sort_order'] as num?) ?? 0).compareTo(
+                (b['sort_order'] as num?) ?? 0,
+              ),
+            );
 
       if (exercises.isEmpty) continue;
 
-      final exerciseNames = exercises
-          .map((e) => e['display_name'] as String? ?? '')
+      final exerciseLabels = exercises
+          .map(
+            (e) => formatSessionExerciseLabel(
+              displayName: e['display_name'] as String? ?? '',
+              equipmentId: e['equipment_id'] as String?,
+              equipmentById: equipmentById,
+              equipmentAliasesById: equipmentAliasesById,
+            ),
+          )
           .where((n) => n.isNotEmpty)
           .toList();
       var totalSets = 0;
@@ -605,7 +745,7 @@ final allSessionsProvider = FutureProvider<List<SessionSummary>>((ref) async {
           finishedAt: r['finished_at'] != null
               ? DateTime.parse(r['finished_at'] as String)
               : null,
-          exerciseNames: exerciseNames,
+          exerciseLabels: exerciseLabels,
           totalSets: totalSets,
         ),
       );
@@ -623,6 +763,7 @@ final allSessionsProvider = FutureProvider<List<SessionSummary>>((ref) async {
 class ExerciseWithSets {
   const ExerciseWithSets({
     required this.displayName,
+    this.equipmentContextLabel,
     required this.sets,
     required this.previousSets,
     this.previousBestE1rm,
@@ -630,6 +771,7 @@ class ExerciseWithSets {
   });
 
   final String displayName;
+  final String? equipmentContextLabel;
   final List<LocalSetEntry> sets;
 
   /// Sets from the most recent finished session for this exercise that
@@ -673,33 +815,77 @@ final sessionDetailProvider =
     ) async {
       final db = ref.watch(appDatabaseProvider);
       final exercises = await db.getExercisesForSession(args.sessionId);
+      final equipmentRows = await db.getEquipmentForGym(args.gymId);
+      final equipmentAliases = await db.getEquipmentNameOverrides(
+        args.userId,
+        args.gymId,
+      );
+      final equipmentById = {for (final e in equipmentRows) e.id: e};
+      final equipmentAliasesById = {
+        for (final alias in equipmentAliases)
+          if (!alias.isDeleted && alias.displayName.trim().isNotEmpty)
+            alias.equipmentId: alias.displayName.trim(),
+      };
+      final fixedVariantCountByExerciseKey = <String, int>{};
+      for (final equipment in equipmentRows) {
+        if (equipment.equipmentType != 'fixed_machine') continue;
+        final key = equipment.canonicalExerciseKey;
+        if (key == null || key.isEmpty) continue;
+        fixedVariantCountByExerciseKey[key] =
+            (fixedVariantCountByExerciseKey[key] ?? 0) + 1;
+      }
 
       if (exercises.isNotEmpty) {
         // Local SQLite path — full detail including previous-session comparison.
         final result = <ExerciseWithSets>[];
         for (final exercise in exercises) {
+          final scopedEquipmentId = exercise.equipmentId;
+          final isCustom = exercise.exerciseKey.startsWith('custom:');
+          final isCardio = exercise.exerciseKey.startsWith('cardio:');
+          final fixedVariantCount =
+              fixedVariantCountByExerciseKey[exercise.exerciseKey] ?? 0;
+          final includeLegacyEquipmentless =
+              scopedEquipmentId != null &&
+              !isCustom &&
+              !isCardio &&
+              fixedVariantCount <= 1;
+
           final sets = await db.getSetsForExercise(exercise.id);
           final previousSets = await db.getLastCompletedSetsForExerciseKey(
             args.gymId,
             args.userId,
             exercise.exerciseKey,
             excludeSessionId: args.sessionId,
+            equipmentId: scopedEquipmentId,
+            includeLegacyEquipmentless: includeLegacyEquipmentless,
           );
           final allPreviousSets = await db.getAllCompletedSetsForExerciseKey(
             args.gymId,
             args.userId,
             exercise.exerciseKey,
             excludeSessionId: args.sessionId,
+            equipmentId: scopedEquipmentId,
+            includeLegacyEquipmentless: includeLegacyEquipmentless,
           );
           final previousBestVolume = await db.getBestVolumeForExerciseKey(
             args.gymId,
             args.userId,
             exercise.exerciseKey,
             excludeSessionId: args.sessionId,
+            equipmentId: scopedEquipmentId,
+            includeLegacyEquipmentless: includeLegacyEquipmentless,
           );
           result.add(
             ExerciseWithSets(
-              displayName: exercise.displayName,
+              // Use the same single label composition as session summaries so
+              // fixed/open rows never show duplicated or conflicting names.
+              displayName: formatSessionExerciseLabel(
+                displayName: exercise.displayName,
+                equipmentId: scopedEquipmentId,
+                equipmentById: equipmentById,
+                equipmentAliasesById: equipmentAliasesById,
+              ),
+              equipmentContextLabel: null,
               sets: sets,
               previousSets: previousSets,
               previousBestE1rm: _computeBestE1rm(allPreviousSets),
@@ -717,57 +903,67 @@ final sessionDetailProvider =
         final rows = await client
             .from('session_exercises')
             .select(
-              'id, display_name, sort_order, gym_id, '
+              'id, display_name, sort_order, gym_id, equipment_id, '
               'set_entries(id, set_number, reps, weight_kg, duration_seconds, '
               'distance_meters, notes, sync_status, logged_at, idempotency_key)',
             )
             .eq('session_id', args.sessionId)
             .order('sort_order', ascending: true);
 
-        return (rows as List).map((row) {
-          final r = Map<String, Object?>.from(row as Map);
-          final exerciseId = r['id'] as String? ?? '';
-          final gymId = r['gym_id'] as String? ?? args.gymId;
-          final displayName = r['display_name'] as String? ?? '';
+        return (rows as List)
+            .map((row) {
+              final r = Map<String, Object?>.from(row as Map);
+              final exerciseId = r['id'] as String? ?? '';
+              final gymId = r['gym_id'] as String? ?? args.gymId;
+              final displayName = r['display_name'] as String? ?? '';
+              final equipmentId = r['equipment_id'] as String?;
 
-          final setsRaw =
-              ((r['set_entries'] as List?) ?? [])
-                  .cast<Map<dynamic, dynamic>>()
-                  .map((s) => Map<String, Object?>.from(s))
-                  .toList()
-                ..sort(
-                  (a, b) => ((a['set_number'] as num?) ?? 0).compareTo(
-                    (b['set_number'] as num?) ?? 0,
-                  ),
+              final setsRaw =
+                  ((r['set_entries'] as List?) ?? [])
+                      .cast<Map<dynamic, dynamic>>()
+                      .map((s) => Map<String, Object?>.from(s))
+                      .toList()
+                    ..sort(
+                      (a, b) => ((a['set_number'] as num?) ?? 0).compareTo(
+                        (b['set_number'] as num?) ?? 0,
+                      ),
+                    );
+
+              final localSets = setsRaw.map((s) {
+                return LocalSetEntry(
+                  id: s['id'] as String? ?? '',
+                  sessionExerciseId: exerciseId,
+                  gymId: gymId,
+                  setNumber: (s['set_number'] as num?)?.toInt() ?? 0,
+                  reps: (s['reps'] as num?)?.toInt(),
+                  weightKg: (s['weight_kg'] as num?)?.toDouble(),
+                  durationSeconds: (s['duration_seconds'] as num?)?.toInt(),
+                  distanceMeters: (s['distance_meters'] as num?)?.toDouble(),
+                  notes: s['notes'] as String?,
+                  syncStatus: s['sync_status'] as String? ?? 'sync_confirmed',
+                  loggedAt:
+                      DateTime.tryParse(s['logged_at'] as String? ?? '') ??
+                      DateTime.now(),
+                  idempotencyKey: s['idempotency_key'] as String? ?? '',
                 );
+              }).toList();
 
-          final localSets = setsRaw.map((s) {
-            return LocalSetEntry(
-              id: s['id'] as String? ?? '',
-              sessionExerciseId: exerciseId,
-              gymId: gymId,
-              setNumber: (s['set_number'] as num?)?.toInt() ?? 0,
-              reps: (s['reps'] as num?)?.toInt(),
-              weightKg: (s['weight_kg'] as num?)?.toDouble(),
-              durationSeconds: (s['duration_seconds'] as num?)?.toInt(),
-              distanceMeters: (s['distance_meters'] as num?)?.toDouble(),
-              notes: s['notes'] as String?,
-              syncStatus: s['sync_status'] as String? ?? 'sync_confirmed',
-              loggedAt:
-                  DateTime.tryParse(s['logged_at'] as String? ?? '') ??
-                  DateTime.now(),
-              idempotencyKey: s['idempotency_key'] as String? ?? '',
-            );
-          }).toList();
-
-          return ExerciseWithSets(
-            displayName: displayName,
-            sets: localSets,
-            previousSets: const [],
-            previousBestE1rm: null,
-            previousBestVolume: null,
-          );
-        }).where((e) => e.displayName.isNotEmpty).toList();
+              return ExerciseWithSets(
+                displayName: formatSessionExerciseLabel(
+                  displayName: displayName,
+                  equipmentId: equipmentId,
+                  equipmentById: equipmentById,
+                  equipmentAliasesById: equipmentAliasesById,
+                ),
+                equipmentContextLabel: null,
+                sets: localSets,
+                previousSets: const [],
+                previousBestE1rm: null,
+                previousBestVolume: null,
+              );
+            })
+            .where((e) => e.displayName.isNotEmpty)
+            .toList();
       } catch (_) {
         return [];
       }

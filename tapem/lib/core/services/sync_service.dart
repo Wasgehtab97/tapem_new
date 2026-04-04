@@ -9,7 +9,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/utils/logger.dart';
 import '../../data/datasources/local/app_database.dart';
 import '../../presentation/features/auth/providers/auth_provider.dart';
-import '../../presentation/features/community/providers/community_provider.dart';
 import '../../presentation/features/progress/providers/xp_provider.dart';
 import 'database_service.dart';
 import 'gym_service.dart';
@@ -79,11 +78,11 @@ class SyncNotifier extends StateNotifier<SyncStatus> {
   /// Applied per-session after each consecutive failure — resets on success,
   /// connectivity restore, or re-authentication.
   static const _kBackoffSchedule = [
-    Duration(seconds: 30),  // 1st failure
-    Duration(minutes: 1),   // 2nd
-    Duration(minutes: 2),   // 3rd
-    Duration(minutes: 5),   // 4th
-    Duration(minutes: 10),  // 5th+ (cap)
+    Duration(seconds: 30), // 1st failure
+    Duration(minutes: 1), // 2nd
+    Duration(minutes: 2), // 3rd
+    Duration(minutes: 5), // 4th
+    Duration(minutes: 10), // 5th+ (cap)
   ];
 
   DateTime? _lastHeartbeatAt;
@@ -288,7 +287,9 @@ class SyncNotifier extends StateNotifier<SyncStatus> {
     for (final session in pending) {
       // Skip sessions that are within their exponential backoff window.
       if (_isBackedOff(session.id)) {
-        debugPrint('[SYNC] session ${session.id}: in backoff window — skipping');
+        debugPrint(
+          '[SYNC] session ${session.id}: in backoff window — skipping',
+        );
         continue;
       }
 
@@ -307,9 +308,13 @@ class SyncNotifier extends StateNotifier<SyncStatus> {
         // cycle without touching session status. The 30-second timer will retry
         // once the token is valid again.
         if (e is FunctionException && e.status == 401) {
-          debugPrint('[SYNC] 401 — backing off for ${_kAuthFailureCooldown.inMinutes}m');
+          debugPrint(
+            '[SYNC] 401 — backing off for ${_kAuthFailureCooldown.inMinutes}m',
+          );
           _lastAuthFailureAt = DateTime.now();
-          unawaited(client.auth.refreshSession().then<void>((_) {}, onError: (_) {}));
+          unawaited(
+            client.auth.refreshSession().then<void>((_) {}, onError: (_) {}),
+          );
           lastErr = msg;
           break;
         }
@@ -334,16 +339,14 @@ class SyncNotifier extends StateNotifier<SyncStatus> {
     // (early return above). A tick with pending sessions that all failed
     // also skips this block — no point refreshing data that didn't change.
     if (syncedCount > 0) {
-      // Local SQLite providers (training-day XP, equipment XP, heatmap,
-      // recent sessions) — server may have corrected or de-duped entries.
+      // Invalidate only the current user's own data providers.
       // localXpBaseProvider cascades to userGymXpProvider + userExerciseXpProvider.
       invalidateLocalXpProviders(_ref);
-      // Server-side providers — now contain the newly-uploaded session.
       _ref.invalidate(userMuscleGroupXpProvider);
-      _ref.invalidate(gymLeaderboardProvider);
-      _ref.invalidate(gymEquipmentOverviewProvider);
-      _ref.invalidate(gymTrainingDayRankingProvider);
-      _ref.invalidate(gymEquipmentRankingProvider);
+      // Community / leaderboard providers are intentionally NOT invalidated here.
+      // They are gym-wide aggregates that are expensive to re-fetch (~15–200 KB
+      // each) and tolerate a few minutes of staleness. They refresh lazily when
+      // the user next navigates to the Community screen, or via pull-to-refresh.
     }
   }
 
@@ -408,7 +411,9 @@ class SyncNotifier extends StateNotifier<SyncStatus> {
     _lastHeartbeatAt = DateTime.now();
     try {
       await _syncSession(session, db, client, accessToken, isDraft: true);
-      debugPrint('[HEARTBEAT] ✓ session ${session.id} draft synced to Supabase');
+      debugPrint(
+        '[HEARTBEAT] ✓ session ${session.id} draft synced to Supabase',
+      );
     } catch (e) {
       // Silent: data is safe in SQLite; next heartbeat or FINISH will retry.
       debugPrint('[HEARTBEAT] ✗ session ${session.id}: $e');
@@ -450,8 +455,9 @@ class SyncNotifier extends StateNotifier<SyncStatus> {
       // function can compute muscle-group XP without an extra DB lookup.
       List<Map<String, String>>? customMuscleGroups;
       if (exercise.customExerciseId != null) {
-        final mgRows =
-            await db.getCustomExerciseMuscleGroups(exercise.customExerciseId!);
+        final mgRows = await db.getCustomExerciseMuscleGroups(
+          exercise.customExerciseId!,
+        );
         if (mgRows.isNotEmpty) {
           customMuscleGroups = mgRows
               .map((mg) => {'muscle_group': mg.muscleGroup, 'role': mg.role})

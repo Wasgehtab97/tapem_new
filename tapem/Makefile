@@ -12,8 +12,13 @@ ASC_ISSUER_ID ?= b8e1987b-405d-4f2f-ac95-1cf246d6f457
 BUNDLE_ID     := com.tapem.tapem
 IPA_PATH      := build/ios/ipa/tapem.ipa
 APK_PATH      := build/app/outputs/flutter-apk/app-release.apk
+AAB_PATH      := build/app/outputs/bundle/release/app-release.aab
 
-.PHONY: ios-emu ios-iphone apk testflight deploy-functions
+## Run all Flutter tests.
+test:
+	flutter test test/
+
+.PHONY: test ios-emu ios-iphone apk aab testflight deploy-functions signing-init signing-check signing-fingerprints signing-base64 signing-cert supabase-usage-check
 
 ## ── Edge Functions ───────────────────────────────────────────────────────────
 ## Deploy all Supabase Edge Functions.
@@ -23,7 +28,16 @@ deploy-functions:
 	supabase functions deploy sync-workout
 	supabase functions deploy finish-session
 	supabase functions deploy process-xp-event
+	supabase functions deploy dsr-export-account-data
+	supabase functions deploy dsr-delete-account
 	@echo "✓ All functions deployed."
+
+## Run Supabase usage proxy alert check locally.
+## Requires env vars:
+##   SUPABASE_PROJECT_REF
+##   SUPABASE_ACCESS_TOKEN (PAT with analytics read scope)
+supabase-usage-check:
+	./scripts/monitor/supabase_usage_alert.sh
 
 ios-emu:
 	@echo "→ Killing any running Flutter instances..."
@@ -54,6 +68,36 @@ apk:
 	@echo ""
 	@echo "✓ APK built: $(APK_PATH)"
 	@echo "  Upload this file to Firebase App Distribution."
+
+## Build a signed Android App Bundle for Google Play.
+## Requires release signing config (see android/README_SIGNING.md).
+## Output: $(AAB_PATH)
+aab:
+	@echo "→ Building release AAB (Google Play)..."
+	flutter build appbundle --release --dart-define-from-file=$(ENV_FILE) --dart-define=BUILD_DATE=$$(date +'%d.%m.%Y')
+	@echo ""
+	@echo "✓ AAB built: $(AAB_PATH)"
+	@echo "  Upload this file to Google Play Console."
+
+## Create upload keystore + local key.properties (one-time, gitignored).
+signing-init:
+	./scripts/android/create_upload_keystore.sh
+
+## Validate release signing configuration.
+signing-check:
+	cd android && ./gradlew verifyReleaseSigning --console=plain
+
+## Print upload certificate fingerprints (SHA1/SHA256) for Play Console.
+signing-fingerprints:
+	./scripts/android/print_upload_cert_fingerprints.sh
+
+## Print base64 keystore string for ANDROID_KEYSTORE_BASE64 secret.
+signing-base64:
+	./scripts/android/encode_keystore_base64.sh
+
+## Export upload certificate PEM for Play Console.
+signing-cert:
+	./scripts/android/export_upload_certificate_pem.sh
 
 ## ── iOS / TestFlight ─────────────────────────────────────────────────────────
 ## Build a release IPA and upload it directly to TestFlight.

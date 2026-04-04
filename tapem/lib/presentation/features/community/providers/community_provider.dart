@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/services/gym_service.dart';
+import '../../../../domain/entities/auth/user_profile.dart';
 import '../../../../presentation/features/auth/providers/auth_provider.dart';
 
 typedef _JsonMap = Map<String, Object?>;
@@ -28,6 +29,12 @@ int _readInt(_JsonMap row, String key, {int fallback = 0}) {
 
 bool _readBool(_JsonMap row, String key, {bool fallback = false}) =>
     row[key] as bool? ?? fallback;
+
+double _readDouble(_JsonMap row, String key, {double fallback = 0}) {
+  final value = row[key];
+  if (value is num) return value.toDouble();
+  return fallback;
+}
 
 // ─── Models ───────────────────────────────────────────────────────────────────
 
@@ -438,30 +445,14 @@ final gymLeaderboardProvider =
 
       final client = ref.watch(supabaseClientProvider);
       try {
+        // avatar_url is now included in get_gym_leaderboard (migration 00086),
+        // eliminating the secondary user_profiles fetch (~15 KB per call).
         final rows = _asJsonRows(
           await client.rpc(
             'get_gym_leaderboard',
             params: {'p_gym_id': gymId, 'p_axis': axis},
           ),
         );
-
-        // Batch-fetch avatar_url so leaderboard rows show profile photos.
-        final userIds = rows.map((r) => _readString(r, 'user_id')).toList();
-        final Map<String, String?> avatarMap;
-        if (userIds.isNotEmpty) {
-          final profiles = _asJsonRows(
-            await client
-                .from('user_profiles')
-                .select('id, avatar_url')
-                .inFilter('id', userIds),
-          );
-          avatarMap = {
-            for (final p in profiles)
-              _readString(p, 'id'): _readStringOrNull(p, 'avatar_url'),
-          };
-        } else {
-          avatarMap = {};
-        }
 
         return rows.map((r) {
           final userId = _readString(r, 'user_id');
@@ -473,7 +464,7 @@ final gymLeaderboardProvider =
             currentLevel: _readInt(r, 'current_level', fallback: 1),
             trainingDays: _readInt(r, 'training_days'),
             xpToNextLevel: _readInt(r, 'xp_to_next_level', fallback: 500),
-            avatarUrl: avatarMap[userId],
+            avatarUrl: _readStringOrNull(r, 'avatar_url'),
             isCurrentUser: userId == user.id,
           );
         }).toList();
@@ -633,6 +624,295 @@ final equipmentLeaderboardProvider =
       }
     });
 
+// ─── Machine Performance Leaderboard ──────────────────────────────────────────
+
+class MachinePerformanceBoardEntry {
+  const MachinePerformanceBoardEntry({
+    required this.equipmentId,
+    required this.equipmentName,
+    this.manufacturer,
+    required this.exerciseKey,
+    required this.exerciseName,
+    required this.participantCount,
+    this.topE1rmKg,
+    this.topWeightKg,
+    this.topReps,
+    this.topUserId,
+    this.topUsername,
+    this.topAchievedAt,
+  });
+
+  final String equipmentId;
+  final String equipmentName;
+  final String? manufacturer;
+  final String exerciseKey;
+  final String exerciseName;
+  final int participantCount;
+  final double? topE1rmKg;
+  final double? topWeightKg;
+  final int? topReps;
+  final String? topUserId;
+  final String? topUsername;
+  final DateTime? topAchievedAt;
+
+  bool get hasLeaderboardData => topE1rmKg != null && topUserId != null;
+}
+
+class MachinePerformanceLeaderboardEntry {
+  const MachinePerformanceLeaderboardEntry({
+    required this.rank,
+    required this.userId,
+    required this.username,
+    required this.bestE1rmKg,
+    required this.bestWeightKg,
+    required this.bestReps,
+    required this.achievedAt,
+    this.avatarUrl,
+    this.isCurrentUser = false,
+  });
+
+  final int rank;
+  final String userId;
+  final String username;
+  final double bestE1rmKg;
+  final double bestWeightKg;
+  final int bestReps;
+  final DateTime achievedAt;
+  final String? avatarUrl;
+  final bool isCurrentUser;
+}
+
+class MachinePerformanceDashboardStats {
+  const MachinePerformanceDashboardStats({
+    required this.fixedMachineCount,
+    required this.activeBoardsCount,
+    required this.rankedAthletesCount,
+    this.bestE1rmKg,
+    this.bestEquipmentId,
+    this.bestEquipmentName,
+    this.bestUsername,
+  });
+
+  final int fixedMachineCount;
+  final int activeBoardsCount;
+  final int rankedAthletesCount;
+  final double? bestE1rmKg;
+  final String? bestEquipmentId;
+  final String? bestEquipmentName;
+  final String? bestUsername;
+}
+
+class MachinePerformanceRecordEvent {
+  const MachinePerformanceRecordEvent({
+    required this.equipmentId,
+    required this.equipmentName,
+    this.manufacturer,
+    required this.exerciseName,
+    required this.userId,
+    required this.username,
+    required this.bestE1rmKg,
+    required this.bestWeightKg,
+    required this.bestReps,
+    required this.achievedAt,
+  });
+
+  final String equipmentId;
+  final String equipmentName;
+  final String? manufacturer;
+  final String exerciseName;
+  final String userId;
+  final String username;
+  final double bestE1rmKg;
+  final double bestWeightKg;
+  final int bestReps;
+  final DateTime achievedAt;
+}
+
+final machinePerformanceBoardsProvider =
+    FutureProvider.family<
+      List<MachinePerformanceBoardEntry>,
+      MachinePerformanceSex
+    >((ref, sex) async {
+      final gymId = ref.watch(activeGymIdProvider);
+      final user = ref.watch(currentUserProvider);
+      if (gymId == null || user == null) return [];
+
+      final client = ref.watch(supabaseClientProvider);
+      try {
+        final rows = _asJsonRows(
+          await client.rpc(
+            'get_machine_performance_equipment_boards',
+            params: {'p_gym_id': gymId, 'p_sex': sex.value, 'p_query': null},
+          ),
+        );
+
+        return rows
+            .map(
+              (r) => MachinePerformanceBoardEntry(
+                equipmentId: _readString(r, 'equipment_id'),
+                equipmentName: _readString(r, 'equipment_name', fallback: '?'),
+                manufacturer: _readStringOrNull(r, 'manufacturer'),
+                exerciseKey: _readString(r, 'exercise_key', fallback: '?'),
+                exerciseName: _readString(r, 'exercise_name', fallback: '?'),
+                participantCount: _readInt(r, 'participant_count'),
+                topE1rmKg: r['top_e1rm_kg'] == null
+                    ? null
+                    : _readDouble(r, 'top_e1rm_kg'),
+                topWeightKg: r['top_weight_kg'] == null
+                    ? null
+                    : _readDouble(r, 'top_weight_kg'),
+                topReps: r['top_reps'] == null ? null : _readInt(r, 'top_reps'),
+                topUserId: _readStringOrNull(r, 'top_user_id'),
+                topUsername: _readStringOrNull(r, 'top_username'),
+                topAchievedAt: r['top_achieved_at'] == null
+                    ? null
+                    : DateTime.tryParse(_readString(r, 'top_achieved_at')),
+              ),
+            )
+            .toList();
+      } catch (_) {
+        return [];
+      }
+    });
+
+typedef _MachineLeaderboardArgs = ({
+  String equipmentId,
+  MachinePerformanceSex sex,
+});
+
+final machinePerformanceLeaderboardProvider =
+    FutureProvider.family<
+      List<MachinePerformanceLeaderboardEntry>,
+      _MachineLeaderboardArgs
+    >((ref, args) async {
+      final user = ref.watch(currentUserProvider);
+      final gymId = ref.watch(activeGymIdProvider);
+      if (user == null || gymId == null || args.equipmentId.isEmpty) return [];
+
+      final client = ref.watch(supabaseClientProvider);
+      try {
+        final rows = _asJsonRows(
+          await client.rpc(
+            'get_machine_performance_equipment_leaderboard',
+            params: {
+              'p_gym_id': gymId,
+              'p_equipment_id': args.equipmentId,
+              'p_sex': args.sex.value,
+              'p_limit': 100,
+              'p_offset': 0,
+            },
+          ),
+        );
+
+        return rows.map((r) {
+          final userId = _readString(r, 'user_id');
+          final achievedAtRaw = _readString(r, 'achieved_at');
+          return MachinePerformanceLeaderboardEntry(
+            rank: _readInt(r, 'rank'),
+            userId: userId,
+            username: _readString(r, 'username', fallback: '?'),
+            bestE1rmKg: _readDouble(r, 'best_e1rm_kg'),
+            bestWeightKg: _readDouble(r, 'best_weight_kg'),
+            bestReps: _readInt(r, 'best_reps'),
+            achievedAt: DateTime.tryParse(achievedAtRaw) ?? DateTime(1970),
+            avatarUrl: _readStringOrNull(r, 'avatar_url'),
+            isCurrentUser: userId == user.id,
+          );
+        }).toList();
+      } catch (_) {
+        return [];
+      }
+    });
+
+final machinePerformanceDashboardProvider =
+    FutureProvider.family<
+      MachinePerformanceDashboardStats,
+      MachinePerformanceSex
+    >((ref, sex) async {
+      final gymId = ref.watch(activeGymIdProvider);
+      final user = ref.watch(currentUserProvider);
+      if (gymId == null || user == null) {
+        return const MachinePerformanceDashboardStats(
+          fixedMachineCount: 0,
+          activeBoardsCount: 0,
+          rankedAthletesCount: 0,
+        );
+      }
+
+      final client = ref.watch(supabaseClientProvider);
+      try {
+        final rows = _asJsonRows(
+          await client.rpc(
+            'get_machine_performance_dashboard_stats',
+            params: {'p_gym_id': gymId, 'p_sex': sex.value},
+          ),
+        );
+        if (rows.isEmpty) {
+          return const MachinePerformanceDashboardStats(
+            fixedMachineCount: 0,
+            activeBoardsCount: 0,
+            rankedAthletesCount: 0,
+          );
+        }
+        final row = rows.first;
+        return MachinePerformanceDashboardStats(
+          fixedMachineCount: _readInt(row, 'fixed_machine_count'),
+          activeBoardsCount: _readInt(row, 'active_boards_count'),
+          rankedAthletesCount: _readInt(row, 'ranked_athletes_count'),
+          bestE1rmKg: row['best_e1rm_kg'] == null
+              ? null
+              : _readDouble(row, 'best_e1rm_kg'),
+          bestEquipmentId: _readStringOrNull(row, 'best_equipment_id'),
+          bestEquipmentName: _readStringOrNull(row, 'best_equipment_name'),
+          bestUsername: _readStringOrNull(row, 'best_username'),
+        );
+      } catch (_) {
+        return const MachinePerformanceDashboardStats(
+          fixedMachineCount: 0,
+          activeBoardsCount: 0,
+          rankedAthletesCount: 0,
+        );
+      }
+    });
+
+final machinePerformanceRecentRecordsProvider =
+    FutureProvider.family<
+      List<MachinePerformanceRecordEvent>,
+      MachinePerformanceSex
+    >((ref, sex) async {
+      final gymId = ref.watch(activeGymIdProvider);
+      final user = ref.watch(currentUserProvider);
+      if (gymId == null || user == null) return [];
+
+      final client = ref.watch(supabaseClientProvider);
+      try {
+        final rows = _asJsonRows(
+          await client.rpc(
+            'get_machine_performance_recent_records',
+            params: {'p_gym_id': gymId, 'p_sex': sex.value, 'p_limit': 12},
+          ),
+        );
+        return rows.map((r) {
+          return MachinePerformanceRecordEvent(
+            equipmentId: _readString(r, 'equipment_id'),
+            equipmentName: _readString(r, 'equipment_name', fallback: '?'),
+            manufacturer: _readStringOrNull(r, 'manufacturer'),
+            exerciseName: _readString(r, 'exercise_name', fallback: '?'),
+            userId: _readString(r, 'user_id'),
+            username: _readString(r, 'username', fallback: '?'),
+            bestE1rmKg: _readDouble(r, 'best_e1rm_kg'),
+            bestWeightKg: _readDouble(r, 'best_weight_kg'),
+            bestReps: _readInt(r, 'best_reps'),
+            achievedAt:
+                DateTime.tryParse(_readString(r, 'achieved_at')) ??
+                DateTime(1970),
+          );
+        }).toList();
+      } catch (_) {
+        return [];
+      }
+    });
+
 // ─── Friend request actions ───────────────────────────────────────────────────
 
 class FriendActionsNotifier extends AsyncNotifier<void> {
@@ -736,7 +1016,8 @@ class GymDeal {
   final String affiliateUrl;
   final String? discountCode;
   final String? discountLabel;
-  final String category; // 'supplements'|'clothing'|'food'|'equipment'|'wellness'
+  final String
+  category; // 'supplements'|'clothing'|'food'|'equipment'|'wellness'
   final int sortOrder;
 }
 
@@ -750,7 +1031,11 @@ final gymDealsProvider = FutureProvider<List<GymDeal>>((ref) async {
   final rows = _asJsonRows(
     await client
         .from('gym_deals')
-        .select()
+        .select(
+          'id, gym_id, brand_name, tagline, description, logo_url, '
+          'banner_gradient_start, banner_gradient_end, affiliate_url, '
+          'discount_code, discount_label, category, sort_order',
+        )
         .eq('gym_id', gymId)
         .eq('is_active', true)
         .order('sort_order'),
