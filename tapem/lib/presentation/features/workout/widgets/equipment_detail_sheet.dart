@@ -1,7 +1,5 @@
 import 'dart:async';
-import 'dart:math' show max;
 
-import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
@@ -11,12 +9,15 @@ import 'package:uuid/uuid.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/utils/l10n_extension.dart';
+import '../../../../data/datasources/local/app_database.dart';
 import '../../../../domain/entities/gym/gym_equipment.dart';
 import '../../../../domain/entities/gym/muscle_group.dart';
 import '../../../../core/utils/xp_rules.dart';
+import '../../../widgets/charts/e1rm_progress_chart.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../progress/providers/xp_provider.dart';
 import '../providers/equipment_detail_provider.dart';
+import '../providers/equipment_provider.dart';
 
 const _uuid = Uuid();
 
@@ -45,16 +46,18 @@ class EquipmentDetailSheet extends HookConsumerWidget {
   final GymEquipment equipment;
   final String gymId;
 
-  String get _exerciseKey => switch (equipment.equipmentType) {
-    EquipmentType.fixedMachine => equipment.canonicalExerciseKey ?? '',
-    EquipmentType.openStation => '',
-    EquipmentType.cardio => 'cardio:${equipment.id}',
-  };
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final userId = ref.watch(currentUserProvider)?.id ?? '';
-    final isOpenStation = equipment.equipmentType == EquipmentType.openStation;
+    final liveEquipment =
+        ref
+            .watch(
+              equipmentByIdProvider((gymId: gymId, equipmentId: equipment.id)),
+            )
+            .valueOrNull ??
+        equipment;
+    final isOpenStation =
+        liveEquipment.equipmentType == EquipmentType.openStation;
     final l10n = context.l10n;
 
     final selectedExerciseKey = useState<String?>(null);
@@ -63,53 +66,55 @@ class EquipmentDetailSheet extends HookConsumerWidget {
       favouritesProvider.select((s) => s.contains('$gymId:${equipment.id}')),
     );
 
-    final equipmentHistoryAsync = ref.watch(
-      equipmentHistoryProvider((
-        gymId: gymId,
-        userId: userId,
-        equipmentId: equipment.id,
-      )),
-    );
-
     final customExercisesAsync = ref.watch(
       customExercisesForEquipmentProvider((
         gymId: gymId,
         userId: userId,
-        equipmentId: equipment.id,
+        equipmentId: liveEquipment.id,
       )),
     );
-
-    final exerciseHistoryAsync = ref.watch(
-      exerciseKeyHistoryProvider((
-        gymId: gymId,
-        userId: userId,
-        exerciseKey: selectedExerciseKey.value ?? '',
-      )),
-    );
-
-    final historyAsync = (isOpenStation && selectedExerciseKey.value != null)
-        ? exerciseHistoryAsync
-        : equipmentHistoryAsync;
 
     final activeExerciseKey = isOpenStation
         ? (selectedExerciseKey.value ?? '')
-        : _exerciseKey;
+        : switch (liveEquipment.equipmentType) {
+            EquipmentType.fixedMachine =>
+              liveEquipment.canonicalExerciseKey ?? '',
+            EquipmentType.openStation => '',
+            EquipmentType.cardio => 'cardio:${liveEquipment.id}',
+          };
+
+    final historyByExerciseAsync = ref.watch(
+      exerciseKeyHistoryProvider((
+        gymId: gymId,
+        userId: userId,
+        exerciseKey: activeExerciseKey,
+        equipmentId: liveEquipment.id,
+      )),
+    );
+
+    final isOpenWithoutSelection =
+        isOpenStation && selectedExerciseKey.value == null;
+    final historyAsync = (isOpenWithoutSelection || activeExerciseKey.isEmpty)
+        ? const AsyncValue<List<EquipmentHistorySummary>>.data(
+            <EquipmentHistorySummary>[],
+          )
+        : historyByExerciseAsync;
 
     final showRanking =
         activeExerciseKey.isNotEmpty &&
-        equipment.equipmentType == EquipmentType.fixedMachine;
+        liveEquipment.equipmentType == EquipmentType.fixedMachine;
 
     final allExerciseXp = ref.watch(userExerciseXpProvider);
     final allXpList = allExerciseXp.valueOrNull ?? [];
 
-    final relevantKeys = <String>{equipment.id};
-    switch (equipment.equipmentType) {
+    final relevantKeys = <String>{liveEquipment.id};
+    switch (liveEquipment.equipmentType) {
       case EquipmentType.fixedMachine:
-        if (equipment.canonicalExerciseKey != null) {
-          relevantKeys.add(equipment.canonicalExerciseKey!);
+        if (liveEquipment.canonicalExerciseKey != null) {
+          relevantKeys.add(liveEquipment.canonicalExerciseKey!);
         }
       case EquipmentType.cardio:
-        relevantKeys.add('cardio:${equipment.id}');
+        relevantKeys.add('cardio:${liveEquipment.id}');
       case EquipmentType.openStation:
         for (final e
             in customExercisesAsync.valueOrNull ??
@@ -141,7 +146,7 @@ class EquipmentDetailSheet extends HookConsumerWidget {
       equipmentNoteNotifierProvider((
         gymId: gymId,
         userId: userId,
-        equipmentId: equipment.id,
+        equipmentId: liveEquipment.id,
       )),
     );
 
@@ -169,7 +174,7 @@ class EquipmentDetailSheet extends HookConsumerWidget {
               .firstOrNull
         : null;
 
-    final (badgeLabel, badgeColor) = switch (equipment.equipmentType) {
+    final (badgeLabel, badgeColor) = switch (liveEquipment.equipmentType) {
       EquipmentType.fixedMachine => (l10n.fixedBadge, AppColors.neonCyan),
       EquipmentType.openStation => (l10n.openBadge, AppColors.neonMagenta),
       EquipmentType.cardio => (l10n.cardioBadge, AppColors.neonYellow),
@@ -218,7 +223,7 @@ class EquipmentDetailSheet extends HookConsumerWidget {
                           Row(
                             children: [
                               _TypeBadge(label: badgeLabel, color: badgeColor),
-                              if (equipment.supportsNfc) ...[
+                              if (liveEquipment.supportsNfc) ...[
                                 const SizedBox(width: 8),
                                 Icon(
                                   Icons.nfc,
@@ -236,12 +241,54 @@ class EquipmentDetailSheet extends HookConsumerWidget {
                             ],
                           ),
                           const SizedBox(height: 6),
-                          Text(equipment.name, style: AppTextStyles.h2),
-                          if (equipment.manufacturer != null)
+                          Text(
+                            liveEquipment.displayName,
+                            style: AppTextStyles.h2,
+                          ),
+                          if (liveEquipment.hasPersonalNameOverride)
                             Text(
-                              equipment.manufacturer!,
+                              'Personal name',
+                              style: AppTextStyles.labelSm.copyWith(
+                                color: AppColors.neonMagenta,
+                              ),
+                            ),
+                          if (liveEquipment.manufacturer != null)
+                            Text(
+                              liveEquipment.manufacturer!,
                               style: AppTextStyles.bodySm,
                             ),
+                          const SizedBox(height: 8),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 4,
+                            children: [
+                              _InlineActionButton(
+                                label: 'Rename for me',
+                                icon: Icons.edit_outlined,
+                                onTap: userId.isEmpty
+                                    ? null
+                                    : () => _renameForMe(
+                                        context: context,
+                                        ref: ref,
+                                        gymId: gymId,
+                                        equipment: liveEquipment,
+                                      ),
+                              ),
+                              if (liveEquipment.hasPersonalNameOverride)
+                                _InlineActionButton(
+                                  label: 'Reset to gym name',
+                                  icon: Icons.undo,
+                                  onTap: userId.isEmpty
+                                      ? null
+                                      : () => _resetToGymName(
+                                          context: context,
+                                          ref: ref,
+                                          gymId: gymId,
+                                          equipment: liveEquipment,
+                                        ),
+                                ),
+                            ],
+                          ),
                         ],
                       ),
                     ),
@@ -314,11 +361,22 @@ class EquipmentDetailSheet extends HookConsumerWidget {
                             e1rmChartProvider((
                               gymId: gymId,
                               userId: userId,
-                              exerciseKey: activeExerciseKey,
+                              scope: isOpenStation
+                                  ? PerformanceScope.exerciseOnStation(
+                                      exerciseKey: activeExerciseKey,
+                                      equipmentId: liveEquipment.id,
+                                    )
+                                  : PerformanceScope.fixedEquipment(
+                                      exerciseKey: activeExerciseKey,
+                                      equipmentId: liveEquipment.id,
+                                    ),
                             )),
                           )
                           .when(
-                            data: (points) => _E1rmChart(points: points),
+                            data: (points) => E1rmProgressChart(
+                              points: points,
+                              emptyMessage: context.l10n.e1rmChartEmptyState,
+                            ),
                             loading: () => const _SectionSkeleton(),
                             error: (_, __) => const SizedBox.shrink(),
                           ),
@@ -326,7 +384,8 @@ class EquipmentDetailSheet extends HookConsumerWidget {
                     ],
 
                     // ── MUSCLE GROUPS (fixed machines only) ─────────────────
-                    if (equipment.equipmentType == EquipmentType.fixedMachine &&
+                    if (liveEquipment.equipmentType ==
+                            EquipmentType.fixedMachine &&
                         activeExerciseKey.isNotEmpty) ...[
                       _SectionHeader(label: l10n.muscleGroups),
                       const SizedBox(height: 12),
@@ -354,25 +413,42 @@ class EquipmentDetailSheet extends HookConsumerWidget {
                           : l10n.myHistory,
                     ),
                     const SizedBox(height: 12),
-                    historyAsync.when(
-                      data: (history) => history.isEmpty
-                          ? _EmptySection(
-                              message: selectedExerciseName != null
-                                  ? l10n.noSessionsWithExercise(
-                                      selectedExerciseName,
+                    if (isOpenWithoutSelection)
+                      _EmptySection(message: l10n.selectExerciseForHistory)
+                    else
+                      historyAsync.when(
+                        data: (history) => history.isEmpty
+                            ? _EmptySection(
+                                message: selectedExerciseName != null
+                                    ? l10n.noSessionsWithExercise(
+                                        selectedExerciseName,
+                                      )
+                                    : l10n.noSessionsOnEquipment,
+                              )
+                            : Column(
+                                children: history
+                                    .take(10)
+                                    .map(
+                                      (h) => _HistoryRow(
+                                        entry: h,
+                                        onTap: activeExerciseKey.isEmpty
+                                            ? null
+                                            : () => _openHistoryDetailSheet(
+                                                context: context,
+                                                gymId: gymId,
+                                                userId: userId,
+                                                equipmentId: liveEquipment.id,
+                                                exerciseKey: activeExerciseKey,
+                                                entry: h,
+                                              ),
+                                      ),
                                     )
-                                  : l10n.noSessionsOnEquipment,
-                            )
-                          : Column(
-                              children: history
-                                  .take(10)
-                                  .map((h) => _HistoryRow(entry: h))
-                                  .toList(),
-                            ),
-                      loading: () => const _SectionSkeleton(),
-                      error: (_, __) =>
-                          _EmptySection(message: l10n.historyCouldNotLoad),
-                    ),
+                                    .toList(),
+                              ),
+                        loading: () => const _SectionSkeleton(),
+                        error: (_, __) =>
+                            _EmptySection(message: l10n.historyCouldNotLoad),
+                      ),
                     const SizedBox(height: 24),
 
                     // ── MY XP ──────────────────────────────────────────────
@@ -420,7 +496,7 @@ class EquipmentDetailSheet extends HookConsumerWidget {
                                 equipmentNoteNotifierProvider((
                                   gymId: gymId,
                                   userId: userId,
-                                  equipmentId: equipment.id,
+                                  equipmentId: liveEquipment.id,
                                 )).notifier,
                               )
                               .save(noteCtrl.text.trim()),
@@ -465,6 +541,114 @@ class EquipmentDetailSheet extends HookConsumerWidget {
     );
   }
 
+  Future<void> _renameForMe({
+    required BuildContext context,
+    required WidgetRef ref,
+    required String gymId,
+    required GymEquipment equipment,
+  }) async {
+    final ctrl = TextEditingController(text: equipment.displayName);
+    final nextName = await showDialog<String>(
+      context: context,
+      builder: (ctx) {
+        String? errorText;
+        return StatefulBuilder(
+          builder: (ctx, setState) => AlertDialog(
+            title: const Text('Rename for me'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextField(
+                  controller: ctrl,
+                  maxLength: kEquipmentAliasMaxLength,
+                  autofocus: true,
+                  autocorrect: false,
+                  enableSuggestions: false,
+                  decoration: InputDecoration(
+                    labelText: 'Personal name',
+                    errorText: errorText,
+                  ),
+                  onChanged: (_) {
+                    if (errorText != null) {
+                      setState(() => errorText = null);
+                    }
+                  },
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Gym name: ${equipment.name}',
+                  style: AppTextStyles.bodySm.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () {
+                  final trimmed = ctrl.text.trim();
+                  if (trimmed.isEmpty) {
+                    setState(() => errorText = 'Name cannot be empty.');
+                    return;
+                  }
+                  Navigator.of(ctx).pop(trimmed);
+                },
+                child: const Text('Save'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+    if (nextName == null || !context.mounted) return;
+
+    try {
+      await ref
+          .read(equipmentNameOverrideServiceProvider)
+          .setPersonalName(
+            gymId: gymId,
+            equipmentId: equipment.id,
+            displayName: nextName,
+          );
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Personal name saved.')));
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not save personal name: $e')),
+      );
+    }
+  }
+
+  Future<void> _resetToGymName({
+    required BuildContext context,
+    required WidgetRef ref,
+    required String gymId,
+    required GymEquipment equipment,
+  }) async {
+    try {
+      await ref
+          .read(equipmentNameOverrideServiceProvider)
+          .resetToCanonical(gymId: gymId, equipmentId: equipment.id);
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Reverted to gym name.')));
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not reset name: $e')));
+    }
+  }
+
   Future<void> _submitFeedback(
     BuildContext context,
     WidgetRef ref,
@@ -498,6 +682,32 @@ class EquipmentDetailSheet extends HookConsumerWidget {
       isLoading.value = false;
     }
   }
+
+  void _openHistoryDetailSheet({
+    required BuildContext context,
+    required String gymId,
+    required String userId,
+    required String equipmentId,
+    required String exerciseKey,
+    required EquipmentHistorySummary entry,
+  }) {
+    unawaited(
+      showModalBottomSheet<void>(
+        context: context,
+        backgroundColor: Colors.transparent,
+        isScrollControlled: true,
+        builder: (_) => _HistoryDetailSheet(
+          args: (
+            gymId: gymId,
+            userId: userId,
+            sessionId: entry.sessionId,
+            equipmentId: equipmentId,
+            exerciseKey: exerciseKey,
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 // ─── Reusable sub-widgets ─────────────────────────────────────────────────────
@@ -518,16 +728,11 @@ class _TypeBadge extends StatelessWidget {
         ),
         borderRadius: BorderRadius.circular(6),
         border: Border.all(color: color.withAlpha(100)),
-        boxShadow: [
-          BoxShadow(color: color.withAlpha(30), blurRadius: 8),
-        ],
+        boxShadow: [BoxShadow(color: color.withAlpha(30), blurRadius: 8)],
       ),
       child: Text(
         label,
-        style: AppTextStyles.labelSm.copyWith(
-          color: color,
-          letterSpacing: 0.8,
-        ),
+        style: AppTextStyles.labelSm.copyWith(color: color, letterSpacing: 0.8),
       ),
     );
   }
@@ -561,6 +766,44 @@ class _FavouriteButton extends StatelessWidget {
           isFavourite ? Icons.star_rounded : Icons.star_outline_rounded,
           color: isFavourite ? AppColors.neonYellow : AppColors.textSecondary,
           size: 24,
+        ),
+      ),
+    );
+  }
+}
+
+class _InlineActionButton extends StatelessWidget {
+  const _InlineActionButton({
+    required this.label,
+    required this.icon,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = onTap != null;
+    final color = enabled ? AppColors.neonCyan : AppColors.textDisabled;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        decoration: BoxDecoration(
+          color: color.withAlpha(18),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: color.withAlpha(72)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 12, color: color),
+            const SizedBox(width: 4),
+            Text(label, style: AppTextStyles.labelSm.copyWith(color: color)),
+          ],
         ),
       ),
     );
@@ -626,10 +869,185 @@ class _SectionSkeleton extends StatelessWidget {
   }
 }
 
+class _HistoryDetailSheet extends ConsumerWidget {
+  const _HistoryDetailSheet({required this.args});
+
+  final ({
+    String gymId,
+    String userId,
+    String sessionId,
+    String equipmentId,
+    String exerciseKey,
+  })
+  args;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = context.l10n;
+    final detailAsync = ref.watch(equipmentHistoryDetailProvider(args));
+
+    return DraggableScrollableSheet(
+      initialChildSize: 0.74,
+      minChildSize: 0.4,
+      maxChildSize: 0.95,
+      expand: false,
+      builder: (_, scrollCtrl) => Container(
+        key: const Key('equipment-history-detail-sheet'),
+        decoration: const BoxDecoration(
+          color: AppColors.surface800,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: detailAsync.when(
+          loading: () => const Center(
+            child: CircularProgressIndicator(color: AppColors.neonCyan),
+          ),
+          error: (_, __) => Center(
+            child: Text(
+              l10n.historyCouldNotLoad,
+              style: AppTextStyles.bodyMd.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ),
+          data: (detail) {
+            if (detail == null) {
+              return Center(
+                child: Text(
+                  l10n.noSetsLogged,
+                  style: AppTextStyles.bodyMd.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              );
+            }
+
+            final dateLabel = DateFormat(
+              'dd MMM yyyy',
+            ).format(DateTime.parse(detail.sessionDayAnchor));
+            final dur = detail.duration;
+            final durLabel = dur != null
+                ? dur.inHours > 0
+                      ? '${dur.inHours}h ${dur.inMinutes.remainder(60)}min'
+                      : '${dur.inMinutes}min'
+                : '—';
+
+            return ListView(
+              controller: scrollCtrl,
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: AppColors.surface500,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        l10n.historyFor(detail.exerciseName),
+                        style: AppTextStyles.labelLg,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: const Icon(Icons.close, size: 20),
+                      color: AppColors.textSecondary,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '$dateLabel  ·  ${l10n.setsRepsLabel(detail.setCount, detail.totalReps, durLabel)}',
+                  style: AppTextStyles.bodySm.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                if (detail.totalVolumeKg > 0) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    '${detail.totalVolumeKg.toStringAsFixed(0)} kg vol',
+                    style: AppTextStyles.bodySm.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 14),
+                ...detail.sets.asMap().entries.map((entry) {
+                  final index = entry.key + 1;
+                  final set = entry.value;
+                  return Container(
+                    key: Key('history-detail-set-$index'),
+                    margin: const EdgeInsets.only(bottom: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.surface900,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: AppColors.surface500),
+                    ),
+                    child: Row(
+                      children: [
+                        SizedBox(
+                          width: 36,
+                          child: Text(
+                            '#$index',
+                            style: AppTextStyles.monoSm.copyWith(
+                              color: AppColors.neonCyan,
+                            ),
+                          ),
+                        ),
+                        Expanded(
+                          child: Text(
+                            _setPrimaryValue(set),
+                            style: AppTextStyles.bodyMd,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+String _setPrimaryValue(LocalSetEntry set) {
+  final reps = set.reps;
+  final weight = set.weightKg;
+  if (reps != null && reps > 0 && weight != null && weight > 0) {
+    final weightLabel = weight == weight.truncateToDouble()
+        ? weight.toInt().toString()
+        : weight.toStringAsFixed(1);
+    return '$reps × ${weightLabel}kg';
+  }
+  final duration = set.durationSeconds;
+  if (duration != null && duration > 0) return '${duration}s';
+  final distance = set.distanceMeters;
+  if (distance != null && distance > 0) {
+    return '${distance.toStringAsFixed(0)}m';
+  }
+  return '—';
+}
+
 class _HistoryRow extends StatelessWidget {
-  const _HistoryRow({required this.entry});
+  const _HistoryRow({required this.entry, this.onTap});
 
   final EquipmentHistorySummary entry;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -645,49 +1063,72 @@ class _HistoryRow extends StatelessWidget {
               : '${dur.inMinutes}min'
         : '—';
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: AppColors.surface700,
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: ClipRRect(
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.surface500.withAlpha(160)),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withAlpha(30), blurRadius: 8),
-        ],
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(date, style: AppTextStyles.labelLg),
-                const SizedBox(height: 2),
-                Text(
-                  l10n.setsRepsLabel(entry.setCount, entry.totalReps, durLabel),
-                  style: AppTextStyles.bodySm,
-                ),
-              ],
+        child: Material(
+          color: AppColors.surface700,
+          child: InkWell(
+            onTap: onTap,
+            child: Container(
+              key: Key('equipment-history-row-${entry.sessionId}'),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.surface500.withAlpha(160)),
+                boxShadow: [
+                  BoxShadow(color: Colors.black.withAlpha(30), blurRadius: 8),
+                ],
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(date, style: AppTextStyles.labelLg),
+                        const SizedBox(height: 2),
+                        Text(
+                          l10n.setsRepsLabel(
+                            entry.setCount,
+                            entry.totalReps,
+                            durLabel,
+                          ),
+                          style: AppTextStyles.bodySm,
+                        ),
+                      ],
+                    ),
+                  ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        '+${entry.totalXp} XP',
+                        style: AppTextStyles.labelMd.copyWith(
+                          color: AppColors.neonMagenta,
+                        ),
+                      ),
+                      if (entry.totalVolumeKg > 0)
+                        Text(
+                          '${entry.totalVolumeKg.toStringAsFixed(0)} kg vol',
+                          style: AppTextStyles.bodySm,
+                        ),
+                    ],
+                  ),
+                  if (onTap != null) ...[
+                    const SizedBox(width: 8),
+                    const Icon(
+                      Icons.chevron_right,
+                      size: 18,
+                      color: AppColors.textSecondary,
+                    ),
+                  ],
+                ],
+              ),
             ),
           ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                '+${entry.totalXp} XP',
-                style: AppTextStyles.labelMd.copyWith(
-                  color: AppColors.neonMagenta,
-                ),
-              ),
-              if (entry.totalVolumeKg > 0)
-                Text(
-                  '${entry.totalVolumeKg.toStringAsFixed(0)} kg vol',
-                  style: AppTextStyles.bodySm,
-                ),
-            ],
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -820,6 +1261,8 @@ class _NoteField extends StatelessWidget {
             controller: controller,
             maxLines: 4,
             minLines: 2,
+            autocorrect: false,
+            enableSuggestions: false,
             style: AppTextStyles.bodyMd,
             decoration: InputDecoration(
               hintText: l10n.noteHint,
@@ -885,6 +1328,8 @@ class _FeedbackField extends StatelessWidget {
             controller: controller,
             maxLines: 4,
             minLines: 2,
+            autocorrect: false,
+            enableSuggestions: false,
             style: AppTextStyles.bodyMd,
             decoration: InputDecoration(
               hintText: l10n.feedbackHint,
@@ -942,29 +1387,21 @@ class _ExerciseChipRow extends StatelessWidget {
 
   final List<CustomExerciseSummary> exercises;
   final String? selectedKey;
-  final void Function(String?) onSelected;
+  final void Function(String) onSelected;
 
   @override
   Widget build(BuildContext context) {
-    final l10n = context.l10n;
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: Row(
         children: [
-          _ExerciseChip(
-            label: l10n.allExercisesChip,
-            isSelected: selectedKey == null,
-            onTap: () => onSelected(null),
-          ),
           ...exercises.map(
             (e) => Padding(
-              padding: const EdgeInsets.only(left: 8),
+              padding: const EdgeInsets.only(right: 8),
               child: _ExerciseChip(
                 label: e.name,
                 isSelected: selectedKey == e.exerciseKey,
-                onTap: () => onSelected(
-                  selectedKey == e.exerciseKey ? null : e.exerciseKey,
-                ),
+                onTap: () => onSelected(e.exerciseKey),
               ),
             ),
           ),
@@ -1014,159 +1451,6 @@ class _ExerciseChip extends StatelessWidget {
   }
 }
 
-// ─── E1RM progress chart ──────────────────────────────────────────────────────
-
-class _E1rmChart extends StatelessWidget {
-  const _E1rmChart({required this.points});
-
-  final List<E1rmDataPoint> points;
-
-  @override
-  Widget build(BuildContext context) {
-    if (points.length < 2) {
-      return _EmptySection(message: context.l10n.e1rmChartEmptyState);
-    }
-
-    final minY = points.fold(
-      double.infinity,
-      (m, p) => p.e1rm < m ? p.e1rm : m,
-    );
-    final maxY = points.fold(0.0, (m, p) => p.e1rm > m ? p.e1rm : m);
-    final yPad = max((maxY - minY) * 0.15, 5.0);
-    final yMin = (minY - yPad).clamp(0.0, double.infinity);
-    final yMax = maxY + yPad;
-
-    final spots = points
-        .asMap()
-        .entries
-        .map((e) => FlSpot(e.key.toDouble(), e.value.e1rm))
-        .toList();
-
-    final labelInterval = max(1.0, (spots.length / 4).floorToDouble());
-
-    return Container(
-      height: 190,
-      padding: const EdgeInsets.fromLTRB(0, 8, 12, 0),
-      decoration: BoxDecoration(
-        color: AppColors.surface700,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppColors.surface500),
-      ),
-      child: LineChart(
-        LineChartData(
-          minY: yMin,
-          maxY: yMax,
-          clipData: const FlClipData.all(),
-          gridData: FlGridData(
-            show: true,
-            drawVerticalLine: false,
-            getDrawingHorizontalLine: (_) =>
-                const FlLine(color: AppColors.surface500, strokeWidth: 0.5),
-          ),
-          borderData: FlBorderData(show: false),
-          titlesData: FlTitlesData(
-            rightTitles: const AxisTitles(
-              sideTitles: SideTitles(showTitles: false),
-            ),
-            topTitles: const AxisTitles(
-              sideTitles: SideTitles(showTitles: false),
-            ),
-            leftTitles: AxisTitles(
-              sideTitles: SideTitles(
-                showTitles: true,
-                reservedSize: 44,
-                getTitlesWidget: (v, _) => Padding(
-                  padding: const EdgeInsets.only(right: 4),
-                  child: Text(
-                    '${v.toInt()}',
-                    style: AppTextStyles.monoSm.copyWith(
-                      color: AppColors.textSecondary,
-                      fontSize: 9,
-                    ),
-                    textAlign: TextAlign.right,
-                  ),
-                ),
-              ),
-            ),
-            bottomTitles: AxisTitles(
-              sideTitles: SideTitles(
-                showTitles: true,
-                reservedSize: 22,
-                interval: labelInterval,
-                getTitlesWidget: (v, _) {
-                  final idx = v.toInt();
-                  if (idx < 0 || idx >= points.length) {
-                    return const SizedBox.shrink();
-                  }
-                  final parts = points[idx].sessionDayAnchor.split('-');
-                  return Text(
-                    '${parts[2]}.${parts[1]}',
-                    style: AppTextStyles.monoSm.copyWith(
-                      color: AppColors.textSecondary,
-                      fontSize: 9,
-                    ),
-                  );
-                },
-              ),
-            ),
-          ),
-          lineTouchData: LineTouchData(
-            touchTooltipData: LineTouchTooltipData(
-              getTooltipColor: (_) => AppColors.surface800,
-              tooltipBorder: const BorderSide(
-                color: AppColors.neonCyan,
-                width: 0.5,
-              ),
-              getTooltipItems: (touchedSpots) => touchedSpots.map((s) {
-                final p = points[s.spotIndex];
-                final wStr = p.weightKg == p.weightKg.truncateToDouble()
-                    ? p.weightKg.toInt().toString()
-                    : p.weightKg.toStringAsFixed(1);
-                return LineTooltipItem(
-                  '${p.e1rm.toStringAsFixed(1)} kg\n${p.reps} × ${wStr}kg',
-                  AppTextStyles.monoSm.copyWith(
-                    color: AppColors.neonCyan,
-                    fontSize: 11,
-                  ),
-                );
-              }).toList(),
-            ),
-          ),
-          lineBarsData: [
-            LineChartBarData(
-              spots: spots,
-              isCurved: true,
-              curveSmoothness: 0.35,
-              color: AppColors.neonCyan,
-              barWidth: 2,
-              dotData: FlDotData(
-                show: spots.length <= 30,
-                getDotPainter: (spot, pct, bar, index) => FlDotCirclePainter(
-                  radius: 3,
-                  color: AppColors.neonCyan,
-                  strokeWidth: 1.5,
-                  strokeColor: AppColors.surface800,
-                ),
-              ),
-              belowBarData: BarAreaData(
-                show: true,
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    AppColors.neonCyan.withAlpha(50),
-                    AppColors.neonCyan.withAlpha(0),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 // ─── Muscle group chips ───────────────────────────────────────────────────────
 
 class _MuscleGroupChips extends StatelessWidget {
@@ -1193,7 +1477,9 @@ class _MuscleGroupChips extends StatelessWidget {
           Wrap(
             spacing: 6,
             runSpacing: 6,
-            children: primary.map((e) => _MgChip(entry: e, isPrimary: true)).toList(),
+            children: primary
+                .map((e) => _MgChip(entry: e, isPrimary: true))
+                .toList(),
           ),
         ],
         if (secondary.isNotEmpty) ...[
@@ -1209,7 +1495,9 @@ class _MuscleGroupChips extends StatelessWidget {
           Wrap(
             spacing: 6,
             runSpacing: 6,
-            children: secondary.map((e) => _MgChip(entry: e, isPrimary: false)).toList(),
+            children: secondary
+                .map((e) => _MgChip(entry: e, isPrimary: false))
+                .toList(),
           ),
         ],
       ],
@@ -1237,10 +1525,7 @@ class _MgChip extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: AppTextStyles.labelSm.copyWith(
-          color: color,
-          fontSize: 11,
-        ),
+        style: AppTextStyles.labelSm.copyWith(color: color, fontSize: 11),
       ),
     );
   }

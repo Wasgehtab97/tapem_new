@@ -236,6 +236,24 @@ abstract class AppLocalizations {
   /// **'Already have an account? '**
   String get alreadyHaveAccount;
 
+  /// No description provided for @authLegalPrefix.
+  ///
+  /// In en, this message translates to:
+  /// **'By continuing you accept'**
+  String get authLegalPrefix;
+
+  /// No description provided for @privacyPolicyLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Privacy Policy'**
+  String get privacyPolicyLabel;
+
+  /// No description provided for @termsOfServiceLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Terms'**
+  String get termsOfServiceLabel;
+
   /// No description provided for @chooseYourUsername.
   ///
   /// In en, this message translates to:
@@ -1226,6 +1244,108 @@ abstract class AppLocalizations {
   /// **'LANGUAGE'**
   String get languageSection;
 
+  /// No description provided for @legalDataSection.
+  ///
+  /// In en, this message translates to:
+  /// **'LEGAL & DATA'**
+  String get legalDataSection;
+
+  /// No description provided for @imprintLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Imprint'**
+  String get imprintLabel;
+
+  /// No description provided for @supportLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Support'**
+  String get supportLabel;
+
+  /// No description provided for @exportMyDataLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Export my data'**
+  String get exportMyDataLabel;
+
+  /// No description provided for @exportingDataLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Preparing data export…'**
+  String get exportingDataLabel;
+
+  /// No description provided for @deleteAccountLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete account'**
+  String get deleteAccountLabel;
+
+  /// No description provided for @deletingAccountLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Deleting account…'**
+  String get deletingAccountLabel;
+
+  /// No description provided for @deleteAccountConfirmTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'DELETE ACCOUNT?'**
+  String get deleteAccountConfirmTitle;
+
+  /// No description provided for @deleteAccountConfirmBody.
+  ///
+  /// In en, this message translates to:
+  /// **'This permanently deletes your account and all personal data linked to it.'**
+  String get deleteAccountConfirmBody;
+
+  /// No description provided for @typeDeletePrompt.
+  ///
+  /// In en, this message translates to:
+  /// **'Type DELETE to confirm'**
+  String get typeDeletePrompt;
+
+  /// No description provided for @accountDeletedSuccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Account deleted.'**
+  String get accountDeletedSuccess;
+
+  /// No description provided for @accountDeleteFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Account deletion failed: {error}'**
+  String accountDeleteFailed(String error);
+
+  /// No description provided for @exportDataReadyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Data export ready'**
+  String get exportDataReadyTitle;
+
+  /// No description provided for @exportDataReadyBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Your export was generated ({estimatedRows} records). The download link expires in about {minutes} minutes.'**
+  String exportDataReadyBody(int estimatedRows, int minutes);
+
+  /// No description provided for @downloadExportLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Download export'**
+  String get downloadExportLabel;
+
+  /// No description provided for @closeLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'CLOSE'**
+  String get closeLabel;
+
+  /// No description provided for @exportDataFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Data export failed: {error}'**
+  String exportDataFailed(String error);
+
   /// No description provided for @trainingPlansTitle.
   ///
   /// In en, this message translates to:
@@ -1417,6 +1537,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'No exercises created at this station yet.'**
   String get noExercisesAtStation;
+
+  /// No description provided for @selectExerciseForHistory.
+  ///
+  /// In en, this message translates to:
+  /// **'Select an exercise to view its history.'**
+  String get selectExerciseForHistory;
 
   /// No description provided for @myHistory.
   ///
@@ -1801,6 +1927,102 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'EXERCISES'**
   String get equipmentXpTitle;
+
+  /// No description provided for @performanceTileTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'PERFORMANCE'**
+  String get performanceTileTitle;
+
+  /// No description provided for @performanceTileSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Exercises ranked by your e1RM improvement trend'**
+  String get performanceTileSubtitle;
+
+  /// No description provided for @noPerformanceData.
+  ///
+  /// In en, this message translates to:
+  /// **'No performance data yet.'**
+  String get noPerformanceData;
+
+  /// No description provided for @performanceLoadError.
+  ///
+  /// In en, this message translates to:
+  /// **'Performance data could not be loaded.'**
+  String get performanceLoadError;
+
+  /// No description provided for @performanceMoreCount.
+  ///
+  /// In en, this message translates to:
+  /// **'+ {count} more'**
+  String performanceMoreCount(int count);
+
+  /// No description provided for @performanceSortedByTrend.
+  ///
+  /// In en, this message translates to:
+  /// **'Sorted by performance increase over time.'**
+  String get performanceSortedByTrend;
+
+  /// No description provided for @performanceSearchHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Search exercise…'**
+  String get performanceSearchHint;
+
+  /// No description provided for @performanceNoSearchResults.
+  ///
+  /// In en, this message translates to:
+  /// **'No exercises found.'**
+  String get performanceNoSearchResults;
+
+  /// No description provided for @performanceInsufficientData.
+  ///
+  /// In en, this message translates to:
+  /// **'Not enough trend data yet.'**
+  String get performanceInsufficientData;
+
+  /// No description provided for @performanceInsufficientDataShort.
+  ///
+  /// In en, this message translates to:
+  /// **'No trend yet'**
+  String get performanceInsufficientDataShort;
+
+  /// No description provided for @performanceTrendSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'{kg} ({percent})'**
+  String performanceTrendSummary(String kg, String percent);
+
+  /// No description provided for @performanceDetailTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'PERFORMANCE — {name}'**
+  String performanceDetailTitle(String name);
+
+  /// No description provided for @performanceLatestE1rm.
+  ///
+  /// In en, this message translates to:
+  /// **'LATEST E1RM'**
+  String get performanceLatestE1rm;
+
+  /// No description provided for @performanceBestE1rm.
+  ///
+  /// In en, this message translates to:
+  /// **'BEST E1RM'**
+  String get performanceBestE1rm;
+
+  /// No description provided for @performanceTrackedSessions.
+  ///
+  /// In en, this message translates to:
+  /// **'TRACKED SESSIONS'**
+  String get performanceTrackedSessions;
+
+  /// No description provided for @performanceTrend.
+  ///
+  /// In en, this message translates to:
+  /// **'TREND'**
+  String get performanceTrend;
 
   /// No description provided for @muscleGroupEmptyState.
   ///

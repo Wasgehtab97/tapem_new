@@ -77,7 +77,7 @@ class AdminNfcScreen extends HookConsumerWidget {
         builder: (ctx) => AlertDialog(
           title: const Text('NFC-TAG ENTFERNEN?'),
           content: Text(
-            'Der NFC-Tag von "${equipment.name}" wird entfernt. '
+            'Der NFC-Tag von "${equipment.displayName}" wird entfernt. '
             'Das physische Tag wird dabei nicht gelöscht.',
           ),
           actions: [
@@ -220,7 +220,7 @@ class _ScanPanel extends StatelessWidget {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    equipment!.name,
+                    equipment!.displayName,
                     style: AppTextStyles.labelLg.copyWith(
                       color: AppColors.neonCyan,
                     ),
@@ -381,7 +381,7 @@ class _EquipmentTile extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(equipment.name, style: AppTextStyles.bodyLg),
+                  Text(equipment.displayName, style: AppTextStyles.bodyLg),
                   if (hasTag)
                     Text(
                       equipment.nfcTagUid!,

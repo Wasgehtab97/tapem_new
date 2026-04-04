@@ -47,7 +47,7 @@ Never update any code, without first asking me 3 clarifying questions about what
 
 ### Layer Structure (`lib/`)
 ```
-core/        → Infrastructure: sync service, NFC, DB provider, theme, config
+core/        → Infrastructure: sync service, NFC, DB provider, theme, conf
 data/        → Repositories, Drift datasource, nutrition API clients
 domain/      → Entities (Freezed), repository interfaces, domain services
 presentation/ → UI: GoRouter, feature screens/providers/widgets

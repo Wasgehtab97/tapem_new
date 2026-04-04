@@ -25,6 +25,24 @@ abstract final class AppConfig {
   static const appName = "Tap'em";
   static const appVersion = '1.0.0';
 
+  /// Legal / support URLs (override per environment via --dart-define).
+  static const privacyPolicyUrl = String.fromEnvironment(
+    'PRIVACY_POLICY_URL',
+    defaultValue: 'https://tapem.app/privacy',
+  );
+  static const termsOfServiceUrl = String.fromEnvironment(
+    'TERMS_OF_SERVICE_URL',
+    defaultValue: 'https://tapem.app/terms',
+  );
+  static const imprintUrl = String.fromEnvironment(
+    'IMPRINT_URL',
+    defaultValue: 'https://tapem.app/imprint',
+  );
+  static const supportUrl = String.fromEnvironment(
+    'SUPPORT_URL',
+    defaultValue: 'https://tapem.app/support',
+  );
+
   /// XP constants (authoritative values — server enforces these too)
   static const xpTrainingDay = 25;
   static const xpPerSet = 5;

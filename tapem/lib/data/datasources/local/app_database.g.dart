@@ -105,6 +105,24 @@ class $LocalGymEquipmentTable extends LocalGymEquipment
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _posXMeta = const VerificationMeta('posX');
+  @override
+  late final GeneratedColumn<double> posX = GeneratedColumn<double>(
+    'pos_x',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _posYMeta = const VerificationMeta('posY');
+  @override
+  late final GeneratedColumn<double> posY = GeneratedColumn<double>(
+    'pos_y',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _isActiveMeta = const VerificationMeta(
     'isActive',
   );
@@ -143,6 +161,8 @@ class $LocalGymEquipmentTable extends LocalGymEquipment
     canonicalExerciseKey,
     rankingEligibleOverride,
     manufacturer,
+    posX,
+    posY,
     isActive,
     cachedAt,
   ];
@@ -231,6 +251,18 @@ class $LocalGymEquipmentTable extends LocalGymEquipment
         ),
       );
     }
+    if (data.containsKey('pos_x')) {
+      context.handle(
+        _posXMeta,
+        posX.isAcceptableOrUnknown(data['pos_x']!, _posXMeta),
+      );
+    }
+    if (data.containsKey('pos_y')) {
+      context.handle(
+        _posYMeta,
+        posY.isAcceptableOrUnknown(data['pos_y']!, _posYMeta),
+      );
+    }
     if (data.containsKey('is_active')) {
       context.handle(
         _isActiveMeta,
@@ -288,6 +320,14 @@ class $LocalGymEquipmentTable extends LocalGymEquipment
         DriftSqlType.string,
         data['${effectivePrefix}manufacturer'],
       ),
+      posX: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}pos_x'],
+      ),
+      posY: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}pos_y'],
+      ),
       isActive: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}is_active'],
@@ -316,6 +356,8 @@ class LocalGymEquipmentData extends DataClass
   final String? canonicalExerciseKey;
   final bool? rankingEligibleOverride;
   final String? manufacturer;
+  final double? posX;
+  final double? posY;
   final bool isActive;
   final DateTime cachedAt;
   const LocalGymEquipmentData({
@@ -328,6 +370,8 @@ class LocalGymEquipmentData extends DataClass
     this.canonicalExerciseKey,
     this.rankingEligibleOverride,
     this.manufacturer,
+    this.posX,
+    this.posY,
     required this.isActive,
     required this.cachedAt,
   });
@@ -353,6 +397,12 @@ class LocalGymEquipmentData extends DataClass
     if (!nullToAbsent || manufacturer != null) {
       map['manufacturer'] = Variable<String>(manufacturer);
     }
+    if (!nullToAbsent || posX != null) {
+      map['pos_x'] = Variable<double>(posX);
+    }
+    if (!nullToAbsent || posY != null) {
+      map['pos_y'] = Variable<double>(posY);
+    }
     map['is_active'] = Variable<bool>(isActive);
     map['cached_at'] = Variable<DateTime>(cachedAt);
     return map;
@@ -377,6 +427,8 @@ class LocalGymEquipmentData extends DataClass
       manufacturer: manufacturer == null && nullToAbsent
           ? const Value.absent()
           : Value(manufacturer),
+      posX: posX == null && nullToAbsent ? const Value.absent() : Value(posX),
+      posY: posY == null && nullToAbsent ? const Value.absent() : Value(posY),
       isActive: Value(isActive),
       cachedAt: Value(cachedAt),
     );
@@ -401,6 +453,8 @@ class LocalGymEquipmentData extends DataClass
         json['rankingEligibleOverride'],
       ),
       manufacturer: serializer.fromJson<String?>(json['manufacturer']),
+      posX: serializer.fromJson<double?>(json['posX']),
+      posY: serializer.fromJson<double?>(json['posY']),
       isActive: serializer.fromJson<bool>(json['isActive']),
       cachedAt: serializer.fromJson<DateTime>(json['cachedAt']),
     );
@@ -420,6 +474,8 @@ class LocalGymEquipmentData extends DataClass
         rankingEligibleOverride,
       ),
       'manufacturer': serializer.toJson<String?>(manufacturer),
+      'posX': serializer.toJson<double?>(posX),
+      'posY': serializer.toJson<double?>(posY),
       'isActive': serializer.toJson<bool>(isActive),
       'cachedAt': serializer.toJson<DateTime>(cachedAt),
     };
@@ -435,6 +491,8 @@ class LocalGymEquipmentData extends DataClass
     Value<String?> canonicalExerciseKey = const Value.absent(),
     Value<bool?> rankingEligibleOverride = const Value.absent(),
     Value<String?> manufacturer = const Value.absent(),
+    Value<double?> posX = const Value.absent(),
+    Value<double?> posY = const Value.absent(),
     bool? isActive,
     DateTime? cachedAt,
   }) => LocalGymEquipmentData(
@@ -451,6 +509,8 @@ class LocalGymEquipmentData extends DataClass
         ? rankingEligibleOverride.value
         : this.rankingEligibleOverride,
     manufacturer: manufacturer.present ? manufacturer.value : this.manufacturer,
+    posX: posX.present ? posX.value : this.posX,
+    posY: posY.present ? posY.value : this.posY,
     isActive: isActive ?? this.isActive,
     cachedAt: cachedAt ?? this.cachedAt,
   );
@@ -473,6 +533,8 @@ class LocalGymEquipmentData extends DataClass
       manufacturer: data.manufacturer.present
           ? data.manufacturer.value
           : this.manufacturer,
+      posX: data.posX.present ? data.posX.value : this.posX,
+      posY: data.posY.present ? data.posY.value : this.posY,
       isActive: data.isActive.present ? data.isActive.value : this.isActive,
       cachedAt: data.cachedAt.present ? data.cachedAt.value : this.cachedAt,
     );
@@ -490,6 +552,8 @@ class LocalGymEquipmentData extends DataClass
           ..write('canonicalExerciseKey: $canonicalExerciseKey, ')
           ..write('rankingEligibleOverride: $rankingEligibleOverride, ')
           ..write('manufacturer: $manufacturer, ')
+          ..write('posX: $posX, ')
+          ..write('posY: $posY, ')
           ..write('isActive: $isActive, ')
           ..write('cachedAt: $cachedAt')
           ..write(')'))
@@ -507,6 +571,8 @@ class LocalGymEquipmentData extends DataClass
     canonicalExerciseKey,
     rankingEligibleOverride,
     manufacturer,
+    posX,
+    posY,
     isActive,
     cachedAt,
   );
@@ -523,6 +589,8 @@ class LocalGymEquipmentData extends DataClass
           other.canonicalExerciseKey == this.canonicalExerciseKey &&
           other.rankingEligibleOverride == this.rankingEligibleOverride &&
           other.manufacturer == this.manufacturer &&
+          other.posX == this.posX &&
+          other.posY == this.posY &&
           other.isActive == this.isActive &&
           other.cachedAt == this.cachedAt);
 }
@@ -538,6 +606,8 @@ class LocalGymEquipmentCompanion
   final Value<String?> canonicalExerciseKey;
   final Value<bool?> rankingEligibleOverride;
   final Value<String?> manufacturer;
+  final Value<double?> posX;
+  final Value<double?> posY;
   final Value<bool> isActive;
   final Value<DateTime> cachedAt;
   final Value<int> rowid;
@@ -551,6 +621,8 @@ class LocalGymEquipmentCompanion
     this.canonicalExerciseKey = const Value.absent(),
     this.rankingEligibleOverride = const Value.absent(),
     this.manufacturer = const Value.absent(),
+    this.posX = const Value.absent(),
+    this.posY = const Value.absent(),
     this.isActive = const Value.absent(),
     this.cachedAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -565,6 +637,8 @@ class LocalGymEquipmentCompanion
     this.canonicalExerciseKey = const Value.absent(),
     this.rankingEligibleOverride = const Value.absent(),
     this.manufacturer = const Value.absent(),
+    this.posX = const Value.absent(),
+    this.posY = const Value.absent(),
     this.isActive = const Value.absent(),
     this.cachedAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -583,6 +657,8 @@ class LocalGymEquipmentCompanion
     Expression<String>? canonicalExerciseKey,
     Expression<bool>? rankingEligibleOverride,
     Expression<String>? manufacturer,
+    Expression<double>? posX,
+    Expression<double>? posY,
     Expression<bool>? isActive,
     Expression<DateTime>? cachedAt,
     Expression<int>? rowid,
@@ -599,6 +675,8 @@ class LocalGymEquipmentCompanion
       if (rankingEligibleOverride != null)
         'ranking_eligible_override': rankingEligibleOverride,
       if (manufacturer != null) 'manufacturer': manufacturer,
+      if (posX != null) 'pos_x': posX,
+      if (posY != null) 'pos_y': posY,
       if (isActive != null) 'is_active': isActive,
       if (cachedAt != null) 'cached_at': cachedAt,
       if (rowid != null) 'rowid': rowid,
@@ -615,6 +693,8 @@ class LocalGymEquipmentCompanion
     Value<String?>? canonicalExerciseKey,
     Value<bool?>? rankingEligibleOverride,
     Value<String?>? manufacturer,
+    Value<double?>? posX,
+    Value<double?>? posY,
     Value<bool>? isActive,
     Value<DateTime>? cachedAt,
     Value<int>? rowid,
@@ -630,6 +710,8 @@ class LocalGymEquipmentCompanion
       rankingEligibleOverride:
           rankingEligibleOverride ?? this.rankingEligibleOverride,
       manufacturer: manufacturer ?? this.manufacturer,
+      posX: posX ?? this.posX,
+      posY: posY ?? this.posY,
       isActive: isActive ?? this.isActive,
       cachedAt: cachedAt ?? this.cachedAt,
       rowid: rowid ?? this.rowid,
@@ -670,6 +752,12 @@ class LocalGymEquipmentCompanion
     if (manufacturer.present) {
       map['manufacturer'] = Variable<String>(manufacturer.value);
     }
+    if (posX.present) {
+      map['pos_x'] = Variable<double>(posX.value);
+    }
+    if (posY.present) {
+      map['pos_y'] = Variable<double>(posY.value);
+    }
     if (isActive.present) {
       map['is_active'] = Variable<bool>(isActive.value);
     }
@@ -694,8 +782,541 @@ class LocalGymEquipmentCompanion
           ..write('canonicalExerciseKey: $canonicalExerciseKey, ')
           ..write('rankingEligibleOverride: $rankingEligibleOverride, ')
           ..write('manufacturer: $manufacturer, ')
+          ..write('posX: $posX, ')
+          ..write('posY: $posY, ')
           ..write('isActive: $isActive, ')
           ..write('cachedAt: $cachedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $LocalEquipmentNameOverridesTable extends LocalEquipmentNameOverrides
+    with
+        TableInfo<
+          $LocalEquipmentNameOverridesTable,
+          LocalEquipmentNameOverride
+        > {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $LocalEquipmentNameOverridesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _userIdMeta = const VerificationMeta('userId');
+  @override
+  late final GeneratedColumn<String> userId = GeneratedColumn<String>(
+    'user_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _gymIdMeta = const VerificationMeta('gymId');
+  @override
+  late final GeneratedColumn<String> gymId = GeneratedColumn<String>(
+    'gym_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _equipmentIdMeta = const VerificationMeta(
+    'equipmentId',
+  );
+  @override
+  late final GeneratedColumn<String> equipmentId = GeneratedColumn<String>(
+    'equipment_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _displayNameMeta = const VerificationMeta(
+    'displayName',
+  );
+  @override
+  late final GeneratedColumn<String> displayName = GeneratedColumn<String>(
+    'display_name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _isDeletedMeta = const VerificationMeta(
+    'isDeleted',
+  );
+  @override
+  late final GeneratedColumn<bool> isDeleted = GeneratedColumn<bool>(
+    'is_deleted',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_deleted" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _syncStatusMeta = const VerificationMeta(
+    'syncStatus',
+  );
+  @override
+  late final GeneratedColumn<String> syncStatus = GeneratedColumn<String>(
+    'sync_status',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('local_saved'),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    userId,
+    gymId,
+    equipmentId,
+    displayName,
+    isDeleted,
+    syncStatus,
+    createdAt,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'local_equipment_name_overrides';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<LocalEquipmentNameOverride> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('user_id')) {
+      context.handle(
+        _userIdMeta,
+        userId.isAcceptableOrUnknown(data['user_id']!, _userIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_userIdMeta);
+    }
+    if (data.containsKey('gym_id')) {
+      context.handle(
+        _gymIdMeta,
+        gymId.isAcceptableOrUnknown(data['gym_id']!, _gymIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_gymIdMeta);
+    }
+    if (data.containsKey('equipment_id')) {
+      context.handle(
+        _equipmentIdMeta,
+        equipmentId.isAcceptableOrUnknown(
+          data['equipment_id']!,
+          _equipmentIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_equipmentIdMeta);
+    }
+    if (data.containsKey('display_name')) {
+      context.handle(
+        _displayNameMeta,
+        displayName.isAcceptableOrUnknown(
+          data['display_name']!,
+          _displayNameMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_displayNameMeta);
+    }
+    if (data.containsKey('is_deleted')) {
+      context.handle(
+        _isDeletedMeta,
+        isDeleted.isAcceptableOrUnknown(data['is_deleted']!, _isDeletedMeta),
+      );
+    }
+    if (data.containsKey('sync_status')) {
+      context.handle(
+        _syncStatusMeta,
+        syncStatus.isAcceptableOrUnknown(data['sync_status']!, _syncStatusMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {userId, equipmentId};
+  @override
+  LocalEquipmentNameOverride map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return LocalEquipmentNameOverride(
+      userId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}user_id'],
+      )!,
+      gymId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}gym_id'],
+      )!,
+      equipmentId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}equipment_id'],
+      )!,
+      displayName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}display_name'],
+      )!,
+      isDeleted: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_deleted'],
+      )!,
+      syncStatus: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}sync_status'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+    );
+  }
+
+  @override
+  $LocalEquipmentNameOverridesTable createAlias(String alias) {
+    return $LocalEquipmentNameOverridesTable(attachedDatabase, alias);
+  }
+}
+
+class LocalEquipmentNameOverride extends DataClass
+    implements Insertable<LocalEquipmentNameOverride> {
+  final String userId;
+  final String gymId;
+  final String equipmentId;
+  final String displayName;
+  final bool isDeleted;
+  final String syncStatus;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  const LocalEquipmentNameOverride({
+    required this.userId,
+    required this.gymId,
+    required this.equipmentId,
+    required this.displayName,
+    required this.isDeleted,
+    required this.syncStatus,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['user_id'] = Variable<String>(userId);
+    map['gym_id'] = Variable<String>(gymId);
+    map['equipment_id'] = Variable<String>(equipmentId);
+    map['display_name'] = Variable<String>(displayName);
+    map['is_deleted'] = Variable<bool>(isDeleted);
+    map['sync_status'] = Variable<String>(syncStatus);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    return map;
+  }
+
+  LocalEquipmentNameOverridesCompanion toCompanion(bool nullToAbsent) {
+    return LocalEquipmentNameOverridesCompanion(
+      userId: Value(userId),
+      gymId: Value(gymId),
+      equipmentId: Value(equipmentId),
+      displayName: Value(displayName),
+      isDeleted: Value(isDeleted),
+      syncStatus: Value(syncStatus),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory LocalEquipmentNameOverride.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return LocalEquipmentNameOverride(
+      userId: serializer.fromJson<String>(json['userId']),
+      gymId: serializer.fromJson<String>(json['gymId']),
+      equipmentId: serializer.fromJson<String>(json['equipmentId']),
+      displayName: serializer.fromJson<String>(json['displayName']),
+      isDeleted: serializer.fromJson<bool>(json['isDeleted']),
+      syncStatus: serializer.fromJson<String>(json['syncStatus']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'userId': serializer.toJson<String>(userId),
+      'gymId': serializer.toJson<String>(gymId),
+      'equipmentId': serializer.toJson<String>(equipmentId),
+      'displayName': serializer.toJson<String>(displayName),
+      'isDeleted': serializer.toJson<bool>(isDeleted),
+      'syncStatus': serializer.toJson<String>(syncStatus),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+    };
+  }
+
+  LocalEquipmentNameOverride copyWith({
+    String? userId,
+    String? gymId,
+    String? equipmentId,
+    String? displayName,
+    bool? isDeleted,
+    String? syncStatus,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) => LocalEquipmentNameOverride(
+    userId: userId ?? this.userId,
+    gymId: gymId ?? this.gymId,
+    equipmentId: equipmentId ?? this.equipmentId,
+    displayName: displayName ?? this.displayName,
+    isDeleted: isDeleted ?? this.isDeleted,
+    syncStatus: syncStatus ?? this.syncStatus,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+  LocalEquipmentNameOverride copyWithCompanion(
+    LocalEquipmentNameOverridesCompanion data,
+  ) {
+    return LocalEquipmentNameOverride(
+      userId: data.userId.present ? data.userId.value : this.userId,
+      gymId: data.gymId.present ? data.gymId.value : this.gymId,
+      equipmentId: data.equipmentId.present
+          ? data.equipmentId.value
+          : this.equipmentId,
+      displayName: data.displayName.present
+          ? data.displayName.value
+          : this.displayName,
+      isDeleted: data.isDeleted.present ? data.isDeleted.value : this.isDeleted,
+      syncStatus: data.syncStatus.present
+          ? data.syncStatus.value
+          : this.syncStatus,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('LocalEquipmentNameOverride(')
+          ..write('userId: $userId, ')
+          ..write('gymId: $gymId, ')
+          ..write('equipmentId: $equipmentId, ')
+          ..write('displayName: $displayName, ')
+          ..write('isDeleted: $isDeleted, ')
+          ..write('syncStatus: $syncStatus, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    userId,
+    gymId,
+    equipmentId,
+    displayName,
+    isDeleted,
+    syncStatus,
+    createdAt,
+    updatedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is LocalEquipmentNameOverride &&
+          other.userId == this.userId &&
+          other.gymId == this.gymId &&
+          other.equipmentId == this.equipmentId &&
+          other.displayName == this.displayName &&
+          other.isDeleted == this.isDeleted &&
+          other.syncStatus == this.syncStatus &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt);
+}
+
+class LocalEquipmentNameOverridesCompanion
+    extends UpdateCompanion<LocalEquipmentNameOverride> {
+  final Value<String> userId;
+  final Value<String> gymId;
+  final Value<String> equipmentId;
+  final Value<String> displayName;
+  final Value<bool> isDeleted;
+  final Value<String> syncStatus;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  final Value<int> rowid;
+  const LocalEquipmentNameOverridesCompanion({
+    this.userId = const Value.absent(),
+    this.gymId = const Value.absent(),
+    this.equipmentId = const Value.absent(),
+    this.displayName = const Value.absent(),
+    this.isDeleted = const Value.absent(),
+    this.syncStatus = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  LocalEquipmentNameOverridesCompanion.insert({
+    required String userId,
+    required String gymId,
+    required String equipmentId,
+    required String displayName,
+    this.isDeleted = const Value.absent(),
+    this.syncStatus = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : userId = Value(userId),
+       gymId = Value(gymId),
+       equipmentId = Value(equipmentId),
+       displayName = Value(displayName);
+  static Insertable<LocalEquipmentNameOverride> custom({
+    Expression<String>? userId,
+    Expression<String>? gymId,
+    Expression<String>? equipmentId,
+    Expression<String>? displayName,
+    Expression<bool>? isDeleted,
+    Expression<String>? syncStatus,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (userId != null) 'user_id': userId,
+      if (gymId != null) 'gym_id': gymId,
+      if (equipmentId != null) 'equipment_id': equipmentId,
+      if (displayName != null) 'display_name': displayName,
+      if (isDeleted != null) 'is_deleted': isDeleted,
+      if (syncStatus != null) 'sync_status': syncStatus,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  LocalEquipmentNameOverridesCompanion copyWith({
+    Value<String>? userId,
+    Value<String>? gymId,
+    Value<String>? equipmentId,
+    Value<String>? displayName,
+    Value<bool>? isDeleted,
+    Value<String>? syncStatus,
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+    Value<int>? rowid,
+  }) {
+    return LocalEquipmentNameOverridesCompanion(
+      userId: userId ?? this.userId,
+      gymId: gymId ?? this.gymId,
+      equipmentId: equipmentId ?? this.equipmentId,
+      displayName: displayName ?? this.displayName,
+      isDeleted: isDeleted ?? this.isDeleted,
+      syncStatus: syncStatus ?? this.syncStatus,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (userId.present) {
+      map['user_id'] = Variable<String>(userId.value);
+    }
+    if (gymId.present) {
+      map['gym_id'] = Variable<String>(gymId.value);
+    }
+    if (equipmentId.present) {
+      map['equipment_id'] = Variable<String>(equipmentId.value);
+    }
+    if (displayName.present) {
+      map['display_name'] = Variable<String>(displayName.value);
+    }
+    if (isDeleted.present) {
+      map['is_deleted'] = Variable<bool>(isDeleted.value);
+    }
+    if (syncStatus.present) {
+      map['sync_status'] = Variable<String>(syncStatus.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('LocalEquipmentNameOverridesCompanion(')
+          ..write('userId: $userId, ')
+          ..write('gymId: $gymId, ')
+          ..write('equipmentId: $equipmentId, ')
+          ..write('displayName: $displayName, ')
+          ..write('isDeleted: $isDeleted, ')
+          ..write('syncStatus: $syncStatus, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -5443,6 +6064,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
   late final $LocalGymEquipmentTable localGymEquipment =
       $LocalGymEquipmentTable(this);
+  late final $LocalEquipmentNameOverridesTable localEquipmentNameOverrides =
+      $LocalEquipmentNameOverridesTable(this);
   late final $LocalExerciseTemplatesTable localExerciseTemplates =
       $LocalExerciseTemplatesTable(this);
   late final $LocalUserCustomExercisesTable localUserCustomExercises =
@@ -5468,6 +6091,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   @override
   List<DatabaseSchemaEntity> get allSchemaEntities => [
     localGymEquipment,
+    localEquipmentNameOverrides,
     localExerciseTemplates,
     localUserCustomExercises,
     localUserCustomExerciseMuscleGroups,
@@ -5491,6 +6115,8 @@ typedef $$LocalGymEquipmentTableCreateCompanionBuilder =
       Value<String?> canonicalExerciseKey,
       Value<bool?> rankingEligibleOverride,
       Value<String?> manufacturer,
+      Value<double?> posX,
+      Value<double?> posY,
       Value<bool> isActive,
       Value<DateTime> cachedAt,
       Value<int> rowid,
@@ -5506,6 +6132,8 @@ typedef $$LocalGymEquipmentTableUpdateCompanionBuilder =
       Value<String?> canonicalExerciseKey,
       Value<bool?> rankingEligibleOverride,
       Value<String?> manufacturer,
+      Value<double?> posX,
+      Value<double?> posY,
       Value<bool> isActive,
       Value<DateTime> cachedAt,
       Value<int> rowid,
@@ -5562,6 +6190,16 @@ class $$LocalGymEquipmentTableFilterComposer
 
   ColumnFilters<String> get manufacturer => $composableBuilder(
     column: $table.manufacturer,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get posX => $composableBuilder(
+    column: $table.posX,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get posY => $composableBuilder(
+    column: $table.posY,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -5630,6 +6268,16 @@ class $$LocalGymEquipmentTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<double> get posX => $composableBuilder(
+    column: $table.posX,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get posY => $composableBuilder(
+    column: $table.posY,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<bool> get isActive => $composableBuilder(
     column: $table.isActive,
     builder: (column) => ColumnOrderings(column),
@@ -5684,6 +6332,12 @@ class $$LocalGymEquipmentTableAnnotationComposer
     column: $table.manufacturer,
     builder: (column) => column,
   );
+
+  GeneratedColumn<double> get posX =>
+      $composableBuilder(column: $table.posX, builder: (column) => column);
+
+  GeneratedColumn<double> get posY =>
+      $composableBuilder(column: $table.posY, builder: (column) => column);
 
   GeneratedColumn<bool> get isActive =>
       $composableBuilder(column: $table.isActive, builder: (column) => column);
@@ -5741,6 +6395,8 @@ class $$LocalGymEquipmentTableTableManager
                 Value<String?> canonicalExerciseKey = const Value.absent(),
                 Value<bool?> rankingEligibleOverride = const Value.absent(),
                 Value<String?> manufacturer = const Value.absent(),
+                Value<double?> posX = const Value.absent(),
+                Value<double?> posY = const Value.absent(),
                 Value<bool> isActive = const Value.absent(),
                 Value<DateTime> cachedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -5754,6 +6410,8 @@ class $$LocalGymEquipmentTableTableManager
                 canonicalExerciseKey: canonicalExerciseKey,
                 rankingEligibleOverride: rankingEligibleOverride,
                 manufacturer: manufacturer,
+                posX: posX,
+                posY: posY,
                 isActive: isActive,
                 cachedAt: cachedAt,
                 rowid: rowid,
@@ -5769,6 +6427,8 @@ class $$LocalGymEquipmentTableTableManager
                 Value<String?> canonicalExerciseKey = const Value.absent(),
                 Value<bool?> rankingEligibleOverride = const Value.absent(),
                 Value<String?> manufacturer = const Value.absent(),
+                Value<double?> posX = const Value.absent(),
+                Value<double?> posY = const Value.absent(),
                 Value<bool> isActive = const Value.absent(),
                 Value<DateTime> cachedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -5782,6 +6442,8 @@ class $$LocalGymEquipmentTableTableManager
                 canonicalExerciseKey: canonicalExerciseKey,
                 rankingEligibleOverride: rankingEligibleOverride,
                 manufacturer: manufacturer,
+                posX: posX,
+                posY: posY,
                 isActive: isActive,
                 cachedAt: cachedAt,
                 rowid: rowid,
@@ -5813,6 +6475,288 @@ typedef $$LocalGymEquipmentTableProcessedTableManager =
         >,
       ),
       LocalGymEquipmentData,
+      PrefetchHooks Function()
+    >;
+typedef $$LocalEquipmentNameOverridesTableCreateCompanionBuilder =
+    LocalEquipmentNameOverridesCompanion Function({
+      required String userId,
+      required String gymId,
+      required String equipmentId,
+      required String displayName,
+      Value<bool> isDeleted,
+      Value<String> syncStatus,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<int> rowid,
+    });
+typedef $$LocalEquipmentNameOverridesTableUpdateCompanionBuilder =
+    LocalEquipmentNameOverridesCompanion Function({
+      Value<String> userId,
+      Value<String> gymId,
+      Value<String> equipmentId,
+      Value<String> displayName,
+      Value<bool> isDeleted,
+      Value<String> syncStatus,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<int> rowid,
+    });
+
+class $$LocalEquipmentNameOverridesTableFilterComposer
+    extends Composer<_$AppDatabase, $LocalEquipmentNameOverridesTable> {
+  $$LocalEquipmentNameOverridesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get userId => $composableBuilder(
+    column: $table.userId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get gymId => $composableBuilder(
+    column: $table.gymId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get equipmentId => $composableBuilder(
+    column: $table.equipmentId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get displayName => $composableBuilder(
+    column: $table.displayName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isDeleted => $composableBuilder(
+    column: $table.isDeleted,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get syncStatus => $composableBuilder(
+    column: $table.syncStatus,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$LocalEquipmentNameOverridesTableOrderingComposer
+    extends Composer<_$AppDatabase, $LocalEquipmentNameOverridesTable> {
+  $$LocalEquipmentNameOverridesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get userId => $composableBuilder(
+    column: $table.userId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get gymId => $composableBuilder(
+    column: $table.gymId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get equipmentId => $composableBuilder(
+    column: $table.equipmentId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get displayName => $composableBuilder(
+    column: $table.displayName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isDeleted => $composableBuilder(
+    column: $table.isDeleted,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get syncStatus => $composableBuilder(
+    column: $table.syncStatus,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$LocalEquipmentNameOverridesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $LocalEquipmentNameOverridesTable> {
+  $$LocalEquipmentNameOverridesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get userId =>
+      $composableBuilder(column: $table.userId, builder: (column) => column);
+
+  GeneratedColumn<String> get gymId =>
+      $composableBuilder(column: $table.gymId, builder: (column) => column);
+
+  GeneratedColumn<String> get equipmentId => $composableBuilder(
+    column: $table.equipmentId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get displayName => $composableBuilder(
+    column: $table.displayName,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get isDeleted =>
+      $composableBuilder(column: $table.isDeleted, builder: (column) => column);
+
+  GeneratedColumn<String> get syncStatus => $composableBuilder(
+    column: $table.syncStatus,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+}
+
+class $$LocalEquipmentNameOverridesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $LocalEquipmentNameOverridesTable,
+          LocalEquipmentNameOverride,
+          $$LocalEquipmentNameOverridesTableFilterComposer,
+          $$LocalEquipmentNameOverridesTableOrderingComposer,
+          $$LocalEquipmentNameOverridesTableAnnotationComposer,
+          $$LocalEquipmentNameOverridesTableCreateCompanionBuilder,
+          $$LocalEquipmentNameOverridesTableUpdateCompanionBuilder,
+          (
+            LocalEquipmentNameOverride,
+            BaseReferences<
+              _$AppDatabase,
+              $LocalEquipmentNameOverridesTable,
+              LocalEquipmentNameOverride
+            >,
+          ),
+          LocalEquipmentNameOverride,
+          PrefetchHooks Function()
+        > {
+  $$LocalEquipmentNameOverridesTableTableManager(
+    _$AppDatabase db,
+    $LocalEquipmentNameOverridesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$LocalEquipmentNameOverridesTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$LocalEquipmentNameOverridesTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$LocalEquipmentNameOverridesTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> userId = const Value.absent(),
+                Value<String> gymId = const Value.absent(),
+                Value<String> equipmentId = const Value.absent(),
+                Value<String> displayName = const Value.absent(),
+                Value<bool> isDeleted = const Value.absent(),
+                Value<String> syncStatus = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => LocalEquipmentNameOverridesCompanion(
+                userId: userId,
+                gymId: gymId,
+                equipmentId: equipmentId,
+                displayName: displayName,
+                isDeleted: isDeleted,
+                syncStatus: syncStatus,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String userId,
+                required String gymId,
+                required String equipmentId,
+                required String displayName,
+                Value<bool> isDeleted = const Value.absent(),
+                Value<String> syncStatus = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => LocalEquipmentNameOverridesCompanion.insert(
+                userId: userId,
+                gymId: gymId,
+                equipmentId: equipmentId,
+                displayName: displayName,
+                isDeleted: isDeleted,
+                syncStatus: syncStatus,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$LocalEquipmentNameOverridesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $LocalEquipmentNameOverridesTable,
+      LocalEquipmentNameOverride,
+      $$LocalEquipmentNameOverridesTableFilterComposer,
+      $$LocalEquipmentNameOverridesTableOrderingComposer,
+      $$LocalEquipmentNameOverridesTableAnnotationComposer,
+      $$LocalEquipmentNameOverridesTableCreateCompanionBuilder,
+      $$LocalEquipmentNameOverridesTableUpdateCompanionBuilder,
+      (
+        LocalEquipmentNameOverride,
+        BaseReferences<
+          _$AppDatabase,
+          $LocalEquipmentNameOverridesTable,
+          LocalEquipmentNameOverride
+        >,
+      ),
+      LocalEquipmentNameOverride,
       PrefetchHooks Function()
     >;
 typedef $$LocalExerciseTemplatesTableCreateCompanionBuilder =
@@ -8320,6 +9264,12 @@ class $AppDatabaseManager {
   $AppDatabaseManager(this._db);
   $$LocalGymEquipmentTableTableManager get localGymEquipment =>
       $$LocalGymEquipmentTableTableManager(_db, _db.localGymEquipment);
+  $$LocalEquipmentNameOverridesTableTableManager
+  get localEquipmentNameOverrides =>
+      $$LocalEquipmentNameOverridesTableTableManager(
+        _db,
+        _db.localEquipmentNameOverrides,
+      );
   $$LocalExerciseTemplatesTableTableManager get localExerciseTemplates =>
       $$LocalExerciseTemplatesTableTableManager(
         _db,

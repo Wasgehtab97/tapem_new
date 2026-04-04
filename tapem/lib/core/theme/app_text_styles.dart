@@ -74,7 +74,7 @@ abstract final class AppTextStyles {
     letterSpacing: 0.8,
   );
   static const labelSm = TextStyle(
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: FontWeight.w600,
     color: AppColors.textSecondary,
     letterSpacing: 1.0,
@@ -86,16 +86,19 @@ abstract final class AppTextStyles {
     fontWeight: FontWeight.w400,
     color: AppColors.neonCyan,
     height: 1.1,
+    fontFeatures: const [FontFeature.tabularFigures()],
   );
   static final monoMd = _mono.copyWith(
     fontSize: 20,
     fontWeight: FontWeight.w400,
     color: AppColors.neonCyan,
+    fontFeatures: const [FontFeature.tabularFigures()],
   );
   static final monoSm = _mono.copyWith(
     fontSize: 13,
     fontWeight: FontWeight.w400,
     color: AppColors.textSecondary,
+    fontFeatures: const [FontFeature.tabularFigures()],
   );
 
   // ─── Button ───────────────────────────────────────────────────────────────

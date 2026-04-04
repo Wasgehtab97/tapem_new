@@ -78,6 +78,15 @@ class AppLocalizationsDe extends AppLocalizations {
   String get alreadyHaveAccount => 'Bereits ein Konto? ';
 
   @override
+  String get authLegalPrefix => 'Mit der Nutzung akzeptierst du';
+
+  @override
+  String get privacyPolicyLabel => 'Datenschutzerklärung';
+
+  @override
+  String get termsOfServiceLabel => 'Nutzungsbedingungen';
+
+  @override
   String get chooseYourUsername => 'WÄHLE DEINEN\nBENUTZERNAMEN';
 
   @override
@@ -646,6 +655,64 @@ class AppLocalizationsDe extends AppLocalizations {
   String get languageSection => 'SPRACHE';
 
   @override
+  String get legalDataSection => 'RECHT & DATEN';
+
+  @override
+  String get imprintLabel => 'Impressum';
+
+  @override
+  String get supportLabel => 'Support';
+
+  @override
+  String get exportMyDataLabel => 'Meine Daten exportieren';
+
+  @override
+  String get exportingDataLabel => 'Datenexport wird erstellt…';
+
+  @override
+  String get deleteAccountLabel => 'Konto löschen';
+
+  @override
+  String get deletingAccountLabel => 'Konto wird gelöscht…';
+
+  @override
+  String get deleteAccountConfirmTitle => 'KONTO LÖSCHEN?';
+
+  @override
+  String get deleteAccountConfirmBody =>
+      'Dein Konto und alle damit verknüpften personenbezogenen Daten werden dauerhaft gelöscht.';
+
+  @override
+  String get typeDeletePrompt => 'Zur Bestätigung DELETE eingeben';
+
+  @override
+  String get accountDeletedSuccess => 'Konto gelöscht.';
+
+  @override
+  String accountDeleteFailed(String error) {
+    return 'Kontolöschung fehlgeschlagen: $error';
+  }
+
+  @override
+  String get exportDataReadyTitle => 'Datenexport bereit';
+
+  @override
+  String exportDataReadyBody(int estimatedRows, int minutes) {
+    return 'Dein Export wurde erstellt ($estimatedRows Datensätze). Der Download-Link läuft in etwa $minutes Minuten ab.';
+  }
+
+  @override
+  String get downloadExportLabel => 'Export herunterladen';
+
+  @override
+  String get closeLabel => 'SCHLIESSEN';
+
+  @override
+  String exportDataFailed(String error) {
+    return 'Datenexport fehlgeschlagen: $error';
+  }
+
+  @override
   String get trainingPlansTitle => 'TRAININGSPLÄNE';
 
   @override
@@ -747,6 +814,10 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get noExercisesAtStation =>
       'Noch keine Übungen an dieser Station erstellt.';
+
+  @override
+  String get selectExerciseForHistory =>
+      'Wähle eine Übung aus, um ihre Historie zu sehen.';
 
   @override
   String get myHistory => 'MEINE HISTORIE';
@@ -973,6 +1044,63 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get equipmentXpTitle => 'ÜBUNGEN';
+
+  @override
+  String get performanceTileTitle => 'PERFORMANCE';
+
+  @override
+  String get performanceTileSubtitle =>
+      'Übungen nach deinem e1RM-Fortschritt sortiert';
+
+  @override
+  String get noPerformanceData => 'Noch keine Performance-Daten.';
+
+  @override
+  String get performanceLoadError =>
+      'Performance-Daten konnten nicht geladen werden.';
+
+  @override
+  String performanceMoreCount(int count) {
+    return '+ $count weitere';
+  }
+
+  @override
+  String get performanceSortedByTrend =>
+      'Sortiert nach Performance-Anstieg über die Zeit.';
+
+  @override
+  String get performanceSearchHint => 'Übung suchen…';
+
+  @override
+  String get performanceNoSearchResults => 'Keine Übungen gefunden.';
+
+  @override
+  String get performanceInsufficientData => 'Noch nicht genug Trend-Daten.';
+
+  @override
+  String get performanceInsufficientDataShort => 'Noch kein Trend';
+
+  @override
+  String performanceTrendSummary(String kg, String percent) {
+    return '$kg ($percent)';
+  }
+
+  @override
+  String performanceDetailTitle(String name) {
+    return 'PERFORMANCE — $name';
+  }
+
+  @override
+  String get performanceLatestE1rm => 'LETZTER E1RM';
+
+  @override
+  String get performanceBestE1rm => 'BESTER E1RM';
+
+  @override
+  String get performanceTrackedSessions => 'GETRACKTE SESSIONS';
+
+  @override
+  String get performanceTrend => 'TREND';
 
   @override
   String get muscleGroupEmptyState =>

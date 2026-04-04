@@ -12,12 +12,15 @@ import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/utils/l10n_extension.dart';
 import '../../../../domain/entities/gym/gym_equipment.dart';
 import '../../../router/route_names.dart';
+import '../../../widgets/common/tapem_empty_state.dart';
+import '../../../widgets/common/tapem_skeleton.dart';
 import '../../../widgets/common/tapem_text_field.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../workout/providers/equipment_provider.dart';
 import '../../workout/providers/workout_provider.dart';
 import '../../workout/screens/equipment_picker_screen.dart';
 import '../../workout/widgets/equipment_detail_sheet.dart';
+import '../widgets/gym_map_view.dart';
 
 class GymScreen extends HookConsumerWidget {
   const GymScreen({super.key});
@@ -50,6 +53,7 @@ class GymScreen extends HookConsumerWidget {
     final searchQuery = useState('');
     final selectedType = useState<EquipmentType?>(null);
     final showFavouritesOnly = useState(false);
+    final showMap = useState(false);
 
     useEffect(() {
       void listener() => searchQuery.value = searchCtrl.text;
@@ -63,128 +67,166 @@ class GymScreen extends HookConsumerWidget {
       appBar: AppBar(
         title: Text(gymName ?? l10n.navGym.toUpperCase()),
         bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(44),
-          child: _TypeFilterBar(
-            selected: selectedType.value,
-            onSelected: (t) => selectedType.value = t,
-            showFavourites: showFavouritesOnly.value,
-            onToggleFavourites: () =>
-                showFavouritesOnly.value = !showFavouritesOnly.value,
-          ),
-        ),
-      ),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-            child: TapemTextField(
-              label: l10n.searchEquipmentLabel,
-              controller: searchCtrl,
-              hintText: l10n.searchEquipmentHint,
-              prefixIcon: const Icon(Icons.search, size: 20),
-            ),
-          ),
-          if (isActive)
-            Container(
-              margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: AppColors.neonCyan.withAlpha(20),
-                borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: AppColors.neonCyan.withAlpha(60)),
-              ),
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.add_circle_outline,
-                    color: AppColors.neonCyan,
-                    size: 16,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    l10n.tapMachineToAdd,
-                    style: AppTextStyles.bodySm.copyWith(
-                      color: AppColors.neonCyan,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          Expanded(
-            child: equipmentAsync.when(
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (_, __) => Center(
-                child: Text(
-                  l10n.errorLoadingEquipment,
-                  style: AppTextStyles.bodyMd.copyWith(
-                    color: AppColors.textSecondary,
+          preferredSize: const Size.fromHeight(45),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                height: 1,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      Colors.transparent,
+                      Theme.of(context).colorScheme.primary,
+                      Colors.transparent,
+                    ],
                   ),
                 ),
               ),
-              data: (equipment) {
-                final filtered = equipment.where((e) {
-                  if (showFavouritesOnly.value &&
-                      !favouriteIds.contains(e.id)) {
-                    return false;
-                  }
-                  if (selectedType.value != null &&
-                      e.equipmentType != selectedType.value) {
-                    return false;
-                  }
-                  if (searchQuery.value.isNotEmpty) {
-                    return e.name.toLowerCase().contains(
-                      searchQuery.value.toLowerCase(),
-                    );
-                  }
-                  return true;
-                }).toList();
-
-                if (filtered.isEmpty) {
-                  return Center(
-                    child: Text(
-                      showFavouritesOnly.value
-                          ? l10n.noFavouritesYet
-                          : l10n.noEquipmentFound,
-                      style: AppTextStyles.bodyMd.copyWith(
-                        color: AppColors.textSecondary,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  );
-                }
-
-                return ListView.builder(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 4,
-                  ),
-                  itemCount: filtered.length,
-                  itemBuilder: (context, i) {
-                    final eq = filtered[i];
-                    return _GymEquipmentTile(
-                      equipment: eq,
-                      gymId: gymId,
-                      isActive: isActive,
-                      isFavourite: favouriteIds.contains(eq.id),
-                      onFavouriteToggle: () => _toggleFavourite(
-                        ref,
-                        user?.id,
-                        gymId,
-                        eq.id,
-                        favouriteIds,
-                      ),
-                      onTap: () => unawaited(
-                        _handleTap(context, ref, eq, gymId, isActive),
-                      ),
-                      onLongPress: () =>
-                          showEquipmentDetailSheet(context, eq, gymId),
-                    );
-                  },
-                );
-              },
+              _TypeFilterBar(
+                selected: selectedType.value,
+                onSelected: (t) {
+                  selectedType.value = t;
+                  showMap.value = false;
+                },
+                showFavourites: showFavouritesOnly.value,
+                onToggleFavourites: () {
+                  showFavouritesOnly.value = !showFavouritesOnly.value;
+                  showMap.value = false;
+                },
+                showMap: showMap.value,
+                onToggleMap: () => showMap.value = !showMap.value,
+              ),
+            ],
+          ),
+        ),
+      ),
+      body: equipmentAsync.when(
+        loading: () => ListView(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          children: [TapemSkeleton.listTiles(count: 6)],
+        ),
+        error: (_, __) => Center(
+          child: Text(
+            l10n.errorLoadingEquipment,
+            style: AppTextStyles.bodyMd.copyWith(
+              color: AppColors.textSecondary,
             ),
           ),
-        ],
+        ),
+        data: (equipment) {
+          // ── Map view ───────────────────────────────────────────────────
+          if (showMap.value) {
+            return AnimatedSwitcher(
+              duration: const Duration(milliseconds: 280),
+              child: GymMapView(
+                key: const ValueKey('map'),
+                gymId: gymId,
+                equipment: equipment,
+              ),
+            );
+          }
+
+          // ── List view ──────────────────────────────────────────────────
+          final filtered = equipment.where((e) {
+            if (showFavouritesOnly.value && !favouriteIds.contains(e.id)) {
+              return false;
+            }
+            if (selectedType.value != null &&
+                e.equipmentType != selectedType.value) {
+              return false;
+            }
+            if (searchQuery.value.isNotEmpty) {
+              return equipmentMatchesSearchQuery(e, searchQuery.value);
+            }
+            return true;
+          }).toList();
+
+          return Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                child: TapemTextField(
+                  label: l10n.searchEquipmentLabel,
+                  controller: searchCtrl,
+                  hintText: l10n.searchEquipmentHint,
+                  prefixIcon: const Icon(Icons.search, size: 20),
+                ),
+              ),
+              if (isActive)
+                Container(
+                  margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.neonCyan.withAlpha(20),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(
+                      color: AppColors.neonCyan.withAlpha(60),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.add_circle_outline,
+                        color: AppColors.neonCyan,
+                        size: 16,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        l10n.tapMachineToAdd,
+                        style: AppTextStyles.bodySm.copyWith(
+                          color: AppColors.neonCyan,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              Expanded(
+                child: filtered.isEmpty
+                    ? TapemEmptyState(
+                        icon: showFavouritesOnly.value
+                            ? Icons.favorite_outline
+                            : Icons.fitness_center_outlined,
+                        title: showFavouritesOnly.value
+                            ? l10n.noFavouritesYet
+                            : l10n.noEquipmentFound,
+                        iconColor: Theme.of(context).colorScheme.primary,
+                      )
+                    : ListView.builder(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 4,
+                        ),
+                        itemCount: filtered.length,
+                        itemBuilder: (context, i) {
+                          final eq = filtered[i];
+                          return _GymEquipmentTile(
+                            equipment: eq,
+                            gymId: gymId,
+                            isActive: isActive,
+                            isFavourite: favouriteIds.contains(eq.id),
+                            onFavouriteToggle: () => _toggleFavourite(
+                              ref,
+                              user?.id,
+                              gymId,
+                              eq.id,
+                              favouriteIds,
+                            ),
+                            onTap: () => unawaited(
+                              _handleTap(context, ref, eq, gymId, isActive),
+                            ),
+                            onLongPress: () =>
+                                showEquipmentDetailSheet(context, eq, gymId),
+                          );
+                        },
+                      ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -237,7 +279,7 @@ class GymScreen extends HookConsumerWidget {
         if (_focusIfAlreadyAdded(context, ref, key, equipment.id)) return;
         await notifier.addExercise(
           exerciseKey: key,
-          displayName: equipment.name,
+          displayName: equipment.displayName,
           equipmentId: equipment.id,
         );
         if (context.mounted) {
@@ -259,7 +301,7 @@ class GymScreen extends HookConsumerWidget {
                 builder: (_) => ExercisePickerSheet(
                   gymId: gymId,
                   equipmentId: equipment.id,
-                  equipmentName: equipment.name,
+                  equipmentName: equipment.displayName,
                 ),
               ),
             );
@@ -293,7 +335,7 @@ class GymScreen extends HookConsumerWidget {
         if (_focusIfAlreadyAdded(context, ref, key, equipment.id)) return;
         await notifier.addExercise(
           exerciseKey: key,
-          displayName: equipment.name,
+          displayName: equipment.displayName,
           equipmentId: equipment.id,
         );
         if (context.mounted) {
@@ -370,12 +412,16 @@ class _TypeFilterBar extends StatelessWidget {
     required this.onSelected,
     required this.showFavourites,
     required this.onToggleFavourites,
+    required this.showMap,
+    required this.onToggleMap,
   });
 
   final EquipmentType? selected;
   final void Function(EquipmentType?) onSelected;
   final bool showFavourites;
   final VoidCallback onToggleFavourites;
+  final bool showMap;
+  final VoidCallback onToggleMap;
 
   @override
   Widget build(BuildContext context) {
@@ -388,19 +434,19 @@ class _TypeFilterBar extends StatelessWidget {
         children: [
           _FilterChip(
             label: l10n.filterFavs,
-            selected: showFavourites,
+            selected: showFavourites && !showMap,
             onTap: onToggleFavourites,
           ),
           const SizedBox(width: 8),
           _FilterChip(
             label: l10n.filterAll,
-            selected: selected == null,
+            selected: selected == null && !showMap,
             onTap: () => onSelected(null),
           ),
           const SizedBox(width: 8),
           _FilterChip(
             label: l10n.filterMachines,
-            selected: selected == EquipmentType.fixedMachine,
+            selected: selected == EquipmentType.fixedMachine && !showMap,
             onTap: () => onSelected(
               selected == EquipmentType.fixedMachine
                   ? null
@@ -410,7 +456,7 @@ class _TypeFilterBar extends StatelessWidget {
           const SizedBox(width: 8),
           _FilterChip(
             label: l10n.filterOpen,
-            selected: selected == EquipmentType.openStation,
+            selected: selected == EquipmentType.openStation && !showMap,
             onTap: () => onSelected(
               selected == EquipmentType.openStation
                   ? null
@@ -420,10 +466,16 @@ class _TypeFilterBar extends StatelessWidget {
           const SizedBox(width: 8),
           _FilterChip(
             label: l10n.filterCardio,
-            selected: selected == EquipmentType.cardio,
+            selected: selected == EquipmentType.cardio && !showMap,
             onTap: () => onSelected(
               selected == EquipmentType.cardio ? null : EquipmentType.cardio,
             ),
+          ),
+          const SizedBox(width: 8),
+          _FilterChip(
+            label: 'Karte',
+            selected: showMap,
+            onTap: onToggleMap,
           ),
         ],
       ),
@@ -537,7 +589,7 @@ class _GymEquipmentTile extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(equipment.name, style: AppTextStyles.labelMd),
+                  Text(equipment.displayName, style: AppTextStyles.labelMd),
                   if (equipment.manufacturer != null &&
                       equipment.manufacturer!.isNotEmpty)
                     Text(

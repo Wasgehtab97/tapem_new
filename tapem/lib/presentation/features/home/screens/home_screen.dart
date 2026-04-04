@@ -11,6 +11,7 @@ import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/utils/l10n_extension.dart';
 import '../../../router/route_names.dart';
 import '../../../widgets/common/tapem_button.dart';
+import '../../../widgets/common/tapem_skeleton.dart';
 import '../../auth/providers/profile_provider.dart';
 import '../../../../data/datasources/local/app_database.dart';
 import '../../../../domain/entities/streak/streak_info.dart';
@@ -22,12 +23,44 @@ import '../../progress/widgets/training_heatmap.dart';
 import '../../workout/providers/workout_provider.dart';
 import '../providers/streak_provider.dart';
 
-
-class HomeScreen extends ConsumerWidget {
+class HomeScreen extends HookConsumerWidget {
   const HomeScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // One-shot stagger controller — plays once on mount.
+    final ctrl = useAnimationController(
+      duration: const Duration(milliseconds: 700),
+    );
+    useEffect(() {
+      ctrl.forward();
+      return null;
+    }, const []);
+
+    // 5 staggered fade+slide animations with 80ms offsets.
+    Animation<double> stagger(double start) => CurvedAnimation(
+      parent: ctrl,
+      curve: Interval(start, (start + 0.35).clamp(0.0, 1.0), curve: Curves.easeOutCubic),
+    );
+
+    final a0 = stagger(0.00);
+    final a1 = stagger(0.12);
+    final a2 = stagger(0.24);
+    final a3 = stagger(0.36);
+    final a4 = stagger(0.48);
+
+    Widget animated(Widget child, Animation<double> anim) =>
+        FadeTransition(
+          opacity: anim,
+          child: SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(0, 0.06),
+              end: Offset.zero,
+            ).animate(anim),
+            child: child,
+          ),
+        );
+
     return Scaffold(
       backgroundColor: AppColors.surface900,
       appBar: AppBar(
@@ -57,22 +90,26 @@ class HomeScreen extends ConsumerWidget {
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 8),
-            child: IconButton(
-              icon: Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: AppColors.surface700,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: AppColors.surface500),
+            child: Semantics(
+              label: context.l10n.profileNavLabel,
+              button: true,
+              child: IconButton(
+                icon: Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: AppColors.surface700,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: AppColors.surface500),
+                  ),
+                  child: const Icon(
+                    Icons.person_outline,
+                    size: 18,
+                    color: AppColors.textSecondary,
+                  ),
                 ),
-                child: const Icon(
-                  Icons.person_outline,
-                  size: 18,
-                  color: AppColors.textSecondary,
-                ),
+                tooltip: context.l10n.profileNavLabel,
+                onPressed: () => context.push(RouteNames.profile),
               ),
-              tooltip: context.l10n.profileNavLabel,
-              onPressed: () => context.push(RouteNames.profile),
             ),
           ),
         ],
@@ -102,16 +139,16 @@ class HomeScreen extends ConsumerWidget {
         },
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-          children: const [
-            _HeroCard(),
-            SizedBox(height: 16),
-            _StatsRow(),
-            SizedBox(height: 20),
-            _WorkoutQuickStart(),
-            SizedBox(height: 20),
-            _CalendarCard(),
-            SizedBox(height: 20),
-            _RecentActivityCard(),
+          children: [
+            animated(const _HeroCard(), a0),
+            const SizedBox(height: 16),
+            animated(const _StatsRow(), a1),
+            const SizedBox(height: 20),
+            animated(const _WorkoutQuickStart(), a2),
+            const SizedBox(height: 20),
+            animated(const _CalendarCard(), a3),
+            const SizedBox(height: 20),
+            animated(const _RecentActivityCard(), a4),
           ],
         ),
       ),
@@ -187,7 +224,9 @@ class _HeroCard extends ConsumerWidget {
               ),
               const SizedBox(width: 12),
               // XP level ring badge
-              TweenAnimationBuilder<double>(
+              Semantics(
+                label: 'Level $level, ${(ringProgress * 100).round()}% zum nächsten Level',
+                child: TweenAnimationBuilder<double>(
                 tween: Tween<double>(begin: 0.0, end: ringProgress),
                 duration: const Duration(milliseconds: 1400),
                 curve: Curves.easeOutCubic,
@@ -226,6 +265,7 @@ class _HeroCard extends ConsumerWidget {
                   ),
                 ),
               ),
+              ), // Semantics
             ],
           ),
           const SizedBox(height: 8),
@@ -257,10 +297,8 @@ class _HeroCard extends ConsumerWidget {
                 borderRadius: BorderRadius.circular(4),
               ),
             ),
-            error: (_, __) => Text(
-              l10n.errorLoadingProfile,
-              style: AppTextStyles.bodyMd,
-            ),
+            error: (_, __) =>
+                Text(l10n.errorLoadingProfile, style: AppTextStyles.bodyMd),
           ),
         ],
       ),
@@ -381,8 +419,9 @@ class _StatsRow extends ConsumerWidget {
     final streak = streakInfo.valueOrNull ?? StreakInfo.empty;
     final totalXp = gymXp.valueOrNull?.totalXp;
 
-    final streakColor =
-        streak.isAtRisk ? AppColors.neonYellowDim : AppColors.neonYellow;
+    final streakColor = streak.isAtRisk
+        ? AppColors.neonYellowDim
+        : AppColors.neonYellow;
 
     return Row(
       children: [
@@ -400,8 +439,8 @@ class _StatsRow extends ConsumerWidget {
           color: streakColor,
           subtitle: streak.isAtRisk
               ? streak.expiresImminently
-                  ? 'LÄUFT AB!'
-                  : 'NOCH ${streak.graceDaysRemaining} T.'
+                    ? 'LÄUFT AB!'
+                    : 'NOCH ${streak.graceDaysRemaining} T.'
               : null,
           subtitleColor: streak.expiresImminently
               ? AppColors.error
@@ -454,15 +493,16 @@ class _StatChip extends StatelessWidget {
           gradient: const LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [
-              AppColors.surface800,
-              AppColors.surface900,
-            ],
+            colors: [AppColors.surface800, AppColors.surface900],
           ),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: color.withAlpha(60)),
           boxShadow: [
-            BoxShadow(color: color.withAlpha(20), blurRadius: 20, offset: const Offset(0, 4)),
+            BoxShadow(
+              color: color.withAlpha(20),
+              blurRadius: 20,
+              offset: const Offset(0, 4),
+            ),
             BoxShadow(color: Colors.black.withAlpha(60), blurRadius: 8),
           ],
         ),
@@ -473,7 +513,11 @@ class _StatChip extends StatelessWidget {
             const SizedBox(height: 6),
             Text(
               value,
-              style: AppTextStyles.monoSm.copyWith(color: color, fontSize: 20, height: 1.0),
+              style: AppTextStyles.monoSm.copyWith(
+                color: color,
+                fontSize: 20,
+                height: 1.0,
+              ),
             ),
             const SizedBox(height: 3),
             Text(
@@ -533,11 +577,6 @@ class _CalendarCardState extends ConsumerState<_CalendarCard> {
     final trainingDays = ref.watch(trainingDaysProvider(_year));
     final days = trainingDays.valueOrNull ?? {};
     final canGoForward = _year < currentYear;
-    final streakAsync = ref.watch(streakProvider);
-    final streakInfo = _year == currentYear
-        ? (streakAsync.valueOrNull ?? StreakInfo.empty)
-        : StreakInfo.empty;
-    final streak = streakInfo.currentStreak;
 
     return Container(
       decoration: BoxDecoration(
@@ -545,7 +584,11 @@ class _CalendarCardState extends ConsumerState<_CalendarCard> {
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: AppColors.neonCyan.withAlpha(35)),
         boxShadow: [
-          BoxShadow(color: AppColors.neonCyan.withAlpha(15), blurRadius: 28, offset: const Offset(0, 4)),
+          BoxShadow(
+            color: AppColors.neonCyan.withAlpha(15),
+            blurRadius: 28,
+            offset: const Offset(0, 4),
+          ),
           BoxShadow(color: Colors.black.withAlpha(60), blurRadius: 12),
         ],
       ),
@@ -562,20 +605,10 @@ class _CalendarCardState extends ConsumerState<_CalendarCard> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      Text(
-                        l10n.trainingCalendar,
-                        textAlign: TextAlign.center,
-                        style: AppTextStyles.labelMd,
-                      ),
-                      if (streak > 1)
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: _StreakBadge(streakInfo: streakInfo),
-                        ),
-                    ],
+                  Text(
+                    l10n.trainingCalendar,
+                    textAlign: TextAlign.center,
+                    style: AppTextStyles.labelMd,
                   ),
                   const SizedBox(height: 6),
                   Row(
@@ -607,15 +640,7 @@ class _CalendarCardState extends ConsumerState<_CalendarCard> {
                   const SizedBox(height: 10),
                   trainingDays.when(
                     data: (d) => TrainingHeatmap(year: _year, trainingDays: d),
-                    loading: () => const SizedBox(
-                      height: 56,
-                      child: Center(
-                        child: LinearProgressIndicator(
-                          color: AppColors.neonCyan,
-                          backgroundColor: AppColors.surface600,
-                        ),
-                      ),
-                    ),
+                    loading: () => TapemSkeleton.card(height: 56),
                     error: (_, __) => Text(
                       l10n.failedToLoadCalendar,
                       style: AppTextStyles.bodySm,
@@ -672,58 +697,6 @@ class _YearNavButton extends StatelessWidget {
           size: 16,
           color: enabled ? AppColors.textSecondary : AppColors.textDisabled,
         ),
-      ),
-    );
-  }
-}
-
-// ─── Streak badge ─────────────────────────────────────────────────────────────
-
-class _StreakBadge extends StatelessWidget {
-  const _StreakBadge({required this.streakInfo});
-
-  final StreakInfo streakInfo;
-
-  @override
-  Widget build(BuildContext context) {
-    final color = streakInfo.isAtRisk
-        ? AppColors.neonYellowDim
-        : AppColors.neonYellow;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-      decoration: BoxDecoration(
-        color: color.withAlpha(18),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: color.withAlpha(70)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Text('🔥', style: TextStyle(fontSize: 11)),
-          const SizedBox(width: 4),
-          Text(
-            '${streakInfo.currentStreak}',
-            style: AppTextStyles.monoSm.copyWith(
-              color: color,
-              fontSize: 11,
-            ),
-          ),
-          if (streakInfo.isAtRisk) ...[
-            const SizedBox(width: 4),
-            Text(
-              streakInfo.expiresImminently
-                  ? '!'
-                  : '·${streakInfo.graceDaysRemaining}T',
-              style: AppTextStyles.labelSm.copyWith(
-                color: streakInfo.expiresImminently
-                    ? AppColors.error
-                    : AppColors.neonYellowDim,
-                fontSize: 9,
-              ),
-            ),
-          ],
-        ],
       ),
     );
   }
@@ -958,21 +931,12 @@ class _StartWorkoutCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 12),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'SCHNELLSTART',
-                    style: AppTextStyles.labelSm.copyWith(
-                      color: AppColors.neonCyan,
-                      letterSpacing: 2,
-                    ),
-                  ),
-                  const Text(
-                    'Bereit zum Schwitzen?',
-                    style: AppTextStyles.bodySm,
-                  ),
-                ],
+              Text(
+                'SCHNELLSTART',
+                style: AppTextStyles.labelSm.copyWith(
+                  color: AppColors.neonCyan,
+                  letterSpacing: 2,
+                ),
               ),
             ],
           ),
@@ -994,14 +958,6 @@ class _StartWorkoutCard extends StatelessWidget {
               icon: Icons.bolt_rounded,
               variant: TapemButtonVariant.outlined,
               onPressed: () => _showStartSheet(context),
-            ),
-          ),
-          const SizedBox(height: 10),
-          Center(
-            child: Text(
-              l10n.startWorkoutHint,
-              style: AppTextStyles.bodySm,
-              textAlign: TextAlign.center,
             ),
           ),
         ],
@@ -1287,7 +1243,7 @@ class _PlanPickerSheet extends StatelessWidget {
 
 // ─── Workout type selection card ──────────────────────────────────────────────
 
-class _WorkoutTypeCard extends StatelessWidget {
+class _WorkoutTypeCard extends StatefulWidget {
   const _WorkoutTypeCard({
     required this.icon,
     required this.iconColor,
@@ -1305,65 +1261,79 @@ class _WorkoutTypeCard extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
+  State<_WorkoutTypeCard> createState() => _WorkoutTypeCardState();
+}
+
+class _WorkoutTypeCardState extends State<_WorkoutTypeCard> {
+  bool _pressed = false;
+
+  @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: AppColors.surface900,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: iconColor.withAlpha(70)),
-          boxShadow: [
-            BoxShadow(color: iconColor.withAlpha(15), blurRadius: 16),
-          ],
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: iconColor.withAlpha(20),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: iconColor.withAlpha(60)),
-              ),
-              child: isLoading
-                  ? Center(
-                      child: SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: iconColor,
+      onTap: widget.onTap,
+      onTapDown: (_) => setState(() => _pressed = true),
+      onTapUp: (_) => setState(() => _pressed = false),
+      onTapCancel: () => setState(() => _pressed = false),
+      child: AnimatedScale(
+        scale: _pressed ? 0.97 : 1.0,
+        duration: const Duration(milliseconds: 100),
+        curve: Curves.easeOut,
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppColors.surface900,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: widget.iconColor.withAlpha(70)),
+            boxShadow: [
+              BoxShadow(color: widget.iconColor.withAlpha(15), blurRadius: 16),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: widget.iconColor.withAlpha(20),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: widget.iconColor.withAlpha(60)),
+                ),
+                child: widget.isLoading
+                    ? Center(
+                        child: SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: widget.iconColor,
+                          ),
                         ),
-                      ),
-                    )
-                  : Icon(icon, color: iconColor, size: 24),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title, style: AppTextStyles.labelLg),
-                  const SizedBox(height: 2),
-                  Text(description, style: AppTextStyles.bodySm),
-                ],
+                      )
+                    : Icon(widget.icon, color: widget.iconColor, size: 24),
               ),
-            ),
-            Icon(
-              Icons.chevron_right,
-              color: iconColor.withAlpha(160),
-              size: 20,
-            ),
-          ],
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(widget.title, style: AppTextStyles.labelLg),
+                    const SizedBox(height: 2),
+                    Text(widget.description, style: AppTextStyles.bodySm),
+                  ],
+                ),
+              ),
+              Icon(
+                Icons.chevron_right,
+                color: widget.iconColor.withAlpha(160),
+                size: 20,
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 }
-
 
 // ─── Recent activity card ─────────────────────────────────────────────────────
 
@@ -1378,13 +1348,7 @@ class _RecentActivityCard extends ConsumerWidget {
     return sessions.when(
       loading: () => _shell(
         title: l10n.recentSessions,
-        child: const Padding(
-          padding: EdgeInsets.symmetric(vertical: 8),
-          child: LinearProgressIndicator(
-            color: AppColors.neonCyan,
-            backgroundColor: AppColors.surface600,
-          ),
-        ),
+        child: TapemSkeleton.listTiles(count: 2),
       ),
       error: (_, __) => _shell(
         title: l10n.recentSessions,
@@ -1437,9 +1401,14 @@ class _RecentActivityCard extends ConsumerWidget {
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: AppColors.surface500.withAlpha(160)),
+                  border: Border.all(
+                    color: AppColors.surface500.withAlpha(160),
+                  ),
                   boxShadow: [
-                    BoxShadow(color: Colors.black.withAlpha(50), blurRadius: 12),
+                    BoxShadow(
+                      color: Colors.black.withAlpha(50),
+                      blurRadius: 12,
+                    ),
                   ],
                 ),
                 child: Column(

@@ -38,13 +38,9 @@ jobs:
         working-directory: tapem
         run: flutter analyze --fatal-infos
 
-      - name: Run unit tests
+      - name: Run tests
         working-directory: tapem
-        run: flutter test test/unit/ --coverage --reporter=github
-
-      - name: Run widget tests
-        working-directory: tapem
-        run: flutter test test/widget/ --reporter=github
+        run: flutter test test/ --coverage --reporter=github
 
       - name: Upload coverage
         uses: codecov/codecov-action@v4

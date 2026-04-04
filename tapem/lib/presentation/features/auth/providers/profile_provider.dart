@@ -15,7 +15,10 @@ final currentProfileProvider = FutureProvider<UserProfile?>((ref) async {
   final client = ref.watch(supabaseClientProvider);
   final data = await client
       .from('user_profiles')
-      .select()
+      .select(
+        'id, username, theme_key, privacy_level, display_name, avatar_url, '
+        'machine_perf_opt_in, machine_perf_sex, created_at, updated_at',
+      )
       .eq('id', user.id)
       .maybeSingle();
 
@@ -32,6 +35,10 @@ UserProfile _mapProfile(Map<String, dynamic> d) => UserProfile(
   ),
   displayName: d['display_name'] as String?,
   avatarUrl: d['avatar_url'] as String?,
+  machinePerformanceOptIn: d['machine_perf_opt_in'] as bool? ?? false,
+  machinePerformanceSex: MachinePerformanceSex.fromNullableValue(
+    d['machine_perf_sex'] as String?,
+  ),
   createdAt: DateTime.parse(d['created_at'] as String),
   updatedAt: DateTime.parse(d['updated_at'] as String),
 );
@@ -84,6 +91,7 @@ class ProfileNotifier extends AsyncNotifier<void> {
         'username': username,
         'theme_key': themeKey,
         'privacy_level': 'friends_training_days',
+        'machine_perf_opt_in': false,
       });
       ref.invalidate(currentProfileProvider);
       // Trigger TOKEN_REFRESHED on auth stream so the router re-checks
@@ -156,6 +164,34 @@ class ProfileNotifier extends AsyncNotifier<void> {
           .from('user_profiles')
           .update({
             'privacy_level': level.value,
+            'updated_at': DateTime.now().toIso8601String(),
+          })
+          .eq('id', user.id);
+      ref.invalidate(currentProfileProvider);
+    });
+  }
+
+  Future<void> updateMachinePerformanceVisibility({
+    required bool isOptedIn,
+    required MachinePerformanceSex? sex,
+  }) async {
+    final user = ref.read(currentUserProvider);
+    if (user == null) return;
+    if (isOptedIn && sex == null) {
+      throw Exception('Sex selection is required when opting in.');
+    }
+
+    state = const AsyncLoading();
+    state = await AsyncValue.guard(() async {
+      final client = ref.read(supabaseClientProvider);
+      await client
+          .from('user_profiles')
+          .update({
+            'machine_perf_opt_in': isOptedIn,
+            'machine_perf_sex': sex?.value,
+            'machine_perf_opted_at': isOptedIn
+                ? DateTime.now().toIso8601String()
+                : null,
             'updated_at': DateTime.now().toIso8601String(),
           })
           .eq('id', user.id);

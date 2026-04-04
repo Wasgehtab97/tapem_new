@@ -15,9 +15,11 @@ import '../../../widgets/common/tapem_button.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../providers/equipment_provider.dart';
 import '../providers/workout_drafts_provider.dart';
-import '../providers/workout_provider.dart';
 import '../providers/workout_keyboard_provider.dart';
+import '../providers/workout_provider.dart';
+import '../utils/workout_kg_format.dart';
 import '../widgets/equipment_detail_sheet.dart';
+import '../widgets/sync_state_badge.dart';
 import '../widgets/workout_keyboard.dart';
 import 'equipment_picker_screen.dart';
 
@@ -82,7 +84,8 @@ class ActiveWorkoutScreen extends HookConsumerWidget {
     final restEndTime = useRef<DateTime?>(null);
 
     useEffect(
-      () => () => restTimerHandle.value?.cancel(),
+      () =>
+          () => restTimerHandle.value?.cancel(),
       const [],
     );
 
@@ -139,7 +142,8 @@ class ActiveWorkoutScreen extends HookConsumerWidget {
     );
     final totalVolume = workoutState.exercises.fold<double>(
       0,
-      (sum, e) => sum +
+      (sum, e) =>
+          sum +
           e.sets.fold<double>(
             0,
             (s, set) => s + (set.weightKg ?? 0) * (set.reps ?? 0),
@@ -246,20 +250,22 @@ class ActiveWorkoutScreen extends HookConsumerWidget {
     final active = ref.read(workoutProvider);
     if (active is! WorkoutActive) return;
 
-    final result = await Navigator.of(context).push<
-        ({
-          String exerciseKey,
-          String displayName,
-          String? customExerciseId,
-          String equipmentId,
-        })>(
-      MaterialPageRoute(
-        builder: (_) => EquipmentPickerScreen(
-          gymId: active.session.gymId,
-          addToActiveWorkout: true,
-        ),
-      ),
-    );
+    final result = await Navigator.of(context)
+        .push<
+          ({
+            String exerciseKey,
+            String displayName,
+            String? customExerciseId,
+            String equipmentId,
+          })
+        >(
+          MaterialPageRoute(
+            builder: (_) => EquipmentPickerScreen(
+              gymId: active.session.gymId,
+              addToActiveWorkout: true,
+            ),
+          ),
+        );
 
     if (result == null) return;
 
@@ -278,7 +284,9 @@ class ActiveWorkoutScreen extends HookConsumerWidget {
       return;
     }
 
-    await ref.read(workoutProvider.notifier).addExercise(
+    await ref
+        .read(workoutProvider.notifier)
+        .addExercise(
           exerciseKey: result.exerciseKey,
           displayName: result.displayName,
           customExerciseId: result.customExerciseId,
@@ -387,7 +395,7 @@ enum _WorkoutAction { discard }
 
 // ─── Premium workout header ───────────────────────────────────────────────────
 
-class _WorkoutHeader extends StatelessWidget {
+class _WorkoutHeader extends ConsumerWidget {
   const _WorkoutHeader({
     required this.elapsed,
     required this.restRemaining,
@@ -413,7 +421,7 @@ class _WorkoutHeader extends StatelessWidget {
   final VoidCallback onFinish;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final top = MediaQuery.of(context).padding.top;
     final isRestRunning = restRemaining != null;
 
@@ -446,7 +454,9 @@ class _WorkoutHeader extends StatelessWidget {
                 if (isRestRunning)
                   Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 8, vertical: 3),
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
                     decoration: BoxDecoration(
                       color: AppColors.neonCyan.withAlpha(18),
                       borderRadius: BorderRadius.circular(6),
@@ -500,8 +510,9 @@ class _WorkoutHeader extends StatelessWidget {
                           const SizedBox(width: 10),
                           Text(
                             'Training verwerfen',
-                            style: AppTextStyles.bodyMd
-                                .copyWith(color: AppColors.error),
+                            style: AppTextStyles.bodyMd.copyWith(
+                              color: AppColors.error,
+                            ),
                           ),
                         ],
                       ),
@@ -512,36 +523,14 @@ class _WorkoutHeader extends StatelessWidget {
                 const SizedBox(width: 4),
 
                 // FERTIG pill
-                GestureDetector(
-                  onTap: onFinish,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 7),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: AppColors.success.withAlpha(120),
-                        width: 1,
-                      ),
-                    ),
-                    child: Text(
-                      'FERTIG',
-                      style: AppTextStyles.labelLg.copyWith(
-                        color: AppColors.success.withAlpha(180),
-                        letterSpacing: 1.2,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ),
-                ),
+                _FertigButton(onTap: onFinish),
               ],
             ),
           ),
 
           // ── Stats strip ─────────────────────────────────────────────────
           Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
             decoration: BoxDecoration(
               border: Border(
                 top: BorderSide(
@@ -572,6 +561,8 @@ class _WorkoutHeader extends StatelessWidget {
                         : '${totalVolume.toStringAsFixed(0)} kg',
                     label: 'Volumen',
                   ),
+                const Spacer(),
+                const SyncStateBadge(),
               ],
             ),
           ),
@@ -584,6 +575,73 @@ class _WorkoutHeader extends StatelessWidget {
     final m = (seconds ~/ 60).toString().padLeft(1, '0');
     final s = (seconds % 60).toString().padLeft(2, '0');
     return '$m:$s';
+  }
+}
+
+// ─── FERTIG button with press animation ──────────────────────────────────────
+
+class _FertigButton extends StatefulWidget {
+  const _FertigButton({required this.onTap});
+  final VoidCallback onTap;
+
+  @override
+  State<_FertigButton> createState() => _FertigButtonState();
+}
+
+class _FertigButtonState extends State<_FertigButton> {
+  bool _pressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: widget.onTap,
+      onTapDown: (_) => setState(() => _pressed = true),
+      onTapUp: (_) => setState(() => _pressed = false),
+      onTapCancel: () => setState(() => _pressed = false),
+      child: AnimatedScale(
+        scale: _pressed ? 0.94 : 1.0,
+        duration: const Duration(milliseconds: 100),
+        curve: Curves.easeOut,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            color: AppColors.success.withAlpha(_pressed ? 50 : 30),
+            border: Border.all(
+              color: AppColors.success.withAlpha(_pressed ? 200 : 140),
+              width: 1.5,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.success.withAlpha(_pressed ? 60 : 30),
+                blurRadius: _pressed ? 12 : 8,
+                spreadRadius: 0,
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.check_rounded,
+                size: 14,
+                color: AppColors.success.withAlpha(220),
+              ),
+              const SizedBox(width: 5),
+              Text(
+                'FERTIG',
+                style: AppTextStyles.labelLg.copyWith(
+                  color: AppColors.success.withAlpha(220),
+                  letterSpacing: 1.2,
+                  fontSize: 12,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -605,9 +663,10 @@ class _PulsingTimer extends HookWidget {
     }, const []);
 
     final glowAlpha = useAnimation(
-      Tween<double>(begin: 60, end: 140).animate(
-        CurvedAnimation(parent: controller, curve: Curves.easeInOut),
-      ),
+      Tween<double>(
+        begin: 60,
+        end: 140,
+      ).animate(CurvedAnimation(parent: controller, curve: Curves.easeInOut)),
     );
 
     return Text(
@@ -668,11 +727,18 @@ class _StatChip extends StatelessWidget {
 
 // ─── Add exercise bottom bar ──────────────────────────────────────────────────
 
-class _AddExerciseBar extends StatelessWidget {
+class _AddExerciseBar extends StatefulWidget {
   const _AddExerciseBar({required this.onPressed, required this.label});
 
   final VoidCallback onPressed;
   final String label;
+
+  @override
+  State<_AddExerciseBar> createState() => _AddExerciseBarState();
+}
+
+class _AddExerciseBarState extends State<_AddExerciseBar> {
+  bool _pressed = false;
 
   @override
   Widget build(BuildContext context) {
@@ -681,43 +747,48 @@ class _AddExerciseBar extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.surface900,
         border: Border(
-          top: BorderSide(
-            color: AppColors.surface500.withAlpha(100),
-            width: 1,
-          ),
+          top: BorderSide(color: AppColors.surface500.withAlpha(100), width: 1),
         ),
       ),
       padding: EdgeInsets.fromLTRB(16, 8, 16, 8 + bottom),
       child: GestureDetector(
-        onTap: onPressed,
-        child: Container(
-          height: 40,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(
-              color: AppColors.neonCyan.withAlpha(60),
-              width: 1,
+        onTap: widget.onPressed,
+        onTapDown: (_) => setState(() => _pressed = true),
+        onTapUp: (_) => setState(() => _pressed = false),
+        onTapCancel: () => setState(() => _pressed = false),
+        child: AnimatedScale(
+          scale: _pressed ? 0.97 : 1.0,
+          duration: const Duration(milliseconds: 100),
+          curve: Curves.easeOut,
+          child: Container(
+            height: 40,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: AppColors.neonCyan.withAlpha(60),
+                width: 1,
+              ),
+              color: AppColors.neonCyan.withAlpha(8),
             ),
-            color: AppColors.neonCyan.withAlpha(8),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.add,
-                size: 15,
-                color: AppColors.neonCyan.withAlpha(160),
-              ),
-              const SizedBox(width: 6),
-              Text(
-                label.toUpperCase(),
-                style: AppTextStyles.buttonMd.copyWith(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.add,
+                  size: 15,
                   color: AppColors.neonCyan.withAlpha(160),
-                  letterSpacing: 1.2,
-                  fontSize: 12,
                 ),
-              ),
-            ],
+                const SizedBox(width: 6),
+                Text(
+                  widget.label.toUpperCase(),
+                  style: AppTextStyles.buttonMd.copyWith(
+                    color: AppColors.neonCyan.withAlpha(160),
+                    letterSpacing: 1.2,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -814,22 +885,22 @@ class _RestTimerButton extends StatelessWidget {
               color: isRunning
                   ? AppColors.neonCyan
                   : noTimer
-                      ? AppColors.textDisabled
-                      : AppColors.textSecondary,
+                  ? AppColors.textDisabled
+                  : AppColors.textSecondary,
             ),
             const SizedBox(width: 5),
             Text(
               isRunning
                   ? _formatCountdown(remaining!)
                   : noTimer
-                      ? '–'
-                      : '${duration}s',
+                  ? '–'
+                  : '${duration}s',
               style: AppTextStyles.monoSm.copyWith(
                 color: isRunning
                     ? AppColors.neonCyan
                     : noTimer
-                        ? AppColors.textDisabled
-                        : AppColors.textSecondary,
+                    ? AppColors.textDisabled
+                    : AppColors.textSecondary,
                 fontSize: 13,
                 fontFeatures: const [FontFeature.tabularFigures()],
               ),
@@ -875,31 +946,46 @@ String _formatElapsed(Duration d) {
 
 // ─── Empty state ──────────────────────────────────────────────────────────────
 
-class _EmptyExerciseState extends StatelessWidget {
+class _EmptyExerciseState extends HookWidget {
   const _EmptyExerciseState();
 
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
+    final ctrl = useAnimationController(
+      duration: const Duration(milliseconds: 2000),
+    );
+    useEffect(() {
+      ctrl.repeat(reverse: true);
+      return null;
+    }, const []);
+    final scale = Tween<double>(begin: 0.92, end: 1.0).animate(
+      CurvedAnimation(parent: ctrl, curve: Curves.easeInOut),
+    );
+    final accent = Theme.of(context).colorScheme.primary;
+
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Container(
-            width: 72,
-            height: 72,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: AppColors.surface800,
-              border: Border.all(
-                color: AppColors.surface500,
-                width: 1.5,
+          ScaleTransition(
+            scale: scale,
+            child: Container(
+              width: 72,
+              height: 72,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: AppColors.surface800,
+                border: Border.all(color: accent.withAlpha(60), width: 1.5),
+                boxShadow: [
+                  BoxShadow(
+                    color: accent.withAlpha(20),
+                    blurRadius: 20,
+                    spreadRadius: 2,
+                  ),
+                ],
               ),
-            ),
-            child: const Icon(
-              Icons.fitness_center,
-              size: 32,
-              color: AppColors.textDisabled,
+              child: Icon(Icons.fitness_center, size: 32, color: accent.withAlpha(160)),
             ),
           ),
           const SizedBox(height: 20),
@@ -907,9 +993,7 @@ class _EmptyExerciseState extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             l10n.addExerciseHint,
-            style: AppTextStyles.bodyMd.copyWith(
-              color: AppColors.textSecondary,
-            ),
+            style: AppTextStyles.bodyMd.copyWith(color: AppColors.textSecondary),
             textAlign: TextAlign.center,
           ),
         ],
@@ -978,10 +1062,9 @@ class _ExerciseCard extends HookConsumerWidget {
 
     // Keep keyboard notifier's prev-sets cache current for the copy button
     useEffect(() {
-      ref.read(workoutKeyboardProvider.notifier).setPrevSets(
-            state.exercise.id,
-            prevSets,
-          );
+      ref
+          .read(workoutKeyboardProvider.notifier)
+          .setPrevSets(state.exercise.id, prevSets);
       return null;
     }, [prevSets]);
 
@@ -1081,8 +1164,8 @@ class _ExerciseCard extends HookConsumerWidget {
               gymId: gymId,
               onInfo: equipment != null
                   ? () => unawaited(
-                        showEquipmentDetailSheet(context, equipment, gymId),
-                      )
+                      showEquipmentDetailSheet(context, equipment, gymId),
+                    )
                   : null,
               onDelete: () => unawaited(_confirmDeleteExercise(context, ref)),
             ),
@@ -1157,12 +1240,14 @@ class _ExerciseCard extends HookConsumerWidget {
                 child: Row(
                   children: [
                     const SizedBox(
-                        width: _kSetW + _kPrevW + _kKgW + _kRepsW + 16),
+                      width: _kSetW + _kPrevW + _kKgW + _kRepsW + 16,
+                    ),
                     SizedBox(
                       width: _kCheckW,
                       height: 36,
                       child: IconButton(
                         padding: EdgeInsets.zero,
+                        tooltip: 'Satz hinzufügen',
                         icon: const Icon(
                           Icons.add_circle_outline,
                           size: 20,
@@ -1178,14 +1263,14 @@ class _ExerciseCard extends HookConsumerWidget {
               ),
             ] else ...[
               ...state.sets.asMap().entries.map(
-                    (entry) => _CardioSetRow(
-                      setIndex: entry.key,
-                      set: entry.value,
-                      onDelete: () => ref
-                          .read(workoutProvider.notifier)
-                          .deleteSet(entry.value.id, state.exercise.id),
-                    ),
-                  ),
+                (entry) => _CardioSetRow(
+                  setIndex: entry.key,
+                  set: entry.value,
+                  onDelete: () => ref
+                      .read(workoutProvider.notifier)
+                      .deleteSet(entry.value.id, state.exercise.id),
+                ),
+              ),
               if (state.sets.isNotEmpty)
                 Divider(height: 1, color: AppColors.surface600.withAlpha(180)),
               _CardioSetLogger(
@@ -1263,10 +1348,7 @@ class _ExerciseCardHeader extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [
-            AppColors.surface700.withAlpha(200),
-            AppColors.surface800,
-          ],
+          colors: [AppColors.surface700.withAlpha(200), AppColors.surface800],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -1326,8 +1408,7 @@ class _ExerciseCardHeader extends StatelessWidget {
           if (hasProgress) ...[
             AnimatedContainer(
               duration: const Duration(milliseconds: 300),
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
               decoration: BoxDecoration(
                 color: isComplete
                     ? AppColors.success.withAlpha(25)
@@ -1360,6 +1441,7 @@ class _ExerciseCardHeader extends StatelessWidget {
               height: 30,
               child: IconButton(
                 padding: EdgeInsets.zero,
+                tooltip: 'Info',
                 icon: const Icon(
                   Icons.info_outline,
                   size: 16,
@@ -1375,6 +1457,7 @@ class _ExerciseCardHeader extends StatelessWidget {
             height: 30,
             child: IconButton(
               padding: EdgeInsets.zero,
+              tooltip: 'Übung entfernen',
               icon: const Icon(
                 Icons.close,
                 size: 16,
@@ -1472,10 +1555,7 @@ class _EditableSetRow extends HookConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final weightCtrl = useTextEditingController(
-      text: initialDraft.weightKg?.toStringAsFixed(
-            initialDraft.weightKg! % 1 == 0 ? 0 : 1,
-          ) ??
-          '',
+      text: formatWorkoutKgNullable(initialDraft.weightKg) ?? '',
     );
     final repsCtrl = useTextEditingController(
       text: initialDraft.reps?.toString() ?? '',
@@ -1549,7 +1629,9 @@ class _EditableSetRow extends HookConsumerWidget {
         controller: weightCtrl,
         onUpdate: (text) {
           if (isCheckedRef.value) return;
-          ref.read(workoutDraftsProvider.notifier).updateWeight(
+          ref
+              .read(workoutDraftsProvider.notifier)
+              .updateWeight(
                 exerciseId,
                 index,
                 double.tryParse(text.replaceAll(',', '.')),
@@ -1564,23 +1646,23 @@ class _EditableSetRow extends HookConsumerWidget {
         controller: repsCtrl,
         onUpdate: (text) {
           if (isCheckedRef.value) return;
-          ref.read(workoutDraftsProvider.notifier).updateReps(
-                exerciseId,
-                index,
-                int.tryParse(text),
-              );
+          ref
+              .read(workoutDraftsProvider.notifier)
+              .updateReps(exerciseId, index, int.tryParse(text));
         },
         focusNode: repsFocus,
       );
       return () {
         kb.unregisterField(
-            exerciseId: exerciseId,
-            setIndex: index,
-            field: WorkoutKeyboardField.kg);
+          exerciseId: exerciseId,
+          setIndex: index,
+          field: WorkoutKeyboardField.kg,
+        );
         kb.unregisterField(
-            exerciseId: exerciseId,
-            setIndex: index,
-            field: WorkoutKeyboardField.reps);
+          exerciseId: exerciseId,
+          setIndex: index,
+          field: WorkoutKeyboardField.reps,
+        );
       };
     }, const []);
 
@@ -1593,6 +1675,7 @@ class _EditableSetRow extends HookConsumerWidget {
           final kg = double.tryParse(weightCtrl.text.replaceAll(',', '.'));
           final reps = int.tryParse(repsCtrl.text);
           isLogging.value = true;
+          unawaited(HapticFeedback.lightImpact());
           try {
             final setId = await ref
                 .read(workoutProvider.notifier)
@@ -1613,10 +1696,9 @@ class _EditableSetRow extends HookConsumerWidget {
               .read(workoutDraftsProvider)[exerciseId]
               ?.elementAtOrNull(index);
           if (currentDraft?.persistedSetId != null) {
-            await ref.read(workoutProvider.notifier).deleteSet(
-                  currentDraft!.persistedSetId!,
-                  exerciseId,
-                );
+            await ref
+                .read(workoutProvider.notifier)
+                .deleteSet(currentDraft!.persistedSetId!, exerciseId);
           }
           ref
               .read(workoutDraftsProvider.notifier)
@@ -1624,15 +1706,16 @@ class _EditableSetRow extends HookConsumerWidget {
         }
       }
 
-      ref.read(workoutKeyboardProvider.notifier).registerCheck(
+      ref
+          .read(workoutKeyboardProvider.notifier)
+          .registerCheck(
             exerciseId: exerciseId,
             setIndex: index,
             callback: toggleCheck,
           );
-      return () => ref.read(workoutKeyboardProvider.notifier).unregisterCheck(
-            exerciseId: exerciseId,
-            setIndex: index,
-          );
+      return () => ref
+          .read(workoutKeyboardProvider.notifier)
+          .unregisterCheck(exerciseId: exerciseId, setIndex: index);
     }, const []);
 
     final prevText = prevSet != null
@@ -1643,21 +1726,11 @@ class _EditableSetRow extends HookConsumerWidget {
       key: rowKey,
       duration: const Duration(milliseconds: 200),
       decoration: BoxDecoration(
-        color: isChecked
-            ? AppColors.success.withAlpha(12)
-            : Colors.transparent,
+        color: isChecked ? AppColors.success.withAlpha(12) : Colors.transparent,
         border: isChecked
-            ? const Border(
-                left: BorderSide(
-                  color: AppColors.success,
-                  width: 2,
-                ),
-              )
+            ? const Border(left: BorderSide(color: AppColors.success, width: 2))
             : const Border(
-                left: BorderSide(
-                  color: Colors.transparent,
-                  width: 2,
-                ),
+                left: BorderSide(color: Colors.transparent, width: 2),
               ),
       ),
       child: Padding(
@@ -1735,17 +1808,17 @@ class _EditableSetRow extends HookConsumerWidget {
                 onChanged: isChecked
                     ? null
                     : (text) => ref
-                        .read(workoutDraftsProvider.notifier)
-                        .updateWeight(
-                          exerciseId,
-                          index,
-                          double.tryParse(text.replaceAll(',', '.')),
-                        ),
+                          .read(workoutDraftsProvider.notifier)
+                          .updateWeight(
+                            exerciseId,
+                            index,
+                            double.tryParse(text.replaceAll(',', '.')),
+                          ),
                 onTap: isChecked
                     ? null
                     : () => ref
-                        .read(workoutKeyboardProvider.notifier)
-                        .focus(exerciseId, index, WorkoutKeyboardField.kg),
+                          .read(workoutKeyboardProvider.notifier)
+                          .focus(exerciseId, index, WorkoutKeyboardField.kg),
               ),
             ),
 
@@ -1763,17 +1836,13 @@ class _EditableSetRow extends HookConsumerWidget {
                 onChanged: isChecked
                     ? null
                     : (text) => ref
-                        .read(workoutDraftsProvider.notifier)
-                        .updateReps(
-                          exerciseId,
-                          index,
-                          int.tryParse(text),
-                        ),
+                          .read(workoutDraftsProvider.notifier)
+                          .updateReps(exerciseId, index, int.tryParse(text)),
                 onTap: isChecked
                     ? null
                     : () => ref
-                        .read(workoutKeyboardProvider.notifier)
-                        .focus(exerciseId, index, WorkoutKeyboardField.reps),
+                          .read(workoutKeyboardProvider.notifier)
+                          .focus(exerciseId, index, WorkoutKeyboardField.reps),
               ),
             ),
 
@@ -1788,20 +1857,17 @@ class _EditableSetRow extends HookConsumerWidget {
                 onTap: isLogging.value
                     ? null
                     : () => unawaited(
-                          ref.read(workoutKeyboardProvider.notifier).callCheck(
-                                exerciseId: exerciseId,
-                                setIndex: index,
-                              ),
-                        ),
+                        ref
+                            .read(workoutKeyboardProvider.notifier)
+                            .callCheck(exerciseId: exerciseId, setIndex: index),
+                      ),
                 child: AnimatedScale(
                   scale: isPressed.value ? 0.82 : 1.0,
                   duration: const Duration(milliseconds: 100),
                   child: AnimatedSwitcher(
                     duration: const Duration(milliseconds: 200),
-                    transitionBuilder: (child, anim) => ScaleTransition(
-                      scale: anim,
-                      child: child,
-                    ),
+                    transitionBuilder: (child, anim) =>
+                        ScaleTransition(scale: anim, child: child),
                     child: isChecked
                         ? Container(
                             key: const ValueKey('checked'),
@@ -1847,8 +1913,7 @@ class _EditableSetRow extends HookConsumerWidget {
   }
 
   String _fmt(double? v) {
-    if (v == null) return '—';
-    return v.toStringAsFixed(v % 1 == 0 ? 0 : 1);
+    return formatWorkoutKgNullable(v) ?? '—';
   }
 }
 
@@ -1879,6 +1944,8 @@ class _PillInput extends StatelessWidget {
     return TextFormField(
       controller: controller,
       focusNode: focusNode,
+      autocorrect: false,
+      enableSuggestions: false,
       textAlign: TextAlign.center,
       readOnly: readOnly,
       showCursor: true,
@@ -1887,9 +1954,7 @@ class _PillInput extends StatelessWidget {
       style: AppTextStyles.bodyLg.copyWith(
         fontSize: 17,
         fontWeight: FontWeight.w600,
-        color: isChecked
-            ? AppColors.textSecondary
-            : AppColors.textPrimary,
+        color: isChecked ? AppColors.textSecondary : AppColors.textPrimary,
       ),
       decoration: InputDecoration(
         hintText: hintText,
@@ -1901,8 +1966,7 @@ class _PillInput extends StatelessWidget {
         fillColor: isChecked
             ? AppColors.surface700.withAlpha(80)
             : AppColors.surface600,
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 8, vertical: 9),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 9),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
           borderSide: BorderSide.none,
@@ -2005,7 +2069,8 @@ class _CardioSetLogger extends HookConsumerWidget {
     final l10n = context.l10n;
 
     useEffect(
-      () => () => timerRef.value?.cancel(),
+      () =>
+          () => timerRef.value?.cancel(),
       const [],
     );
 

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../data/datasources/local/app_database.dart';
+import '../utils/workout_kg_format.dart';
 import 'workout_drafts_provider.dart';
 import 'workout_provider.dart';
 
@@ -337,8 +338,8 @@ class WorkoutKeyboardNotifier
   static String _stepKg(String text, double delta) {
     final v =
         (double.tryParse(text.replaceAll(',', '.')) ?? 0.0) + delta;
-    final c = v.clamp(0.0, 9999.0);
-    return c % 1 == 0 ? '${c.toInt()}' : c.toStringAsFixed(1);
+    final c = v.clamp(0.0, 9999.0).toDouble();
+    return formatWorkoutKg(c);
   }
 
   static String _stepReps(String text, int delta) {
@@ -348,7 +349,7 @@ class WorkoutKeyboardNotifier
 
   static String? _fmtKg(double? v) {
     if (v == null) return null;
-    return v % 1 == 0 ? '${v.toInt()}' : v.toStringAsFixed(1);
+    return formatWorkoutKg(v);
   }
 
   static String _fkey(

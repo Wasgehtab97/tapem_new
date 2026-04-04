@@ -10,8 +10,12 @@ import 'nutrition_product_cache_store.dart';
 import 'nutrition_recents_store.dart';
 
 /// Lazy-initialized provider for [NutritionProductService].
-final nutritionProductServiceProvider = Provider<NutritionProductService>((ref) {
-  throw UnimplementedError('Override in ProviderScope overrides or initialize after main()');
+final nutritionProductServiceProvider = Provider<NutritionProductService>((
+  ref,
+) {
+  throw UnimplementedError(
+    'Override in ProviderScope overrides or initialize after main()',
+  );
 });
 
 /// Regex for barcodes that qualify for global persistence (8/12/13/14 digits).
@@ -28,11 +32,11 @@ class NutritionProductService {
     required NutritionRecentsStore recents,
     required OpenFoodFactsClient offClient,
     required UsdaFoodClient usdaClient,
-  })  : _supabase = supabase,
-        _cache = cache,
-        _recents = recents,
-        _off = offClient,
-        _usda = usdaClient;
+  }) : _supabase = supabase,
+       _cache = cache,
+       _recents = recents,
+       _off = offClient,
+       _usda = usdaClient;
 
   final SupabaseClient _supabase;
   final NutritionProductCacheStore _cache;
@@ -51,7 +55,10 @@ class NutritionProductService {
     try {
       final row = await _supabase
           .from('nutrition_products')
-          .select()
+          .select(
+            'barcode, name, kcal_per100, protein_per100, carbs_per100, '
+            'fat_per100, updated_at',
+          )
           .eq('barcode', barcode)
           .maybeSingle();
       if (row != null) {
@@ -86,7 +93,10 @@ class NutritionProductService {
     try {
       final rows = await _supabase
           .from('nutrition_products')
-          .select()
+          .select(
+            'barcode, name, kcal_per100, protein_per100, carbs_per100, '
+            'fat_per100, updated_at',
+          )
           .ilike('name', '%$query%')
           .limit(20);
       for (final row in rows) {

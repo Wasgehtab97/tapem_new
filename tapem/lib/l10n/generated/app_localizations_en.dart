@@ -78,6 +78,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get alreadyHaveAccount => 'Already have an account? ';
 
   @override
+  String get authLegalPrefix => 'By continuing you accept';
+
+  @override
+  String get privacyPolicyLabel => 'Privacy Policy';
+
+  @override
+  String get termsOfServiceLabel => 'Terms';
+
+  @override
   String get chooseYourUsername => 'CHOOSE YOUR\nUSERNAME';
 
   @override
@@ -639,6 +648,64 @@ class AppLocalizationsEn extends AppLocalizations {
   String get languageSection => 'LANGUAGE';
 
   @override
+  String get legalDataSection => 'LEGAL & DATA';
+
+  @override
+  String get imprintLabel => 'Imprint';
+
+  @override
+  String get supportLabel => 'Support';
+
+  @override
+  String get exportMyDataLabel => 'Export my data';
+
+  @override
+  String get exportingDataLabel => 'Preparing data export…';
+
+  @override
+  String get deleteAccountLabel => 'Delete account';
+
+  @override
+  String get deletingAccountLabel => 'Deleting account…';
+
+  @override
+  String get deleteAccountConfirmTitle => 'DELETE ACCOUNT?';
+
+  @override
+  String get deleteAccountConfirmBody =>
+      'This permanently deletes your account and all personal data linked to it.';
+
+  @override
+  String get typeDeletePrompt => 'Type DELETE to confirm';
+
+  @override
+  String get accountDeletedSuccess => 'Account deleted.';
+
+  @override
+  String accountDeleteFailed(String error) {
+    return 'Account deletion failed: $error';
+  }
+
+  @override
+  String get exportDataReadyTitle => 'Data export ready';
+
+  @override
+  String exportDataReadyBody(int estimatedRows, int minutes) {
+    return 'Your export was generated ($estimatedRows records). The download link expires in about $minutes minutes.';
+  }
+
+  @override
+  String get downloadExportLabel => 'Download export';
+
+  @override
+  String get closeLabel => 'CLOSE';
+
+  @override
+  String exportDataFailed(String error) {
+    return 'Data export failed: $error';
+  }
+
+  @override
   String get trainingPlansTitle => 'TRAINING PLANS';
 
   @override
@@ -740,6 +807,10 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get noExercisesAtStation =>
       'No exercises created at this station yet.';
+
+  @override
+  String get selectExerciseForHistory =>
+      'Select an exercise to view its history.';
 
   @override
   String get myHistory => 'MY HISTORY';
@@ -965,6 +1036,62 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get equipmentXpTitle => 'EXERCISES';
+
+  @override
+  String get performanceTileTitle => 'PERFORMANCE';
+
+  @override
+  String get performanceTileSubtitle =>
+      'Exercises ranked by your e1RM improvement trend';
+
+  @override
+  String get noPerformanceData => 'No performance data yet.';
+
+  @override
+  String get performanceLoadError => 'Performance data could not be loaded.';
+
+  @override
+  String performanceMoreCount(int count) {
+    return '+ $count more';
+  }
+
+  @override
+  String get performanceSortedByTrend =>
+      'Sorted by performance increase over time.';
+
+  @override
+  String get performanceSearchHint => 'Search exercise…';
+
+  @override
+  String get performanceNoSearchResults => 'No exercises found.';
+
+  @override
+  String get performanceInsufficientData => 'Not enough trend data yet.';
+
+  @override
+  String get performanceInsufficientDataShort => 'No trend yet';
+
+  @override
+  String performanceTrendSummary(String kg, String percent) {
+    return '$kg ($percent)';
+  }
+
+  @override
+  String performanceDetailTitle(String name) {
+    return 'PERFORMANCE — $name';
+  }
+
+  @override
+  String get performanceLatestE1rm => 'LATEST E1RM';
+
+  @override
+  String get performanceBestE1rm => 'BEST E1RM';
+
+  @override
+  String get performanceTrackedSessions => 'TRACKED SESSIONS';
+
+  @override
+  String get performanceTrend => 'TREND';
 
   @override
   String get muscleGroupEmptyState =>

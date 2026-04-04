@@ -101,7 +101,6 @@ class WorkoutNotifier extends StateNotifier<WorkoutState> {
     required String equipmentName,
     required String canonicalExerciseKey,
     String? canonicalExerciseName,
-    bool isCardio = false,
   }) async {
     final user = _ref.read(currentUserProvider);
     final gymId = _ref.read(activeGymIdProvider);
@@ -150,6 +149,10 @@ class WorkoutNotifier extends StateNotifier<WorkoutState> {
             exerciseKey: canonicalExerciseKey,
             displayName: canonicalExerciseName ?? canonicalExerciseKey,
             sortOrder: const Value(0),
+            // Critical for machine-level stat isolation:
+            // fixed machines that share one canonical exercise key must still
+            // persist the physical equipment identity on every exercise row.
+            equipmentId: Value(equipmentId),
           ),
         );
       }
@@ -233,7 +236,9 @@ class WorkoutNotifier extends StateNotifier<WorkoutState> {
     // Heartbeat: upload in-progress session to Supabase immediately so the
     // set is durably backed up even before the user presses FINISH.
     // Fire-and-forget — data is already safe in SQLite regardless of outcome.
-    unawaited(_ref.read(syncNotifierProvider.notifier).heartbeatActiveSession());
+    unawaited(
+      _ref.read(syncNotifierProvider.notifier).heartbeatActiveSession(),
+    );
 
     // Update in-place for immediate UI feedback (< 150ms target)
     final newSets = [...exerciseState.sets];
@@ -327,7 +332,9 @@ class WorkoutNotifier extends StateNotifier<WorkoutState> {
     await _db.deleteSetEntry(setId);
 
     // Heartbeat after uncheck so the server snapshot reflects the deletion.
-    unawaited(_ref.read(syncNotifierProvider.notifier).heartbeatActiveSession());
+    unawaited(
+      _ref.read(syncNotifierProvider.notifier).heartbeatActiveSession(),
+    );
   }
 
   /// Removes an exercise and all its sets from the active session.
@@ -343,7 +350,9 @@ class WorkoutNotifier extends StateNotifier<WorkoutState> {
     await _db.deleteSessionExercise(exerciseId);
 
     // Heartbeat so the server snapshot stays in sync with local state.
-    unawaited(_ref.read(syncNotifierProvider.notifier).heartbeatActiveSession());
+    unawaited(
+      _ref.read(syncNotifierProvider.notifier).heartbeatActiveSession(),
+    );
   }
 
   /// Reorders exercises and persists the new sort order.

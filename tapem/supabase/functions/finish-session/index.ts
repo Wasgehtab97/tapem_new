@@ -204,6 +204,16 @@ serve(async (req) => {
     return jsonResponse({ error: "XP processing failed" }, 500);
   }
 
+  // Best-effort recompute: derived leaderboard cache should never block
+  // canonical session + XP persistence.
+  const { error: perfErr } = await supabase.rpc(
+    "recompute_machine_performance_for_session",
+    { p_session_id: body.session_id },
+  );
+  if (perfErr) {
+    console.warn("[finish-session] machine performance recompute failed:", perfErr.message);
+  }
+
   return jsonResponse({
     ok: true,
     session_id: body.session_id,

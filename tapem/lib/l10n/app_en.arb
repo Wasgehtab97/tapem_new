@@ -27,6 +27,9 @@
   "confirmPasswordLabel": "CONFIRM PASSWORD",
   "passwordsNoMatch": "Passwords do not match",
   "alreadyHaveAccount": "Already have an account? ",
+  "authLegalPrefix": "By continuing you accept",
+  "privacyPolicyLabel": "Privacy Policy",
+  "termsOfServiceLabel": "Terms",
 
   "chooseYourUsername": "CHOOSE YOUR\nUSERNAME",
   "usernamePublicHint": "Your username is public within your gym. You can change it later.",
@@ -257,6 +260,39 @@
   "privacySummaryDescription": "Friends see training days + session summaries",
   "signOut": "SIGN OUT",
   "languageSection": "LANGUAGE",
+  "legalDataSection": "LEGAL & DATA",
+  "imprintLabel": "Imprint",
+  "supportLabel": "Support",
+  "exportMyDataLabel": "Export my data",
+  "exportingDataLabel": "Preparing data export…",
+  "deleteAccountLabel": "Delete account",
+  "deletingAccountLabel": "Deleting account…",
+  "deleteAccountConfirmTitle": "DELETE ACCOUNT?",
+  "deleteAccountConfirmBody": "This permanently deletes your account and all personal data linked to it.",
+  "typeDeletePrompt": "Type DELETE to confirm",
+  "accountDeletedSuccess": "Account deleted.",
+  "accountDeleteFailed": "Account deletion failed: {error}",
+  "@accountDeleteFailed": {
+    "placeholders": {
+      "error": { "type": "String" }
+    }
+  },
+  "exportDataReadyTitle": "Data export ready",
+  "exportDataReadyBody": "Your export was generated ({estimatedRows} records). The download link expires in about {minutes} minutes.",
+  "@exportDataReadyBody": {
+    "placeholders": {
+      "estimatedRows": { "type": "int" },
+      "minutes": { "type": "int" }
+    }
+  },
+  "downloadExportLabel": "Download export",
+  "closeLabel": "CLOSE",
+  "exportDataFailed": "Data export failed: {error}",
+  "@exportDataFailed": {
+    "placeholders": {
+      "error": { "type": "String" }
+    }
+  },
 
   "trainingPlansTitle": "TRAINING PLANS",
   "newPlanTooltip": "New Plan",
@@ -297,6 +333,7 @@
 
   "myExercises": "MY EXERCISES",
   "noExercisesAtStation": "No exercises created at this station yet.",
+  "selectExerciseForHistory": "Select an exercise to view its history.",
   "myHistory": "MY HISTORY",
   "historyFor": "HISTORY \u2014 {name}",
   "@historyFor": {
@@ -424,6 +461,38 @@
   "equipmentAxisLabel": "EQUIPMENT",
   "muscleGroupAxisLabel": "MUSCLE GROUPS",
   "equipmentXpTitle": "EXERCISES",
+  "performanceTileTitle": "PERFORMANCE",
+  "performanceTileSubtitle": "Exercises ranked by your e1RM improvement trend",
+  "noPerformanceData": "No performance data yet.",
+  "performanceLoadError": "Performance data could not be loaded.",
+  "performanceMoreCount": "+ {count} more",
+  "@performanceMoreCount": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "performanceSortedByTrend": "Sorted by performance increase over time.",
+  "performanceSearchHint": "Search exercise…",
+  "performanceNoSearchResults": "No exercises found.",
+  "performanceInsufficientData": "Not enough trend data yet.",
+  "performanceInsufficientDataShort": "No trend yet",
+  "performanceTrendSummary": "{kg} ({percent})",
+  "@performanceTrendSummary": {
+    "placeholders": {
+      "kg": { "type": "String" },
+      "percent": { "type": "String" }
+    }
+  },
+  "performanceDetailTitle": "PERFORMANCE — {name}",
+  "@performanceDetailTitle": {
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "performanceLatestE1rm": "LATEST E1RM",
+  "performanceBestE1rm": "BEST E1RM",
+  "performanceTrackedSessions": "TRACKED SESSIONS",
+  "performanceTrend": "TREND",
   "muscleGroupEmptyState": "Muscle group tracking activates once your gym's equipment has muscle group data configured.",
   "showAllBtn": "SHOW ALL",
   "collapseBtn": "SHOW LESS",

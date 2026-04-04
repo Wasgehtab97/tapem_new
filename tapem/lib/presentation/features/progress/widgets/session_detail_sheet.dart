@@ -169,7 +169,7 @@ class _SessionDetailSheet extends ConsumerWidget {
                         padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
                         itemCount: exercises.length,
                         itemBuilder: (context, i) =>
-                            _ExerciseBlock(exercise: exercises[i]),
+                            SessionDetailExerciseBlock(exercise: exercises[i]),
                       ),
               ),
             ),
@@ -252,8 +252,8 @@ class _SessionDetailSheet extends ConsumerWidget {
 
 // ─── Exercise block ───────────────────────────────────────────────────────────
 
-class _ExerciseBlock extends StatelessWidget {
-  const _ExerciseBlock({required this.exercise});
+class SessionDetailExerciseBlock extends StatelessWidget {
+  const SessionDetailExerciseBlock({super.key, required this.exercise});
 
   final ExerciseWithSets exercise;
 
@@ -264,14 +264,16 @@ class _ExerciseBlock extends StatelessWidget {
     // Best set for e1RM badge (strength only — cardio yields no e1RM)
     final bestIdx = _bestSetIndex();
     final bestE1rm = bestIdx != null ? _e1rm(exercise.sets[bestIdx]) : null;
-    final showE1rmCrown = !exercise.isFirstTime &&
+    final showE1rmCrown =
+        !exercise.isFirstTime &&
         bestE1rm != null &&
         exercise.previousBestE1rm != null &&
         bestE1rm > exercise.previousBestE1rm!;
 
     // Total volume (reps × weight_kg, strength sets only)
     final volume = _totalVolume();
-    final showVolumeCrown = !exercise.isFirstTime &&
+    final showVolumeCrown =
+        !exercise.isFirstTime &&
         volume > 0 &&
         exercise.previousBestVolume != null &&
         volume > exercise.previousBestVolume!;
@@ -286,7 +288,23 @@ class _ExerciseBlock extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Expanded(
-                child: Text(exercise.displayName, style: AppTextStyles.labelMd),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(exercise.displayName, style: AppTextStyles.labelMd),
+                    if (exercise.equipmentContextLabel != null &&
+                        exercise.equipmentContextLabel!.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        exercise.equipmentContextLabel!,
+                        style: AppTextStyles.bodySm.copyWith(
+                          color: AppColors.textSecondary,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
               ),
               if (progressWidget != null) ...[
                 const SizedBox(width: 8),
@@ -423,11 +441,7 @@ class _ExerciseBlock extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (showCrown) ...[
-            const Icon(
-              Icons.emoji_events,
-              size: 10,
-              color: AppColors.neonCyan,
-            ),
+            const Icon(Icons.emoji_events, size: 10, color: AppColors.neonCyan),
             const SizedBox(width: 3),
           ],
           Text(
@@ -509,9 +523,7 @@ class _ExerciseBlock extends StatelessWidget {
         ),
         borderRadius: BorderRadius.circular(6),
         border: Border.all(color: color.withAlpha(100)),
-        boxShadow: [
-          BoxShadow(color: color.withAlpha(25), blurRadius: 8),
-        ],
+        boxShadow: [BoxShadow(color: color.withAlpha(25), blurRadius: 8)],
       ),
       child: Text(
         text,
@@ -595,6 +607,8 @@ class _PlanNameDialogState extends State<_PlanNameDialog> {
       content: TextField(
         controller: _controller,
         autofocus: true,
+        autocorrect: false,
+        enableSuggestions: false,
         style: AppTextStyles.bodyMd,
         decoration: InputDecoration(
           hintText: widget.l10n.planNameHintCreateFromSession,

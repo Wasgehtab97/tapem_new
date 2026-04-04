@@ -21,8 +21,8 @@ class TapemTextField extends StatelessWidget {
     this.enabled = true,
     this.maxLines = 1,
     this.autofocus = false,
-    this.autocorrect = true,
-    this.enableSuggestions = true,
+    this.autocorrect = false,
+    this.enableSuggestions = false,
     this.testId,
   });
 

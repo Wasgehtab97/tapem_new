@@ -1,0 +1,10 @@
+# Copy to android/key.properties and replace all placeholder values.
+# This file MUST NOT be committed.
+#
+# Use an upload keystore (recommended with Play App Signing).
+# `storeFile` may be absolute or relative to the `android/` directory.
+
+storeFile=/absolute/path/to/tapem-upload-keystore.p12
+storePassword=REPLACE_WITH_STORE_PASSWORD
+keyAlias=REPLACE_WITH_KEY_ALIAS
+keyPassword=REPLACE_WITH_KEY_PASSWORD

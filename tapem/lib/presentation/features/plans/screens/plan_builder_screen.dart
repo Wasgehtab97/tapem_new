@@ -542,9 +542,7 @@ class _EquipmentPickerContent extends HookConsumerWidget {
                     e.equipmentType == selectedType.value;
                 final matchesQuery =
                     query.value.isEmpty ||
-                    e.name.toLowerCase().contains(query.value) ||
-                    (e.manufacturer?.toLowerCase().contains(query.value) ??
-                        false);
+                    equipmentMatchesSearchQuery(e, query.value);
                 return matchesType && matchesQuery;
               }).toList();
 
@@ -661,7 +659,7 @@ class _EquipmentRow extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(equipment.name, style: AppTextStyles.bodyMd),
+                  Text(equipment.displayName, style: AppTextStyles.bodyMd),
                   if (equipment.manufacturer != null)
                     Text(
                       equipment.manufacturer!,
@@ -706,10 +704,10 @@ class _EquipmentRow extends StatelessWidget {
           PlanBuilderItem(
             tempId: _uuid.v4(),
             equipmentId: equipment.id,
-            equipmentName: equipment.name,
+            equipmentName: equipment.displayName,
             equipmentType: 'fixed_machine',
             canonicalExerciseKey: equipment.canonicalExerciseKey,
-            displayName: equipment.name,
+            displayName: equipment.displayName,
           ),
         );
         if (sheetContext.mounted) Navigator.of(sheetContext).pop();
@@ -719,10 +717,10 @@ class _EquipmentRow extends StatelessWidget {
           PlanBuilderItem(
             tempId: _uuid.v4(),
             equipmentId: equipment.id,
-            equipmentName: equipment.name,
+            equipmentName: equipment.displayName,
             equipmentType: 'cardio',
             canonicalExerciseKey: 'cardio:${equipment.id}',
-            displayName: equipment.name,
+            displayName: equipment.displayName,
           ),
         );
         if (sheetContext.mounted) Navigator.of(sheetContext).pop();
@@ -742,7 +740,7 @@ class _EquipmentRow extends StatelessWidget {
                 builder: (_) => ExercisePickerSheet(
                   gymId: gymId,
                   equipmentId: equipment.id,
-                  equipmentName: equipment.name,
+                  equipmentName: equipment.displayName,
                 ),
               ),
             );
@@ -751,7 +749,7 @@ class _EquipmentRow extends StatelessWidget {
           PlanBuilderItem(
             tempId: _uuid.v4(),
             equipmentId: equipment.id,
-            equipmentName: equipment.name,
+            equipmentName: equipment.displayName,
             equipmentType: 'open_station',
             customExerciseId: exercise.customExerciseId,
             displayName: exercise.displayName,

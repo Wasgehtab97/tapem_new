@@ -1,12 +1,15 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
+import 'package:shimmer/shimmer.dart';
 
 import '../../../../core/services/gym_service.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/utils/l10n_extension.dart';
+import '../../../../domain/entities/auth/user_profile.dart';
 import '../../../../l10n/generated/app_localizations.dart';
 import '../../progress/widgets/training_heatmap.dart';
 import '../../../widgets/common/user_avatar.dart';
@@ -67,9 +70,27 @@ class _CommunityScreenState extends State<CommunityScreen> {
           if (_selectedTab == 2)
             IconButton(
               icon: const Icon(Icons.info_outline_rounded),
+              tooltip: l10n.dealsInfoTitle,
               onPressed: () => _showDealsInfo(l10n),
             ),
         ],
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Container(
+            height: 1,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  Colors.transparent,
+                  AppColors.neonMagenta.withAlpha(120),
+                  AppColors.neonCyan.withAlpha(160),
+                  AppColors.neonMagenta.withAlpha(120),
+                  Colors.transparent,
+                ],
+              ),
+            ),
+          ),
+        ),
       ),
       body: Column(
         children: [
@@ -225,7 +246,9 @@ class _CommunityTabBar extends StatelessWidget {
                   child: AnimatedDefaultTextStyle(
                     duration: const Duration(milliseconds: 200),
                     style: AppTextStyles.labelMd.copyWith(
-                      color: active ? AppColors.neonCyan : AppColors.textSecondary,
+                      color: active
+                          ? AppColors.neonCyan
+                          : AppColors.textSecondary,
                     ),
                     child: Text(tabs[i]),
                   ),
@@ -432,11 +455,16 @@ class _FriendRequestTile extends ConsumerWidget {
                     ),
                   const SizedBox(height: 2),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
                     decoration: BoxDecoration(
                       color: AppColors.neonYellow.withAlpha(15),
                       borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: AppColors.neonYellow.withAlpha(50)),
+                      border: Border.all(
+                        color: AppColors.neonYellow.withAlpha(50),
+                      ),
                     ),
                     child: Text(
                       'ANFRAGE',
@@ -461,7 +489,11 @@ class _FriendRequestTile extends ConsumerWidget {
                   shape: BoxShape.circle,
                   border: Border.all(color: AppColors.success.withAlpha(80)),
                 ),
-                child: const Icon(Icons.check_rounded, color: AppColors.success, size: 18),
+                child: const Icon(
+                  Icons.check_rounded,
+                  color: AppColors.success,
+                  size: 18,
+                ),
               ),
               tooltip: l10n.acceptTooltip,
             ),
@@ -476,7 +508,11 @@ class _FriendRequestTile extends ConsumerWidget {
                   shape: BoxShape.circle,
                   border: Border.all(color: AppColors.surface500),
                 ),
-                child: Icon(Icons.close_rounded, color: AppColors.textSecondary.withAlpha(180), size: 18),
+                child: Icon(
+                  Icons.close_rounded,
+                  color: AppColors.textSecondary.withAlpha(180),
+                  size: 18,
+                ),
               ),
               tooltip: l10n.declineTooltip,
             ),
@@ -519,7 +555,10 @@ class _FriendTile extends ConsumerWidget {
           ),
           boxShadow: [
             if (friend.sharesActiveGym)
-              BoxShadow(color: AppColors.neonCyan.withAlpha(18), blurRadius: 16),
+              BoxShadow(
+                color: AppColors.neonCyan.withAlpha(18),
+                blurRadius: 16,
+              ),
             BoxShadow(color: Colors.black.withAlpha(40), blurRadius: 8),
           ],
         ),
@@ -1078,7 +1117,7 @@ class _RankingsTabState extends ConsumerState<_RankingsTab>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
     _tabController.addListener(() => setState(() {}));
   }
 
@@ -1105,6 +1144,7 @@ class _RankingsTabState extends ConsumerState<_RankingsTab>
             children: const [
               _LeaderboardView(axis: kAxisTrainingDay),
               _EquipmentOverviewView(),
+              _MachinePerformanceView(),
             ],
           ),
         ),
@@ -1154,7 +1194,10 @@ class _LeaderboardSeasonHeader extends StatelessWidget {
             children: [
               ShaderMask(
                 shaderCallback: (bounds) => LinearGradient(
-                  colors: [AppColors.neonCyan, AppColors.neonCyan.withAlpha(180)],
+                  colors: [
+                    AppColors.neonCyan,
+                    AppColors.neonCyan.withAlpha(180),
+                  ],
                 ).createShader(bounds),
                 child: Text(
                   'GYM LEADERBOARD',
@@ -1245,12 +1288,1919 @@ class _LeaderboardAxisTabBar extends StatelessWidget {
         tabs: const [
           Tab(text: 'KONSISTENZ'),
           Tab(text: 'EQUIPMENT XP'),
+          Tab(text: 'PERFORMANCE'),
         ],
       ),
     );
   }
 }
 
+// ─── Machine performance tab (best-set e1RM) ──────────────────────────────────
+
+class _PerfPagerIntent extends Intent {
+  const _PerfPagerIntent(this.delta);
+  final int delta;
+}
+
+abstract final class _PerfSwipeTokens {
+  static const bgTop = AppColors.surface900;
+  static const bgBottom = AppColors.surface900;
+  static const card = AppColors.surface800;
+  static const cardAlt = AppColors.surface700;
+  static const border = AppColors.surface500;
+  static const divider = AppColors.surface500;
+  static const cyan = AppColors.neonCyan;
+  static const gold = AppColors.neonYellowDim;
+  static const text = AppColors.textPrimary;
+  static const muted = AppColors.textSecondary;
+  static const selected = AppColors.neonCyanGlow;
+
+  static const radiusXl = 16.0;
+  static const radiusLg = 12.0;
+  static const radiusMd = 8.0;
+  static const radiusSm = 4.0;
+}
+
+abstract final class _PerfSwipeText {
+  static TextStyle get title => AppTextStyles.h3.copyWith(
+    color: _PerfSwipeTokens.text,
+    letterSpacing: 1.2,
+  );
+
+  static TextStyle get section => AppTextStyles.labelSm.copyWith(
+    color: _PerfSwipeTokens.muted,
+    letterSpacing: 1.2,
+    fontSize: 10,
+  );
+
+  static TextStyle get body => AppTextStyles.bodySm.copyWith(
+    color: _PerfSwipeTokens.muted,
+    fontSize: 12,
+    height: 1.4,
+  );
+
+  static TextStyle get strong => AppTextStyles.bodyMd.copyWith(
+    color: _PerfSwipeTokens.text,
+    fontWeight: FontWeight.w600,
+    height: 1.35,
+  );
+
+  static TextStyle get metric => AppTextStyles.monoSm.copyWith(
+    color: _PerfSwipeTokens.gold,
+    fontWeight: FontWeight.w700,
+    fontSize: 15,
+    letterSpacing: 0.4,
+  );
+
+  static TextStyle get headerCell => AppTextStyles.labelSm.copyWith(
+    color: _PerfSwipeTokens.muted,
+    fontSize: 10,
+    letterSpacing: 1.1,
+    fontWeight: FontWeight.w700,
+  );
+}
+
+class _MachinePerformanceView extends ConsumerStatefulWidget {
+  const _MachinePerformanceView();
+
+  @override
+  ConsumerState<_MachinePerformanceView> createState() =>
+      _MachinePerformanceViewState();
+}
+
+class _MachinePerformanceViewState
+    extends ConsumerState<_MachinePerformanceView> {
+  static const _pageCount = 3;
+
+  final PageController _pageController = PageController();
+
+  MachinePerformanceSex _selectedSex = MachinePerformanceSex.male;
+  String? _selectedEquipmentId;
+  String _searchQuery = '';
+  bool _showOnlyRanked = false;
+  int _pageIndex = 0;
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  String _formatYmd(DateTime date) {
+    final y = date.year.toString().padLeft(4, '0');
+    final m = date.month.toString().padLeft(2, '0');
+    final d = date.day.toString().padLeft(2, '0');
+    return '$y-$m-$d';
+  }
+
+  String _formatWeight(double kg) {
+    final rounded = kg.roundToDouble();
+    if ((kg - rounded).abs() < 0.05) return rounded.toInt().toString();
+    return kg.toStringAsFixed(1);
+  }
+
+  Future<void> _refresh() async {
+    ref.invalidate(machinePerformanceBoardsProvider(_selectedSex));
+    final selectedEquipmentId = _selectedEquipmentId;
+    if (selectedEquipmentId != null) {
+      ref.invalidate(
+        machinePerformanceLeaderboardProvider((
+          equipmentId: selectedEquipmentId,
+          sex: _selectedSex,
+        )),
+      );
+    }
+  }
+
+  Future<void> _goToPage(int index) async {
+    final target = index.clamp(0, _pageCount - 1);
+    await _pageController.animateToPage(
+      target,
+      duration: const Duration(milliseconds: 240),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  Future<void> _goByDelta(int delta) async {
+    await _goToPage(_pageIndex + delta);
+  }
+
+  List<MachinePerformanceBoardEntry> _filterBoards(
+    List<MachinePerformanceBoardEntry> boards,
+  ) {
+    final query = _searchQuery.trim().toLowerCase();
+    final filtered = boards.where((board) {
+      if (_showOnlyRanked && board.participantCount <= 0) return false;
+      if (query.isEmpty) return true;
+      final haystack = [
+        board.exerciseName,
+        board.equipmentName,
+        board.manufacturer ?? '',
+        board.exerciseKey,
+      ].join(' ').toLowerCase();
+      return haystack.contains(query);
+    }).toList();
+
+    filtered.sort((a, b) {
+      final exerciseCmp = a.exerciseName.toLowerCase().compareTo(
+        b.exerciseName.toLowerCase(),
+      );
+      if (exerciseCmp != 0) return exerciseCmp;
+      if (a.participantCount != b.participantCount) {
+        return b.participantCount.compareTo(a.participantCount);
+      }
+      return a.equipmentName.toLowerCase().compareTo(
+        b.equipmentName.toLowerCase(),
+      );
+    });
+    return filtered;
+  }
+
+  Future<void> _openBoardPicker(
+    List<MachinePerformanceBoardEntry> boards,
+  ) async {
+    final selectedId = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => _MachineBoardPickerSheet(
+        boards: boards,
+        selectedEquipmentId: _selectedEquipmentId,
+        initialQuery: _searchQuery,
+        initialOnlyRanked: _showOnlyRanked,
+        formatWeight: _formatWeight,
+      ),
+    );
+    if (!mounted || selectedId == null) return;
+    setState(() => _selectedEquipmentId = selectedId);
+    await _goToPage(1);
+  }
+
+  Future<void> _selectBoard(String equipmentId) async {
+    setState(() => _selectedEquipmentId = equipmentId);
+    await _goToPage(1);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final boardsAsync = ref.watch(
+      machinePerformanceBoardsProvider(_selectedSex),
+    );
+
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [_PerfSwipeTokens.bgTop, _PerfSwipeTokens.bgBottom],
+        ),
+      ),
+      child: Column(
+        children: [
+          _MachinePerformanceTopBar(
+            selectedSex: _selectedSex,
+            selectedBoardLabel: _selectedEquipmentId == null
+                ? 'No board selected'
+                : 'Board selected',
+            pageIndex: _pageIndex,
+            onSexChanged: (sex) {
+              setState(() {
+                _selectedSex = sex;
+                _selectedEquipmentId = null;
+              });
+            },
+            onPreviousCard: () => _goByDelta(-1),
+            onNextCard: () => _goByDelta(1),
+          ),
+          Expanded(
+            child: RefreshIndicator(
+              color: _PerfSwipeTokens.cyan,
+              backgroundColor: _PerfSwipeTokens.card,
+              onRefresh: _refresh,
+              child: boardsAsync.when(
+                loading: () => _MachinePerformancePagerShell(
+                  controller: _pageController,
+                  pageIndex: _pageIndex,
+                  onPageChanged: (value) => setState(() => _pageIndex = value),
+                  onDeltaNavigate: _goByDelta,
+                  cards: const [
+                    _MachinePerfLoadingCard(
+                      key: Key('machine-perf-card-board-picker'),
+                      title: 'BOARD PICKER',
+                    ),
+                    _MachinePerfLoadingCard(
+                      key: Key('machine-perf-card-ladder'),
+                      title: 'RANKED LADDER',
+                    ),
+                    _MachinePerfLoadingCard(
+                      key: Key('machine-perf-card-summary'),
+                      title: 'SUMMARY',
+                    ),
+                  ],
+                ),
+                error: (error, _) => _MachinePerformancePagerShell(
+                  controller: _pageController,
+                  pageIndex: _pageIndex,
+                  onPageChanged: (value) => setState(() => _pageIndex = value),
+                  onDeltaNavigate: _goByDelta,
+                  cards: [
+                    _MachinePerformanceStateCard(
+                      key: const Key('machine-perf-card-board-picker'),
+                      title: 'Boards unavailable',
+                      body:
+                          'Could not load machine boards. Pull to refresh or retry.',
+                      icon: Icons.sync_problem_rounded,
+                      actionLabel: 'Retry',
+                      onAction: () => ref.invalidate(
+                        machinePerformanceBoardsProvider(_selectedSex),
+                      ),
+                    ),
+                    const _MachinePerformanceStateCard(
+                      key: Key('machine-perf-card-ladder'),
+                      title: 'Ladder unavailable',
+                      body:
+                          'Board data is required before ladder can be shown.',
+                      icon: Icons.format_list_numbered_rounded,
+                    ),
+                    const _MachinePerformanceStateCard(
+                      key: Key('machine-perf-card-summary'),
+                      title: 'Summary unavailable',
+                      body:
+                          'Board data is required before summary can be shown.',
+                      icon: Icons.auto_graph_rounded,
+                    ),
+                  ],
+                ),
+                data: (boards) {
+                  final filteredBoards = _filterBoards(boards);
+                  final selectedBoard = _selectedEquipmentId == null
+                      ? null
+                      : boards
+                            .where((b) => b.equipmentId == _selectedEquipmentId)
+                            .firstOrNull;
+
+                  final leaderboardAsync = selectedBoard == null
+                      ? const AsyncValue.data(
+                          <MachinePerformanceLeaderboardEntry>[],
+                        )
+                      : ref.watch(
+                          machinePerformanceLeaderboardProvider((
+                            equipmentId: selectedBoard.equipmentId,
+                            sex: _selectedSex,
+                          )),
+                        );
+
+                  return _MachinePerformancePagerShell(
+                    controller: _pageController,
+                    pageIndex: _pageIndex,
+                    onPageChanged: (value) =>
+                        setState(() => _pageIndex = value),
+                    onDeltaNavigate: _goByDelta,
+                    cards: [
+                      _MachinePerformanceBoardCard(
+                        key: const Key('machine-perf-card-board-picker'),
+                        boards: boards,
+                        filteredBoards: filteredBoards,
+                        selectedBoard: selectedBoard,
+                        searchQuery: _searchQuery,
+                        showOnlyRanked: _showOnlyRanked,
+                        formatWeight: _formatWeight,
+                        onSearchChanged: (value) =>
+                            setState(() => _searchQuery = value),
+                        onToggleOnlyRanked: (value) =>
+                            setState(() => _showOnlyRanked = value),
+                        onOpenPicker: () => _openBoardPicker(boards),
+                        onSelectBoard: _selectBoard,
+                        onClearSelection: selectedBoard == null
+                            ? null
+                            : () => setState(() => _selectedEquipmentId = null),
+                      ),
+                      _MachinePerformanceLadderCard(
+                        key: const Key('machine-perf-card-ladder'),
+                        selectedBoard: selectedBoard,
+                        leaderboardAsync: leaderboardAsync,
+                        formatWeight: _formatWeight,
+                        dateFormatter: _formatYmd,
+                        onOpenPicker: () => _openBoardPicker(boards),
+                      ),
+                      _MachinePerformanceSummaryCard(
+                        key: const Key('machine-perf-card-summary'),
+                        selectedBoard: selectedBoard,
+                        leaderboardAsync: leaderboardAsync,
+                        formatWeight: _formatWeight,
+                        onOpenPicker: () => _openBoardPicker(boards),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ),
+          ),
+          _MachinePerformancePageDots(current: _pageIndex, count: _pageCount),
+          const SizedBox(height: 14),
+        ],
+      ),
+    );
+  }
+}
+
+class _MachinePerformanceTopBar extends StatelessWidget {
+  const _MachinePerformanceTopBar({
+    required this.selectedSex,
+    required this.selectedBoardLabel,
+    required this.pageIndex,
+    required this.onSexChanged,
+    required this.onPreviousCard,
+    required this.onNextCard,
+  });
+
+  final MachinePerformanceSex selectedSex;
+  final String selectedBoardLabel;
+  final int pageIndex;
+  final ValueChanged<MachinePerformanceSex> onSexChanged;
+  final VoidCallback onPreviousCard;
+  final VoidCallback onNextCard;
+
+  @override
+  Widget build(BuildContext context) {
+    const pageLabels = ['Board', 'Ladder', 'Summary'];
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.fromLTRB(16, 12, 16, 10),
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      decoration: BoxDecoration(
+        color: _PerfSwipeTokens.card,
+        borderRadius: BorderRadius.circular(_PerfSwipeTokens.radiusLg),
+        border: Border.all(color: _PerfSwipeTokens.border),
+      ),
+      child: ListView(
+        padding: EdgeInsets.zero,
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('PERFORMANCE', style: _PerfSwipeText.section),
+                    const SizedBox(height: 2),
+                    Text('Swipe Cards', style: _PerfSwipeText.title),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: _PerfSwipeTokens.cardAlt,
+                  borderRadius: BorderRadius.circular(
+                    _PerfSwipeTokens.radiusSm,
+                  ),
+                  border: Border.all(color: _PerfSwipeTokens.border),
+                ),
+                child: Text(
+                  pageLabels[pageIndex],
+                  style: _PerfSwipeText.strong.copyWith(
+                    fontSize: 12,
+                    color: _PerfSwipeTokens.cyan,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  selectedBoardLabel,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: _PerfSwipeText.body,
+                ),
+              ),
+              const SizedBox(width: 8),
+              _SexToggle(selectedSex: selectedSex, onChanged: onSexChanged),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              OutlinedButton.icon(
+                onPressed: onPreviousCard,
+                icon: const Icon(Icons.chevron_left_rounded, size: 18),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: _PerfSwipeTokens.muted,
+                  side: const BorderSide(color: _PerfSwipeTokens.border),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(
+                      _PerfSwipeTokens.radiusSm,
+                    ),
+                  ),
+                ),
+                label: Text(
+                  'Prev',
+                  style: _PerfSwipeText.strong.copyWith(fontSize: 12),
+                ),
+              ),
+              const SizedBox(width: 8),
+              OutlinedButton.icon(
+                onPressed: onNextCard,
+                icon: const Icon(Icons.chevron_right_rounded, size: 18),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: _PerfSwipeTokens.cyan,
+                  side: const BorderSide(color: _PerfSwipeTokens.cyan),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(
+                      _PerfSwipeTokens.radiusSm,
+                    ),
+                  ),
+                ),
+                label: Text(
+                  'Next',
+                  style: _PerfSwipeText.strong.copyWith(
+                    fontSize: 12,
+                    color: _PerfSwipeTokens.cyan,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SexToggle extends StatelessWidget {
+  const _SexToggle({required this.selectedSex, required this.onChanged});
+
+  final MachinePerformanceSex selectedSex;
+  final ValueChanged<MachinePerformanceSex> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    Widget button(MachinePerformanceSex sex, String label, IconData icon) {
+      final selected = sex == selectedSex;
+      return Expanded(
+        child: InkWell(
+          borderRadius: BorderRadius.circular(_PerfSwipeTokens.radiusSm),
+          onTap: () => onChanged(sex),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 160),
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            decoration: BoxDecoration(
+              color: selected
+                  ? _PerfSwipeTokens.cyan.withAlpha(28)
+                  : _PerfSwipeTokens.cardAlt,
+              borderRadius: BorderRadius.circular(_PerfSwipeTokens.radiusSm),
+              border: Border.all(
+                color: selected
+                    ? _PerfSwipeTokens.cyan
+                    : _PerfSwipeTokens.border,
+              ),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  icon,
+                  size: 14,
+                  color: selected
+                      ? _PerfSwipeTokens.cyan
+                      : _PerfSwipeTokens.muted,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  label,
+                  style: _PerfSwipeText.strong.copyWith(
+                    fontSize: 11,
+                    color: selected
+                        ? _PerfSwipeTokens.cyan
+                        : _PerfSwipeTokens.muted,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    return SizedBox(
+      width: 220,
+      child: Row(
+        children: [
+          button(MachinePerformanceSex.male, 'MALE', Icons.male_rounded),
+          const SizedBox(width: 6),
+          button(MachinePerformanceSex.female, 'FEMALE', Icons.female_rounded),
+        ],
+      ),
+    );
+  }
+}
+
+class _MachinePerformancePagerShell extends StatelessWidget {
+  const _MachinePerformancePagerShell({
+    required this.controller,
+    required this.pageIndex,
+    required this.onPageChanged,
+    required this.onDeltaNavigate,
+    required this.cards,
+  });
+
+  final PageController controller;
+  final int pageIndex;
+  final ValueChanged<int> onPageChanged;
+  final ValueChanged<int> onDeltaNavigate;
+  final List<Widget> cards;
+
+  @override
+  Widget build(BuildContext context) {
+    return Shortcuts(
+      shortcuts: const {
+        SingleActivator(LogicalKeyboardKey.arrowLeft): _PerfPagerIntent(-1),
+        SingleActivator(LogicalKeyboardKey.arrowRight): _PerfPagerIntent(1),
+      },
+      child: Actions(
+        actions: {
+          _PerfPagerIntent: CallbackAction<_PerfPagerIntent>(
+            onInvoke: (intent) {
+              onDeltaNavigate(intent.delta);
+              return null;
+            },
+          ),
+        },
+        child: Focus(
+          autofocus: true,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: PageView.builder(
+              key: const Key('machine-perf-pageview'),
+              controller: controller,
+              physics: const BouncingScrollPhysics(),
+              onPageChanged: onPageChanged,
+              itemCount: cards.length,
+              itemBuilder: (context, index) {
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: cards[index],
+                );
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MachinePerformanceBoardCard extends StatelessWidget {
+  const _MachinePerformanceBoardCard({
+    required this.boards,
+    required this.filteredBoards,
+    required this.selectedBoard,
+    required this.searchQuery,
+    required this.showOnlyRanked,
+    required this.formatWeight,
+    required this.onSearchChanged,
+    required this.onToggleOnlyRanked,
+    required this.onOpenPicker,
+    required this.onSelectBoard,
+    required this.onClearSelection,
+    super.key,
+  });
+
+  final List<MachinePerformanceBoardEntry> boards;
+  final List<MachinePerformanceBoardEntry> filteredBoards;
+  final MachinePerformanceBoardEntry? selectedBoard;
+  final String searchQuery;
+  final bool showOnlyRanked;
+  final String Function(double) formatWeight;
+  final ValueChanged<String> onSearchChanged;
+  final ValueChanged<bool> onToggleOnlyRanked;
+  final VoidCallback onOpenPicker;
+  final ValueChanged<String> onSelectBoard;
+  final VoidCallback? onClearSelection;
+
+  @override
+  Widget build(BuildContext context) {
+    final previewBoards = filteredBoards.take(8).toList(growable: false);
+    return _PerfCardShell(
+      title: 'BOARD PICKER',
+      subtitle:
+          'Pick one fixed-machine board. One board = one machine variant leaderboard.',
+      child: ListView(
+        padding: EdgeInsets.zero,
+        children: [
+          if (selectedBoard != null)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: _PerfSwipeTokens.selected,
+                borderRadius: BorderRadius.circular(_PerfSwipeTokens.radiusSm),
+                border: Border.all(color: _PerfSwipeTokens.cyan.withAlpha(170)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.flag_rounded,
+                    color: _PerfSwipeTokens.cyan,
+                    size: 16,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '${selectedBoard!.equipmentName} · ${selectedBoard!.exerciseName}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: _PerfSwipeText.strong.copyWith(
+                        color: _PerfSwipeTokens.cyan,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                  if (onClearSelection != null)
+                    TextButton(
+                      onPressed: onClearSelection,
+                      child: Text(
+                        'Clear',
+                        style: _PerfSwipeText.body.copyWith(
+                          color: _PerfSwipeTokens.text,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  key: const Key('machine-board-selector-search'),
+                  onChanged: onSearchChanged,
+                  style: _PerfSwipeText.strong.copyWith(fontSize: 13),
+                  decoration: InputDecoration(
+                    hintText: 'Search board',
+                    hintStyle: _PerfSwipeText.body,
+                    prefixIcon: const Icon(
+                      Icons.search_rounded,
+                      size: 17,
+                      color: _PerfSwipeTokens.muted,
+                    ),
+                    suffixIcon: searchQuery.trim().isEmpty
+                        ? null
+                        : IconButton(
+                            onPressed: () => onSearchChanged(''),
+                            icon: const Icon(Icons.close_rounded, size: 16),
+                            color: _PerfSwipeTokens.muted,
+                          ),
+                    filled: true,
+                    fillColor: _PerfSwipeTokens.cardAlt,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(
+                        _PerfSwipeTokens.radiusSm,
+                      ),
+                      borderSide: const BorderSide(
+                        color: _PerfSwipeTokens.border,
+                      ),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(
+                        _PerfSwipeTokens.radiusSm,
+                      ),
+                      borderSide: const BorderSide(
+                        color: _PerfSwipeTokens.border,
+                      ),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(
+                        _PerfSwipeTokens.radiusSm,
+                      ),
+                      borderSide: const BorderSide(
+                        color: _PerfSwipeTokens.cyan,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              SizedBox(
+                height: 42,
+                child: OutlinedButton.icon(
+                  key: const Key('machine-board-selector-open'),
+                  onPressed: onOpenPicker,
+                  icon: const Icon(Icons.view_list_rounded, size: 16),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: _PerfSwipeTokens.cyan,
+                    side: const BorderSide(color: _PerfSwipeTokens.cyan),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(
+                        _PerfSwipeTokens.radiusSm,
+                      ),
+                    ),
+                  ),
+                  label: Text(
+                    'Browse',
+                    style: _PerfSwipeText.strong.copyWith(
+                      color: _PerfSwipeTokens.cyan,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              FilterChip(
+                selected: showOnlyRanked,
+                onSelected: onToggleOnlyRanked,
+                backgroundColor: _PerfSwipeTokens.cardAlt,
+                selectedColor: _PerfSwipeTokens.cyan.withAlpha(24),
+                side: BorderSide(
+                  color: showOnlyRanked
+                      ? _PerfSwipeTokens.cyan
+                      : _PerfSwipeTokens.border,
+                ),
+                label: Text(
+                  'Only ranked boards',
+                  style: _PerfSwipeText.body.copyWith(
+                    fontSize: 11,
+                    color: showOnlyRanked
+                        ? _PerfSwipeTokens.cyan
+                        : _PerfSwipeTokens.muted,
+                  ),
+                ),
+              ),
+              const Spacer(),
+              Text(
+                '${filteredBoards.length}/${boards.length}',
+                style: _PerfSwipeText.body.copyWith(fontSize: 11),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          if (filteredBoards.isEmpty)
+            const _MachinePerformanceStateCard(
+              title: 'No boards match this filter',
+              body: 'Adjust search or filters, or open full board directory.',
+              icon: Icons.filter_alt_off_rounded,
+            )
+          else
+            ...List.generate(previewBoards.length, (index) {
+              final board = previewBoards[index];
+              final selected = selectedBoard?.equipmentId == board.equipmentId;
+              return Padding(
+                padding: EdgeInsets.only(
+                  bottom: index == previewBoards.length - 1 ? 0 : 8,
+                ),
+                child: InkWell(
+                  onTap: () => onSelectBoard(board.equipmentId),
+                  borderRadius: BorderRadius.circular(
+                    _PerfSwipeTokens.radiusSm,
+                  ),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 160),
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: selected
+                          ? _PerfSwipeTokens.selected
+                          : _PerfSwipeTokens.cardAlt,
+                      borderRadius: BorderRadius.circular(
+                        _PerfSwipeTokens.radiusSm,
+                      ),
+                      border: Border.all(
+                        color: selected
+                            ? _PerfSwipeTokens.cyan
+                            : _PerfSwipeTokens.border,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                board.equipmentName,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: _PerfSwipeText.strong.copyWith(
+                                  fontSize: 12,
+                                  color: selected
+                                      ? _PerfSwipeTokens.cyan
+                                      : _PerfSwipeTokens.text,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                '${board.exerciseName} · ${board.manufacturer ?? 'Unknown manufacturer'}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: _PerfSwipeText.body.copyWith(
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              board.participantCount == 0
+                                  ? 'No rank yet'
+                                  : '${board.participantCount} ranked',
+                              style: _PerfSwipeText.body.copyWith(fontSize: 10),
+                            ),
+                            if (board.topE1rmKg != null)
+                              Text(
+                                '${board.topE1rmKg!.toStringAsFixed(1)} kg · ${formatWeight(board.topWeightKg ?? 0)} x ${board.topReps ?? 0}',
+                                style: _PerfSwipeText.body.copyWith(
+                                  color: _PerfSwipeTokens.gold,
+                                  fontSize: 10,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            }),
+        ],
+      ),
+    );
+  }
+}
+
+class _MachineBoardPickerSheet extends StatefulWidget {
+  const _MachineBoardPickerSheet({
+    required this.boards,
+    required this.selectedEquipmentId,
+    required this.initialQuery,
+    required this.initialOnlyRanked,
+    required this.formatWeight,
+  });
+
+  final List<MachinePerformanceBoardEntry> boards;
+  final String? selectedEquipmentId;
+  final String initialQuery;
+  final bool initialOnlyRanked;
+  final String Function(double) formatWeight;
+
+  @override
+  State<_MachineBoardPickerSheet> createState() =>
+      _MachineBoardPickerSheetState();
+}
+
+class _MachineBoardPickerSheetState extends State<_MachineBoardPickerSheet> {
+  late final TextEditingController _controller;
+  late bool _onlyRanked;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.initialQuery);
+    _onlyRanked = widget.initialOnlyRanked;
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  List<MachinePerformanceBoardEntry> _filtered() {
+    final q = _controller.text.trim().toLowerCase();
+    final filtered = widget.boards.where((board) {
+      if (_onlyRanked && board.participantCount <= 0) return false;
+      if (q.isEmpty) return true;
+      final haystack = [
+        board.exerciseName,
+        board.equipmentName,
+        board.manufacturer ?? '',
+      ].join(' ').toLowerCase();
+      return haystack.contains(q);
+    }).toList();
+
+    filtered.sort((a, b) {
+      final exerciseCmp = a.exerciseName.toLowerCase().compareTo(
+        b.exerciseName.toLowerCase(),
+      );
+      if (exerciseCmp != 0) return exerciseCmp;
+      return a.equipmentName.toLowerCase().compareTo(
+        b.equipmentName.toLowerCase(),
+      );
+    });
+    return filtered;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+
+    return AnimatedPadding(
+      duration: const Duration(milliseconds: 160),
+      padding: EdgeInsets.only(bottom: bottomInset),
+      child: DraggableScrollableSheet(
+        initialChildSize: 0.88,
+        minChildSize: 0.55,
+        maxChildSize: 0.96,
+        expand: false,
+        builder: (context, scrollController) {
+          final filtered = _filtered();
+          final grouped = <String, List<MachinePerformanceBoardEntry>>{};
+          for (final board in filtered) {
+            grouped.putIfAbsent(board.exerciseName, () => []).add(board);
+          }
+          final exercises = grouped.keys.toList()
+            ..sort((a, b) => a.compareTo(b));
+
+          return DecoratedBox(
+            decoration: BoxDecoration(
+              color: _PerfSwipeTokens.card,
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(_PerfSwipeTokens.radiusXl),
+              ),
+              border: Border.all(color: _PerfSwipeTokens.border),
+            ),
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(top: 10),
+                  child: Container(
+                    width: 44,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: _PerfSwipeTokens.border,
+                      borderRadius: BorderRadius.circular(99),
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('BOARD DIRECTORY', style: _PerfSwipeText.section),
+                      const SizedBox(height: 4),
+                      Text('Exercise + Machine', style: _PerfSwipeText.title),
+                      const SizedBox(height: 8),
+                      TextField(
+                        key: const Key('machine-board-picker-search'),
+                        controller: _controller,
+                        autofocus: true,
+                        onChanged: (_) => setState(() {}),
+                        style: _PerfSwipeText.strong.copyWith(fontSize: 13),
+                        decoration: InputDecoration(
+                          hintText: 'Search exercises or machines',
+                          hintStyle: _PerfSwipeText.body,
+                          prefixIcon: const Icon(
+                            Icons.search_rounded,
+                            size: 17,
+                            color: _PerfSwipeTokens.muted,
+                          ),
+                          filled: true,
+                          fillColor: _PerfSwipeTokens.cardAlt,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(
+                              _PerfSwipeTokens.radiusSm,
+                            ),
+                            borderSide: const BorderSide(
+                              color: _PerfSwipeTokens.border,
+                            ),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(
+                              _PerfSwipeTokens.radiusSm,
+                            ),
+                            borderSide: const BorderSide(
+                              color: _PerfSwipeTokens.border,
+                            ),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(
+                              _PerfSwipeTokens.radiusSm,
+                            ),
+                            borderSide: const BorderSide(
+                              color: _PerfSwipeTokens.cyan,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          FilterChip(
+                            selected: _onlyRanked,
+                            onSelected: (value) =>
+                                setState(() => _onlyRanked = value),
+                            label: const Text('Only ranked'),
+                            backgroundColor: _PerfSwipeTokens.cardAlt,
+                            selectedColor: _PerfSwipeTokens.cyan.withAlpha(24),
+                            side: BorderSide(
+                              color: _onlyRanked
+                                  ? _PerfSwipeTokens.cyan
+                                  : _PerfSwipeTokens.border,
+                            ),
+                            labelStyle: _PerfSwipeText.body.copyWith(
+                              fontSize: 11,
+                              color: _onlyRanked
+                                  ? _PerfSwipeTokens.cyan
+                                  : _PerfSwipeTokens.muted,
+                            ),
+                          ),
+                          const Spacer(),
+                          Text(
+                            '${filtered.length} boards',
+                            style: _PerfSwipeText.body.copyWith(fontSize: 11),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const Divider(height: 1, color: _PerfSwipeTokens.divider),
+                Expanded(
+                  child: filtered.isEmpty
+                      ? Center(
+                          child: Text(
+                            'No machine boards match this filter.',
+                            style: _PerfSwipeText.body,
+                          ),
+                        )
+                      : ListView.builder(
+                          controller: scrollController,
+                          itemCount: exercises.length,
+                          itemBuilder: (context, exerciseIndex) {
+                            final exerciseName = exercises[exerciseIndex];
+                            final boards = grouped[exerciseName] ?? const [];
+                            return Padding(
+                              padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+                              child: _MachineBoardExerciseGroup(
+                                exerciseName: exerciseName,
+                                boards: boards,
+                                selectedEquipmentId: widget.selectedEquipmentId,
+                                formatWeight: widget.formatWeight,
+                                onSelect: (equipmentId) =>
+                                    Navigator.of(context).pop(equipmentId),
+                              ),
+                            );
+                          },
+                        ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _MachineBoardExerciseGroup extends StatelessWidget {
+  const _MachineBoardExerciseGroup({
+    required this.exerciseName,
+    required this.boards,
+    required this.selectedEquipmentId,
+    required this.formatWeight,
+    required this.onSelect,
+  });
+
+  final String exerciseName;
+  final List<MachinePerformanceBoardEntry> boards;
+  final String? selectedEquipmentId;
+  final String Function(double) formatWeight;
+  final ValueChanged<String> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: _PerfSwipeTokens.cardAlt,
+        borderRadius: BorderRadius.circular(_PerfSwipeTokens.radiusMd),
+        border: Border.all(color: _PerfSwipeTokens.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    exerciseName,
+                    style: _PerfSwipeText.strong.copyWith(fontSize: 13),
+                  ),
+                ),
+                Text(
+                  '${boards.length} variants',
+                  style: _PerfSwipeText.body.copyWith(fontSize: 10),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1, color: _PerfSwipeTokens.divider),
+          ...boards.map((board) {
+            final selected = selectedEquipmentId == board.equipmentId;
+            return InkWell(
+              key: Key('machine-board-option-${board.equipmentId}'),
+              onTap: () => onSelect(board.equipmentId),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 160),
+                padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+                decoration: BoxDecoration(
+                  color: selected
+                      ? _PerfSwipeTokens.selected
+                      : Colors.transparent,
+                  border: const Border(
+                    bottom: BorderSide(color: _PerfSwipeTokens.divider),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            board.equipmentName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: _PerfSwipeText.strong.copyWith(
+                              fontSize: 12,
+                              color: selected
+                                  ? _PerfSwipeTokens.cyan
+                                  : _PerfSwipeTokens.text,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            board.manufacturer ?? 'Unknown manufacturer',
+                            style: _PerfSwipeText.body.copyWith(fontSize: 10),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      board.topE1rmKg == null
+                          ? 'No rank yet'
+                          : '${board.topE1rmKg!.toStringAsFixed(1)} kg · ${formatWeight(board.topWeightKg ?? 0)} x ${board.topReps ?? 0}',
+                      style: _PerfSwipeText.body.copyWith(
+                        fontSize: 10,
+                        color: board.topE1rmKg == null
+                            ? _PerfSwipeTokens.muted
+                            : _PerfSwipeTokens.gold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+}
+
+class _MachinePerformanceLadderCard extends StatelessWidget {
+  const _MachinePerformanceLadderCard({
+    required this.selectedBoard,
+    required this.leaderboardAsync,
+    required this.formatWeight,
+    required this.dateFormatter,
+    required this.onOpenPicker,
+    super.key,
+  });
+
+  final MachinePerformanceBoardEntry? selectedBoard;
+  final AsyncValue<List<MachinePerformanceLeaderboardEntry>> leaderboardAsync;
+  final String Function(double) formatWeight;
+  final String Function(DateTime) dateFormatter;
+  final VoidCallback onOpenPicker;
+
+  @override
+  Widget build(BuildContext context) {
+    return _PerfCardShell(
+      title: 'RANKED LADDER',
+      subtitle: selectedBoard == null
+          ? 'Select a board first to open leaderboard.'
+          : '${selectedBoard!.equipmentName} · ${selectedBoard!.exerciseName}',
+      action: selectedBoard == null
+          ? OutlinedButton.icon(
+              onPressed: onOpenPicker,
+              icon: const Icon(Icons.flag_rounded, size: 16),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: _PerfSwipeTokens.cyan,
+                side: const BorderSide(color: _PerfSwipeTokens.cyan),
+              ),
+              label: Text(
+                'Select board',
+                style: _PerfSwipeText.strong.copyWith(
+                  fontSize: 12,
+                  color: _PerfSwipeTokens.cyan,
+                ),
+              ),
+            )
+          : null,
+      child: selectedBoard == null
+          ? const _MachinePerformanceStateCard(
+              title: 'No board selected',
+              body:
+                  'Choose one board in card 1. Then swipe back here to see ranking.',
+              icon: Icons.flag_rounded,
+            )
+          : leaderboardAsync.when(
+              loading: () => const _MachinePerfTableSkeleton(),
+              error: (error, _) => _MachinePerformanceStateCard(
+                title: 'Could not load ladder',
+                body: 'Please retry. ${error.toString()}',
+                icon: Icons.wifi_tethering_error_rounded,
+              ),
+              data: (rows) {
+                if (rows.isEmpty) {
+                  return const _MachinePerformanceStateCard(
+                    title: 'No eligible ranked result yet for this selection',
+                    body:
+                        'No opted-in athlete with matching sex has a qualifying fixed-machine result on this board.',
+                    icon: Icons.hourglass_empty_rounded,
+                  );
+                }
+
+                final estimated = rows.length * 56.0 + 56;
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Best set format: weight x reps',
+                      style: _PerfSwipeText.body.copyWith(fontSize: 11),
+                    ),
+                    const SizedBox(height: 8),
+                    Expanded(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(
+                          _PerfSwipeTokens.radiusSm,
+                        ),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: _PerfSwipeTokens.cardAlt,
+                            border: Border.all(color: _PerfSwipeTokens.border),
+                          ),
+                          child: CustomScrollView(
+                            cacheExtent: 1200,
+                            slivers: [
+                              SliverPersistentHeader(
+                                pinned: true,
+                                delegate: _LadderHeaderDelegate(),
+                              ),
+                              if (rows.length <= 200)
+                                SliverList(
+                                  delegate: SliverChildListDelegate.fixed(
+                                    rows
+                                        .map(
+                                          (row) => _MachineLadderRow(
+                                            row: row,
+                                            bestSet:
+                                                '${formatWeight(row.bestWeightKg)} x ${row.bestReps}',
+                                            dateLabel: dateFormatter(
+                                              row.achievedAt,
+                                            ),
+                                          ),
+                                        )
+                                        .toList(growable: false),
+                                  ),
+                                )
+                              else
+                                SliverList.builder(
+                                  itemCount: rows.length,
+                                  itemBuilder: (context, index) {
+                                    final row = rows[index];
+                                    return _MachineLadderRow(
+                                      row: row,
+                                      bestSet:
+                                          '${formatWeight(row.bestWeightKg)} x ${row.bestReps}',
+                                      dateLabel: dateFormatter(row.achievedAt),
+                                    );
+                                  },
+                                ),
+                              if (estimated < 320)
+                                const SliverToBoxAdapter(
+                                  child: SizedBox(height: 8),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+    );
+  }
+}
+
+class _LadderHeaderDelegate extends SliverPersistentHeaderDelegate {
+  @override
+  double get minExtent => 42;
+
+  @override
+  double get maxExtent => 42;
+
+  @override
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
+    return Container(
+      key: const Key('machine-ladder-header'),
+      decoration: const BoxDecoration(
+        color: _PerfSwipeTokens.card,
+        border: Border(bottom: BorderSide(color: _PerfSwipeTokens.divider)),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 48,
+            child: Text('#', style: _PerfSwipeText.headerCell),
+          ),
+          Expanded(child: Text('ATHLETE', style: _PerfSwipeText.headerCell)),
+          SizedBox(
+            width: 102,
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text('BEST SET', style: _PerfSwipeText.headerCell),
+            ),
+          ),
+          SizedBox(
+            width: 86,
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: Text('E1RM', style: _PerfSwipeText.headerCell),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  bool shouldRebuild(covariant SliverPersistentHeaderDelegate oldDelegate) =>
+      false;
+}
+
+class _MachineLadderRow extends StatelessWidget {
+  const _MachineLadderRow({
+    required this.row,
+    required this.bestSet,
+    required this.dateLabel,
+  });
+
+  final MachinePerformanceLeaderboardEntry row;
+  final String bestSet;
+  final String dateLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final isCurrentUser = row.isCurrentUser;
+
+    return Container(
+      key: isCurrentUser
+          ? const Key('machine-ladder-row-current-user')
+          : Key('machine-ladder-row-${row.rank}'),
+      decoration: BoxDecoration(
+        color: isCurrentUser
+            ? _PerfSwipeTokens.selected
+            : (row.rank <= 3
+                  ? _PerfSwipeTokens.gold.withAlpha(14)
+                  : Colors.transparent),
+        border: Border(
+          left: BorderSide(
+            color: isCurrentUser ? _PerfSwipeTokens.cyan : Colors.transparent,
+            width: 2.5,
+          ),
+          bottom: const BorderSide(color: _PerfSwipeTokens.divider),
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 48,
+              child: Text(
+                '#${row.rank}',
+                style: _PerfSwipeText.strong.copyWith(
+                  fontSize: 12,
+                  color: row.rank <= 3
+                      ? _PerfSwipeTokens.gold
+                      : _PerfSwipeTokens.muted,
+                ),
+              ),
+            ),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '@${row.username}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: _PerfSwipeText.strong.copyWith(
+                      fontSize: 12,
+                      color: isCurrentUser
+                          ? _PerfSwipeTokens.cyan
+                          : _PerfSwipeTokens.text,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    dateLabel,
+                    style: _PerfSwipeText.body.copyWith(fontSize: 10),
+                  ),
+                ],
+              ),
+            ),
+            SizedBox(
+              width: 102,
+              child: Text(
+                bestSet,
+                style: _PerfSwipeText.strong.copyWith(fontSize: 12),
+              ),
+            ),
+            SizedBox(
+              width: 86,
+              child: Text(
+                '${row.bestE1rmKg.toStringAsFixed(1)} kg',
+                textAlign: TextAlign.right,
+                style: _PerfSwipeText.metric,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MachinePerformanceSummaryCard extends StatelessWidget {
+  const _MachinePerformanceSummaryCard({
+    required this.selectedBoard,
+    required this.leaderboardAsync,
+    required this.formatWeight,
+    required this.onOpenPicker,
+    super.key,
+  });
+
+  final MachinePerformanceBoardEntry? selectedBoard;
+  final AsyncValue<List<MachinePerformanceLeaderboardEntry>> leaderboardAsync;
+  final String Function(double) formatWeight;
+  final VoidCallback onOpenPicker;
+
+  @override
+  Widget build(BuildContext context) {
+    return _PerfCardShell(
+      title: 'SUMMARY',
+      subtitle: 'Board highlights and your personal standing.',
+      child: selectedBoard == null
+          ? _MachinePerformanceStateCard(
+              title: 'No board selected',
+              body: 'Select a board first to unlock board summary insights.',
+              icon: Icons.insights_rounded,
+              actionLabel: 'Choose board',
+              onAction: onOpenPicker,
+            )
+          : leaderboardAsync.when(
+              loading: () => const _MachinePerfLoadingCard(title: 'SUMMARY'),
+              error: (error, _) => const _MachinePerformanceStateCard(
+                title: 'Summary unavailable',
+                body: 'Could not load summary for this board.',
+                icon: Icons.sync_problem_rounded,
+              ),
+              data: (rows) {
+                final top = rows.firstOrNull;
+                final me = rows.where((r) => r.isCurrentUser).firstOrNull;
+                final boardBestE1rm =
+                    top?.bestE1rmKg ?? selectedBoard!.topE1rmKg;
+                final boardBestSet = top == null
+                    ? (selectedBoard!.topWeightKg != null &&
+                              selectedBoard!.topReps != null
+                          ? '${formatWeight(selectedBoard!.topWeightKg!)} x ${selectedBoard!.topReps}'
+                          : 'No best set yet')
+                    : '${formatWeight(top.bestWeightKg)} x ${top.bestReps}';
+
+                return ListView(
+                  padding: EdgeInsets.zero,
+                  children: [
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: _PerfSwipeTokens.cardAlt,
+                        borderRadius: BorderRadius.circular(
+                          _PerfSwipeTokens.radiusSm,
+                        ),
+                        border: Border.all(color: _PerfSwipeTokens.border),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            selectedBoard!.equipmentName,
+                            style: _PerfSwipeText.strong.copyWith(
+                              color: _PerfSwipeTokens.text,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '${selectedBoard!.exerciseName} · ${selectedBoard!.manufacturer ?? 'Unknown manufacturer'}',
+                            style: _PerfSwipeText.body.copyWith(fontSize: 11),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    _SummaryMetric(
+                      label: 'Board Best e1RM',
+                      value: boardBestE1rm == null
+                          ? 'No ranked score yet'
+                          : '${boardBestE1rm.toStringAsFixed(1)} kg',
+                    ),
+                    _SummaryMetric(
+                      label: 'Board Best Set',
+                      value: boardBestSet,
+                    ),
+                    _SummaryMetric(
+                      label: 'Record Holder',
+                      value: top == null
+                          ? 'No record holder yet'
+                          : '@${top.username}',
+                    ),
+                    _SummaryMetric(
+                      label: 'Athletes Ranked',
+                      value: '${selectedBoard!.participantCount}',
+                    ),
+                    if (me != null) ...[
+                      const SizedBox(height: 6),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: _PerfSwipeTokens.selected,
+                          borderRadius: BorderRadius.circular(
+                            _PerfSwipeTokens.radiusSm,
+                          ),
+                          border: Border.all(
+                            color: _PerfSwipeTokens.cyan.withAlpha(150),
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'YOUR POSITION',
+                              style: _PerfSwipeText.section.copyWith(
+                                color: _PerfSwipeTokens.cyan,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              '#${me.rank} · ${me.bestE1rmKg.toStringAsFixed(1)} kg',
+                              style: _PerfSwipeText.metric,
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Best set ${formatWeight(me.bestWeightKg)} x ${me.bestReps}',
+                              style: _PerfSwipeText.body.copyWith(
+                                color: _PerfSwipeTokens.text,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
+                );
+              },
+            ),
+    );
+  }
+}
+
+class _SummaryMetric extends StatelessWidget {
+  const _SummaryMetric({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label.toUpperCase(), style: _PerfSwipeText.section),
+          const SizedBox(height: 2),
+          Text(value, style: _PerfSwipeText.strong),
+        ],
+      ),
+    );
+  }
+}
+
+class _PerfCardShell extends StatelessWidget {
+  const _PerfCardShell({
+    required this.title,
+    required this.subtitle,
+    required this.child,
+    this.action,
+  });
+
+  final String title;
+  final String subtitle;
+  final Widget child;
+  final Widget? action;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: _PerfSwipeTokens.card,
+        borderRadius: BorderRadius.circular(_PerfSwipeTokens.radiusXl),
+        border: Border.all(color: _PerfSwipeTokens.border),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x33000000),
+            blurRadius: 18,
+            offset: Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(title, style: _PerfSwipeText.title),
+                      const SizedBox(height: 3),
+                      Text(subtitle, style: _PerfSwipeText.body),
+                    ],
+                  ),
+                ),
+                if (action != null) ...[const SizedBox(width: 8), action!],
+              ],
+            ),
+            const SizedBox(height: 12),
+            Expanded(child: child),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MachinePerformanceStateCard extends StatelessWidget {
+  const _MachinePerformanceStateCard({
+    required this.title,
+    required this.body,
+    required this.icon,
+    this.actionLabel,
+    this.onAction,
+    super.key,
+  });
+
+  final String title;
+  final String body;
+  final IconData icon;
+  final String? actionLabel;
+  final VoidCallback? onAction;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: _PerfSwipeTokens.cardAlt,
+        borderRadius: BorderRadius.circular(_PerfSwipeTokens.radiusSm),
+        border: Border.all(color: _PerfSwipeTokens.border),
+      ),
+      child: ListView(
+        padding: const EdgeInsets.all(12),
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 18, color: _PerfSwipeTokens.gold),
+              const SizedBox(width: 8),
+              Expanded(child: Text(title, style: _PerfSwipeText.strong)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(body, style: _PerfSwipeText.body),
+          if (actionLabel != null && onAction != null) ...[
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: onAction,
+              icon: const Icon(Icons.refresh_rounded, size: 16),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: _PerfSwipeTokens.cyan,
+                side: const BorderSide(color: _PerfSwipeTokens.cyan),
+              ),
+              label: Text(
+                actionLabel!,
+                style: _PerfSwipeText.strong.copyWith(
+                  color: _PerfSwipeTokens.cyan,
+                  fontSize: 12,
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _MachinePerfLoadingCard extends StatelessWidget {
+  const _MachinePerfLoadingCard({required this.title, super.key});
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return _PerfCardShell(
+      title: title,
+      subtitle: 'Loading card content',
+      child: Shimmer.fromColors(
+        baseColor: AppColors.surface700,
+        highlightColor: AppColors.surface600,
+        child: ListView(
+          padding: EdgeInsets.zero,
+          children: const [
+            _SkeletonLine(width: double.infinity, height: 40),
+            SizedBox(height: 8),
+            _SkeletonLine(width: double.infinity, height: 40),
+            SizedBox(height: 8),
+            _SkeletonLine(width: double.infinity, height: 160),
+            SizedBox(height: 8),
+            _SkeletonLine(width: double.infinity, height: 160),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MachinePerfTableSkeleton extends StatelessWidget {
+  const _MachinePerfTableSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return Shimmer.fromColors(
+      baseColor: AppColors.surface700,
+      highlightColor: AppColors.surface600,
+      child: ListView(
+        padding: EdgeInsets.zero,
+        children: [
+          const _SkeletonLine(width: double.infinity, height: 40),
+          const SizedBox(height: 8),
+          ...List.generate(
+            6,
+            (_) => const Padding(
+              padding: EdgeInsets.only(bottom: 8),
+              child: _SkeletonLine(width: double.infinity, height: 46),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SkeletonLine extends StatelessWidget {
+  const _SkeletonLine({required this.width, required this.height});
+
+  final double width;
+  final double height;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+      ),
+    );
+  }
+}
+
+class _MachinePerformancePageDots extends StatelessWidget {
+  const _MachinePerformancePageDots({
+    required this.current,
+    required this.count,
+  });
+
+  final int current;
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: List.generate(count, (index) {
+        final selected = current == index;
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOutCubic,
+          margin: const EdgeInsets.symmetric(horizontal: 4),
+          width: selected ? 22 : 8,
+          height: 8,
+          decoration: BoxDecoration(
+            color: selected
+                ? _PerfSwipeTokens.cyan
+                : _PerfSwipeTokens.border.withAlpha(180),
+            borderRadius: BorderRadius.circular(99),
+          ),
+        );
+      }),
+    );
+  }
+}
 // ─── Equipment overview tab (per-exercise top user) ───────────────────────────
 
 class _EquipmentOverviewView extends ConsumerWidget {
@@ -1955,10 +3905,12 @@ class _LeaderboardView extends ConsumerWidget {
 
     return async.when(
       skipLoadingOnReload: true,
-      loading: () => Column(children: [
-        _TableColumnHeader(axis: axis),
-        Expanded(child: _LeaderboardLoading(axis: axis)),
-      ]),
+      loading: () => Column(
+        children: [
+          _TableColumnHeader(axis: axis),
+          Expanded(child: _LeaderboardLoading(axis: axis)),
+        ],
+      ),
       error: (e, _) => _LeaderboardError(message: e.toString()),
       data: (entries) => _LeaderboardLoaded(
         entries: entries,
@@ -2110,10 +4062,7 @@ class _PodiumSection extends StatelessWidget {
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [
-            AppColors.surface800,
-            AppColors.surface900,
-          ],
+          colors: [AppColors.surface800, AppColors.surface900],
         ),
       ),
       child: Row(
@@ -2777,6 +4726,8 @@ class _FindFriendsSheetState extends ConsumerState<_FindFriendsSheet> {
           TextField(
             controller: _controller,
             autofocus: true,
+            autocorrect: false,
+            enableSuggestions: false,
             onChanged: (v) => setState(() => _query = v),
             decoration: InputDecoration(
               hintText: l10n.searchByUsername,

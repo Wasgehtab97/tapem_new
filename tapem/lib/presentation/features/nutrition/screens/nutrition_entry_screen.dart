@@ -46,36 +46,48 @@ class NutritionEntryScreen extends HookConsumerWidget {
       text: existingEntry?.qty != null
           ? existingEntry!.qty!.toStringAsFixed(0)
           : prefillProduct != null
-              ? '100'
-              : '',
+          ? '100'
+          : '',
     );
     final kcalPer100Ctrl = useTextEditingController(
-      text: existingEntry != null && existingEntry.qty != null && existingEntry.qty! > 0
+      text:
+          existingEntry != null &&
+              existingEntry.qty != null &&
+              existingEntry.qty! > 0
           ? '${(existingEntry.kcal / existingEntry.qty! * 100).round()}'
           : prefillProduct != null
-              ? '${prefillProduct.kcalPer100}'
-              : '',
+          ? '${prefillProduct.kcalPer100}'
+          : '',
     );
     final proteinPer100Ctrl = useTextEditingController(
-      text: existingEntry != null && existingEntry.qty != null && existingEntry.qty! > 0
+      text:
+          existingEntry != null &&
+              existingEntry.qty != null &&
+              existingEntry.qty! > 0
           ? '${(existingEntry.protein / existingEntry.qty! * 100).round()}'
           : prefillProduct != null
-              ? '${prefillProduct.proteinPer100}'
-              : '',
+          ? '${prefillProduct.proteinPer100}'
+          : '',
     );
     final carbsPer100Ctrl = useTextEditingController(
-      text: existingEntry != null && existingEntry.qty != null && existingEntry.qty! > 0
+      text:
+          existingEntry != null &&
+              existingEntry.qty != null &&
+              existingEntry.qty! > 0
           ? '${(existingEntry.carbs / existingEntry.qty! * 100).round()}'
           : prefillProduct != null
-              ? '${prefillProduct.carbsPer100}'
-              : '',
+          ? '${prefillProduct.carbsPer100}'
+          : '',
     );
     final fatPer100Ctrl = useTextEditingController(
-      text: existingEntry != null && existingEntry.qty != null && existingEntry.qty! > 0
+      text:
+          existingEntry != null &&
+              existingEntry.qty != null &&
+              existingEntry.qty! > 0
           ? '${(existingEntry.fat / existingEntry.qty! * 100).round()}'
           : prefillProduct != null
-              ? '${prefillProduct.fatPer100}'
-              : '',
+          ? '${prefillProduct.fatPer100}'
+          : '',
     );
 
     final actualKcal = useState<int>(existingEntry?.kcal ?? 0);
@@ -185,10 +197,15 @@ class NutritionEntryScreen extends HookConsumerWidget {
 
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text('$name gespeichert', style: AppTextStyles.labelMd.copyWith(color: Colors.white)),
+                content: Text(
+                  '$name gespeichert',
+                  style: AppTextStyles.labelMd.copyWith(color: Colors.white),
+                ),
                 backgroundColor: AppColors.success,
                 behavior: SnackBarBehavior.floating,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
             );
           }
@@ -221,7 +238,11 @@ class NutritionEntryScreen extends HookConsumerWidget {
               height: 1,
               decoration: BoxDecoration(
                 gradient: LinearGradient(
-                  colors: [Colors.transparent, _accentColor.withValues(alpha: 0.8), Colors.transparent],
+                  colors: [
+                    Colors.transparent,
+                    _accentColor.withValues(alpha: 0.8),
+                    Colors.transparent,
+                  ],
                 ),
               ),
             ),
@@ -234,8 +255,12 @@ class NutritionEntryScreen extends HookConsumerWidget {
                 key: formKey,
                 child: ListView(
                   physics: const BouncingScrollPhysics(),
-                  keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+                  keyboardDismissBehavior:
+                      ScrollViewKeyboardDismissBehavior.onDrag,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 24,
+                  ),
                   children: [
                     // ── Search / Scan shortcuts ────────────────────────────
                     Row(
@@ -246,21 +271,25 @@ class NutritionEntryScreen extends HookConsumerWidget {
                             label: 'SUCHEN',
                             onTap: () async {
                               FocusScope.of(context).unfocus();
-                              final result = await context.push<NutritionProduct>(
-                                '/nutrition/search',
-                                extra: {
-                                  'meal': selectedMeal.value,
-                                  'dateKey': dateKey,
-                                  'uid': uid,
-                                },
-                              );
+                              final result = await context
+                                  .push<NutritionProduct>(
+                                    '/nutrition/search',
+                                    extra: {
+                                      'meal': selectedMeal.value,
+                                      'dateKey': dateKey,
+                                      'uid': uid,
+                                    },
+                                  );
                               if (result != null) {
                                 nameCtrl.text = result.name;
                                 kcalPer100Ctrl.text = '${result.kcalPer100}';
-                                proteinPer100Ctrl.text = '${result.proteinPer100}';
+                                proteinPer100Ctrl.text =
+                                    '${result.proteinPer100}';
                                 carbsPer100Ctrl.text = '${result.carbsPer100}';
                                 fatPer100Ctrl.text = '${result.fatPer100}';
-                                if (gramsCtrl.text.isEmpty) gramsCtrl.text = '100';
+                                if (gramsCtrl.text.isEmpty) {
+                                  gramsCtrl.text = '100';
+                                }
                               }
                             },
                           ),
@@ -272,21 +301,25 @@ class NutritionEntryScreen extends HookConsumerWidget {
                             label: 'SCAN',
                             onTap: () async {
                               FocusScope.of(context).unfocus();
-                              final result = await context.push<NutritionProduct>(
-                                '/nutrition/scan',
-                                extra: {
-                                  'meal': selectedMeal.value,
-                                  'dateKey': dateKey,
-                                  'uid': uid,
-                                },
-                              );
+                              final result = await context
+                                  .push<NutritionProduct>(
+                                    '/nutrition/scan',
+                                    extra: {
+                                      'meal': selectedMeal.value,
+                                      'dateKey': dateKey,
+                                      'uid': uid,
+                                    },
+                                  );
                               if (result != null) {
                                 nameCtrl.text = result.name;
                                 kcalPer100Ctrl.text = '${result.kcalPer100}';
-                                proteinPer100Ctrl.text = '${result.proteinPer100}';
+                                proteinPer100Ctrl.text =
+                                    '${result.proteinPer100}';
                                 carbsPer100Ctrl.text = '${result.carbsPer100}';
                                 fatPer100Ctrl.text = '${result.fatPer100}';
-                                if (gramsCtrl.text.isEmpty) gramsCtrl.text = '100';
+                                if (gramsCtrl.text.isEmpty) {
+                                  gramsCtrl.text = '100';
+                                }
                               }
                             },
                           ),
@@ -294,7 +327,10 @@ class NutritionEntryScreen extends HookConsumerWidget {
                       ],
                     ),
                     const Gap(24),
-                    Divider(color: AppColors.surface500.withValues(alpha: 0.3), height: 1),
+                    Divider(
+                      color: AppColors.surface500.withValues(alpha: 0.3),
+                      height: 1,
+                    ),
                     const Gap(24),
 
                     // ── Meal selector ──────────────────────────────────────
@@ -321,7 +357,9 @@ class NutritionEntryScreen extends HookConsumerWidget {
                       inputFormatters: const [],
                       textInputAction: TextInputAction.next,
                       validator: (v) {
-                        if (v == null || v.trim().isEmpty) return 'Name ist erforderlich';
+                        if (v == null || v.trim().isEmpty) {
+                          return 'Name ist erforderlich';
+                        }
                         return null;
                       },
                     ),
@@ -332,7 +370,9 @@ class NutritionEntryScreen extends HookConsumerWidget {
                       controller: gramsCtrl,
                       label: 'Menge (g)',
                       hintText: '100',
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
                       inputFormatters: [
                         FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
                       ],
@@ -358,7 +398,9 @@ class NutritionEntryScreen extends HookConsumerWidget {
                             label: 'kcal',
                             hintText: '0',
                             keyboardType: TextInputType.number,
-                            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                            inputFormatters: [
+                              FilteringTextInputFormatter.digitsOnly,
+                            ],
                             selectAllOnFocus: true,
                             textInputAction: TextInputAction.next,
                             validator: (v) {
@@ -375,7 +417,9 @@ class NutritionEntryScreen extends HookConsumerWidget {
                             label: 'Protein (g)',
                             hintText: '0',
                             keyboardType: TextInputType.number,
-                            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                            inputFormatters: [
+                              FilteringTextInputFormatter.digitsOnly,
+                            ],
                             selectAllOnFocus: true,
                             textInputAction: TextInputAction.next,
                           ),
@@ -391,7 +435,9 @@ class NutritionEntryScreen extends HookConsumerWidget {
                             label: 'Kohlenh. (g)',
                             hintText: '0',
                             keyboardType: TextInputType.number,
-                            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                            inputFormatters: [
+                              FilteringTextInputFormatter.digitsOnly,
+                            ],
                             selectAllOnFocus: true,
                             textInputAction: TextInputAction.next,
                           ),
@@ -403,10 +449,13 @@ class NutritionEntryScreen extends HookConsumerWidget {
                             label: 'Fett (g)',
                             hintText: '0',
                             keyboardType: TextInputType.number,
-                            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                            inputFormatters: [
+                              FilteringTextInputFormatter.digitsOnly,
+                            ],
                             selectAllOnFocus: true,
                             textInputAction: TextInputAction.done,
-                            onSubmitted: (_) => FocusScope.of(context).unfocus(),
+                            onSubmitted: (_) =>
+                                FocusScope.of(context).unfocus(),
                           ),
                         ),
                       ],
@@ -419,7 +468,8 @@ class NutritionEntryScreen extends HookConsumerWidget {
                       protein: actualProtein.value,
                       carbs: actualCarbs.value,
                       fat: actualFat.value,
-                      grams: double.tryParse(
+                      grams:
+                          double.tryParse(
                             gramsCtrl.text.trim().replaceAll(',', '.'),
                           ) ??
                           100,
@@ -433,20 +483,31 @@ class NutritionEntryScreen extends HookConsumerWidget {
                           ? Container(
                               key: const ValueKey('error'),
                               margin: const EdgeInsets.only(bottom: 24),
-                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 12,
+                              ),
                               decoration: BoxDecoration(
                                 color: AppColors.errorGlow,
                                 borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: AppColors.error.withValues(alpha: 0.5)),
+                                border: Border.all(
+                                  color: AppColors.error.withValues(alpha: 0.5),
+                                ),
                               ),
                               child: Row(
                                 children: [
-                                  const Icon(Icons.error_outline, color: AppColors.error, size: 20),
+                                  const Icon(
+                                    Icons.error_outline,
+                                    color: AppColors.error,
+                                    size: 20,
+                                  ),
                                   const Gap(12),
                                   Expanded(
                                     child: Text(
                                       errorMsg.value!,
-                                      style: AppTextStyles.bodySm.copyWith(color: AppColors.error),
+                                      style: AppTextStyles.bodySm.copyWith(
+                                        color: AppColors.error,
+                                      ),
                                     ),
                                   ),
                                 ],
@@ -458,10 +519,15 @@ class NutritionEntryScreen extends HookConsumerWidget {
                 ),
               ),
             ),
-            
+
             // ── Sticky Bottom Action Bar ────────────────────────────────────────
             Container(
-              padding: EdgeInsets.fromLTRB(24, 16, 24, MediaQuery.of(context).padding.bottom + 16),
+              padding: EdgeInsets.fromLTRB(
+                24,
+                16,
+                24,
+                MediaQuery.of(context).padding.bottom + 16,
+              ),
               decoration: BoxDecoration(
                 color: AppColors.surface800.withValues(alpha: 0.95),
                 boxShadow: [
@@ -471,7 +537,11 @@ class NutritionEntryScreen extends HookConsumerWidget {
                     offset: const Offset(0, -4),
                   ),
                 ],
-                border: Border(top: BorderSide(color: AppColors.surface500.withValues(alpha: 0.5))),
+                border: Border(
+                  top: BorderSide(
+                    color: AppColors.surface500.withValues(alpha: 0.5),
+                  ),
+                ),
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -483,7 +553,9 @@ class NutritionEntryScreen extends HookConsumerWidget {
                       width: double.infinity,
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       decoration: BoxDecoration(
-                        color: isSaving.value ? _accentColor.withValues(alpha: 0.5) : _accentColor,
+                        color: isSaving.value
+                            ? _accentColor.withValues(alpha: 0.5)
+                            : _accentColor,
                         borderRadius: BorderRadius.circular(16),
                         boxShadow: [
                           if (!isSaving.value)
@@ -499,11 +571,16 @@ class NutritionEntryScreen extends HookConsumerWidget {
                             ? const SizedBox(
                                 height: 20,
                                 width: 20,
-                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
                               )
                             : Text(
                                 isEditMode ? 'AKTUALISIEREN' : 'SPEICHERN',
-                                style: AppTextStyles.buttonLg.copyWith(color: Colors.white),
+                                style: AppTextStyles.buttonLg.copyWith(
+                                  color: Colors.white,
+                                ),
                               ),
                       ),
                     ),
@@ -518,7 +595,9 @@ class NutritionEntryScreen extends HookConsumerWidget {
                         alignment: Alignment.center,
                         child: Text(
                           'ABBRECHEN',
-                          style: AppTextStyles.buttonMd.copyWith(color: AppColors.textDisabled),
+                          style: AppTextStyles.buttonMd.copyWith(
+                            color: AppColors.textDisabled,
+                          ),
                         ),
                       ),
                     ),
@@ -535,7 +614,11 @@ class NutritionEntryScreen extends HookConsumerWidget {
 
 // ─── Search / Scan Button Helper ──────────────────────────────────────────────
 class _ShortcutButton extends HookWidget {
-  const _ShortcutButton({required this.icon, required this.label, required this.onTap});
+  const _ShortcutButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
 
   final IconData icon;
   final String label;
@@ -567,7 +650,10 @@ class _ShortcutButton extends HookWidget {
             children: [
               Icon(icon, size: 20, color: _accentColor),
               const Gap(8),
-              Text(label, style: AppTextStyles.labelMd.copyWith(color: _accentColor)),
+              Text(
+                label,
+                style: AppTextStyles.labelMd.copyWith(color: _accentColor),
+              ),
             ],
           ),
         ),
@@ -579,10 +665,7 @@ class _ShortcutButton extends HookWidget {
 // ─── Meal selector chips ──────────────────────────────────────────────────────
 
 class _MealSelector extends StatelessWidget {
-  const _MealSelector({
-    required this.selected,
-    required this.onChanged,
-  });
+  const _MealSelector({required this.selected, required this.onChanged});
 
   final MealType selected;
   final ValueChanged<MealType> onChanged;
@@ -603,12 +686,19 @@ class _MealSelector extends StatelessWidget {
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
                 curve: Curves.easeOutCubic,
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 12,
+                ),
                 decoration: BoxDecoration(
-                  color: isSelected ? _accentColor.withValues(alpha: 0.15) : AppColors.surface800,
+                  color: isSelected
+                      ? _accentColor.withValues(alpha: 0.15)
+                      : AppColors.surface800,
                   borderRadius: BorderRadius.circular(24),
                   border: Border.all(
-                    color: isSelected ? _accentColor.withValues(alpha: 0.8) : AppColors.surface500.withValues(alpha: 0.5),
+                    color: isSelected
+                        ? _accentColor.withValues(alpha: 0.8)
+                        : AppColors.surface500.withValues(alpha: 0.5),
                   ),
                 ),
                 child: Text(
@@ -654,7 +744,9 @@ class _CalcPreview extends StatelessWidget {
         color: AppColors.surface800.withValues(alpha: 0.8),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: hasData ? _accentColor.withValues(alpha: 0.3) : AppColors.surface500.withValues(alpha: 0.5),
+          color: hasData
+              ? _accentColor.withValues(alpha: 0.3)
+              : AppColors.surface500.withValues(alpha: 0.5),
           width: hasData ? 1.5 : 1.0,
         ),
         boxShadow: hasData
@@ -663,7 +755,7 @@ class _CalcPreview extends StatelessWidget {
                   color: _accentColor.withValues(alpha: 0.05),
                   blurRadius: 20,
                   spreadRadius: 2,
-                )
+                ),
               ]
             : [],
       ),
@@ -682,12 +774,17 @@ class _CalcPreview extends StatelessWidget {
               const Spacer(),
               Text(
                 '$kcal',
-                style: AppTextStyles.displayMd.copyWith(color: hasData ? _accentColor : AppColors.textSecondary, fontSize: 32),
+                style: AppTextStyles.displayMd.copyWith(
+                  color: hasData ? _accentColor : AppColors.textSecondary,
+                  fontSize: 32,
+                ),
               ),
               const Gap(4),
               Text(
                 'kcal',
-                style: AppTextStyles.labelMd.copyWith(color: AppColors.textDisabled),
+                style: AppTextStyles.labelMd.copyWith(
+                  color: AppColors.textDisabled,
+                ),
               ),
             ],
           ),
@@ -695,10 +792,22 @@ class _CalcPreview extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
-              _MacroChip(label: 'PROTEIN', value: protein, color: _proteinColor),
-              Container(height: 30, width: 1, color: AppColors.surface500.withValues(alpha: 0.5)),
+              _MacroChip(
+                label: 'PROTEIN',
+                value: protein,
+                color: _proteinColor,
+              ),
+              Container(
+                height: 30,
+                width: 1,
+                color: AppColors.surface500.withValues(alpha: 0.5),
+              ),
               _MacroChip(label: 'KOHLENH.', value: carbs, color: _carbsColor),
-              Container(height: 30, width: 1, color: AppColors.surface500.withValues(alpha: 0.5)),
+              Container(
+                height: 30,
+                width: 1,
+                color: AppColors.surface500.withValues(alpha: 0.5),
+              ),
               _MacroChip(label: 'FETT', value: fat, color: _fatColor),
             ],
           ),
@@ -723,14 +832,15 @@ class _MacroChip extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        Text(
-          '${value}g',
-          style: AppTextStyles.h3.copyWith(color: color),
-        ),
+        Text('${value}g', style: AppTextStyles.h3.copyWith(color: color)),
         const Gap(4),
         Text(
           label,
-          style: AppTextStyles.labelSm.copyWith(color: AppColors.textDisabled, letterSpacing: 1.2, fontSize: 9),
+          style: AppTextStyles.labelSm.copyWith(
+            color: AppColors.textDisabled,
+            letterSpacing: 1.2,
+            fontSize: 9,
+          ),
         ),
       ],
     );
@@ -776,12 +886,15 @@ class _EntryField extends HookWidget {
     return TextFormField(
       controller: controller,
       focusNode: focusNode,
+      autocorrect: false,
+      enableSuggestions: false,
       keyboardType: keyboardType,
       inputFormatters: inputFormatters,
       style: AppTextStyles.bodyLg,
       validator: validator,
       textInputAction: textInputAction,
-      onFieldSubmitted: onSubmitted ?? (_) => FocusScope.of(context).nextFocus(),
+      onFieldSubmitted:
+          onSubmitted ?? (_) => FocusScope.of(context).nextFocus(),
       onTap: selectAllOnFocus
           ? () {
               controller.selection = TextSelection(
@@ -798,14 +911,18 @@ class _EntryField extends HookWidget {
         ),
         hintStyle: AppTextStyles.bodyMd.copyWith(color: AppColors.textDisabled),
         filled: true,
-        fillColor: isFocused.value ? AppColors.surface800 : AppColors.surface700.withValues(alpha: 0.5),
+        fillColor: isFocused.value
+            ? AppColors.surface800
+            : AppColors.surface700.withValues(alpha: 0.5),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide.none,
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: AppColors.surface500.withValues(alpha: 0.5)),
+          borderSide: BorderSide(
+            color: AppColors.surface500.withValues(alpha: 0.5),
+          ),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
@@ -819,7 +936,10 @@ class _EntryField extends HookWidget {
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: AppColors.error, width: 1.5),
         ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 16,
+        ),
       ),
     );
   }

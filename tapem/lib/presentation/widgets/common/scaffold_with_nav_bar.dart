@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
@@ -114,6 +115,7 @@ class ScaffoldWithNavBar extends HookConsumerWidget {
         isAdmin: isAdmin,
         selectedIndex: selectedTabIndex,
         onDestinationSelected: (tabIndex) {
+          unawaited(HapticFeedback.selectionClick());
           shell.goBranch(
             branches[tabIndex],
             initialLocation: branches[tabIndex] == shell.currentIndex,
@@ -239,7 +241,7 @@ class ScaffoldWithNavBar extends HookConsumerWidget {
           unawaited(
             notifier.addExercise(
               exerciseKey: equipment.canonicalExerciseKey ?? '',
-              displayName: equipment.name,
+              displayName: equipment.displayName,
               equipmentId: equipment.id,
             ),
           );
@@ -247,9 +249,9 @@ class ScaffoldWithNavBar extends HookConsumerWidget {
           unawaited(
             notifier.startSession(
               equipmentId: equipment.id,
-              equipmentName: equipment.name,
+              equipmentName: equipment.displayName,
               canonicalExerciseKey: equipment.canonicalExerciseKey ?? '',
-              canonicalExerciseName: equipment.name,
+              canonicalExerciseName: equipment.displayName,
             ),
           );
         }
@@ -268,7 +270,7 @@ class ScaffoldWithNavBar extends HookConsumerWidget {
                   builder: (_) => ExercisePickerSheet(
                     gymId: equipment.gymId,
                     equipmentId: equipment.id,
-                    equipmentName: equipment.name,
+                    equipmentName: equipment.displayName,
                   ),
                 ),
               )
@@ -287,7 +289,7 @@ class ScaffoldWithNavBar extends HookConsumerWidget {
                   unawaited(
                     notifier.startSession(
                       equipmentId: equipment.id,
-                      equipmentName: equipment.name,
+                      equipmentName: equipment.displayName,
                       canonicalExerciseKey: exercise.exerciseKey,
                       canonicalExerciseName: exercise.displayName,
                     ),
@@ -301,7 +303,7 @@ class ScaffoldWithNavBar extends HookConsumerWidget {
           unawaited(
             notifier.addExercise(
               exerciseKey: 'cardio:${equipment.id}',
-              displayName: equipment.name,
+              displayName: equipment.displayName,
               equipmentId: equipment.id,
             ),
           );
@@ -309,10 +311,9 @@ class ScaffoldWithNavBar extends HookConsumerWidget {
           unawaited(
             notifier.startSession(
               equipmentId: equipment.id,
-              equipmentName: equipment.name,
+              equipmentName: equipment.displayName,
               canonicalExerciseKey: 'cardio:${equipment.id}',
-              canonicalExerciseName: equipment.name,
-              isCardio: true,
+              canonicalExerciseName: equipment.displayName,
             ),
           );
         }
@@ -381,16 +382,24 @@ class _CyberpunkNavBar extends StatelessWidget {
         ),
     ];
 
-    return NavigationBar(
-      selectedIndex: selectedIndex,
-      onDestinationSelected: onDestinationSelected,
-      destinations: destinations,
-      backgroundColor: AppColors.surface800,
-      indicatorColor: accent.withAlpha(40),
-      surfaceTintColor: Colors.transparent,
-      shadowColor: Colors.transparent,
-      height: 72,
-      labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surface800,
+        border: Border(
+          top: BorderSide(color: AppColors.surface500.withAlpha(80), width: 1),
+        ),
+      ),
+      child: NavigationBar(
+        selectedIndex: selectedIndex,
+        onDestinationSelected: onDestinationSelected,
+        destinations: destinations,
+        backgroundColor: Colors.transparent,
+        indicatorColor: accent.withAlpha(30),
+        surfaceTintColor: Colors.transparent,
+        shadowColor: Colors.transparent,
+        height: 68,
+        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+      ),
     );
   }
 }
@@ -418,9 +427,10 @@ class _PulsingIconState extends State<_PulsingIcon>
       vsync: this,
       duration: const Duration(milliseconds: 900),
     )..repeat(reverse: true);
-    _anim = Tween<double>(begin: 0.6, end: 1.0).animate(
-      CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut),
-    );
+    _anim = Tween<double>(
+      begin: 0.6,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut));
   }
 
   @override

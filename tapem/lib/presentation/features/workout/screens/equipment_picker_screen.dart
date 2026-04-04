@@ -118,12 +118,7 @@ class _EquipmentList extends HookConsumerWidget {
     final filtered = query.value.isEmpty
         ? equipment
         : equipment
-              .where(
-                (e) =>
-                    e.name.toLowerCase().contains(query.value) ||
-                    (e.manufacturer?.toLowerCase().contains(query.value) ??
-                        false),
-              )
+              .where((e) => equipmentMatchesSearchQuery(e, query.value))
               .toList();
 
     // Group by type label when showing ALL, otherwise by zone
@@ -267,7 +262,7 @@ class _EquipmentTile extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(equipment.name, style: AppTextStyles.bodyLg),
+                  Text(equipment.displayName, style: AppTextStyles.bodyLg),
                   if (equipment.manufacturer != null)
                     Text(equipment.manufacturer!, style: AppTextStyles.bodySm),
                   if (equipment.supportsNfc)
@@ -345,7 +340,7 @@ class _EquipmentTile extends ConsumerWidget {
       case EquipmentType.fixedMachine:
         result = (
           exerciseKey: equipment.canonicalExerciseKey ?? '',
-          displayName: equipment.name,
+          displayName: equipment.displayName,
           customExerciseId: null,
           equipmentId: equipment.id,
         );
@@ -364,7 +359,7 @@ class _EquipmentTile extends ConsumerWidget {
                 builder: (_) => ExercisePickerSheet(
                   gymId: gymId,
                   equipmentId: equipment.id,
-                  equipmentName: equipment.name,
+                  equipmentName: equipment.displayName,
                 ),
               ),
             );
@@ -379,7 +374,7 @@ class _EquipmentTile extends ConsumerWidget {
       case EquipmentType.cardio:
         result = (
           exerciseKey: 'cardio:${equipment.id}',
-          displayName: equipment.name,
+          displayName: equipment.displayName,
           customExerciseId: null,
           equipmentId: equipment.id,
         );
@@ -396,9 +391,9 @@ class _EquipmentTile extends ConsumerWidget {
       case EquipmentType.fixedMachine:
         await notifier.startSession(
           equipmentId: equipment.id,
-          equipmentName: equipment.name,
+          equipmentName: equipment.displayName,
           canonicalExerciseKey: equipment.canonicalExerciseKey ?? '',
-          canonicalExerciseName: equipment.name,
+          canonicalExerciseName: equipment.displayName,
         );
 
       case EquipmentType.openStation:
@@ -415,14 +410,14 @@ class _EquipmentTile extends ConsumerWidget {
                 builder: (_) => ExercisePickerSheet(
                   gymId: gymId,
                   equipmentId: equipment.id,
-                  equipmentName: equipment.name,
+                  equipmentName: equipment.displayName,
                 ),
               ),
             );
         if (exercise == null) return;
         await notifier.startSession(
           equipmentId: equipment.id,
-          equipmentName: equipment.name,
+          equipmentName: equipment.displayName,
           canonicalExerciseKey: exercise.exerciseKey,
           canonicalExerciseName: exercise.displayName,
         );
@@ -430,10 +425,9 @@ class _EquipmentTile extends ConsumerWidget {
       case EquipmentType.cardio:
         await notifier.startSession(
           equipmentId: equipment.id,
-          equipmentName: equipment.name,
+          equipmentName: equipment.displayName,
           canonicalExerciseKey: 'cardio:${equipment.id}',
-          canonicalExerciseName: equipment.name,
-          isCardio: true,
+          canonicalExerciseName: equipment.displayName,
         );
     }
 
@@ -758,11 +752,11 @@ class _CreateExerciseInline extends HookConsumerWidget {
                     onPressed: selectedPrimary.value == null
                         ? null
                         : () => _create(
-                              ref,
-                              isLoading,
-                              selectedPrimary.value,
-                              selectedSecondary.value,
-                            ),
+                            ref,
+                            isLoading,
+                            selectedPrimary.value,
+                            selectedSecondary.value,
+                          ),
                   ),
                 ),
               ],

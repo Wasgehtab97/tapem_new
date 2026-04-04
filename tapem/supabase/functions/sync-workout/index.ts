@@ -301,6 +301,10 @@ serve(async (req) => {
       console.error("[sync-workout] XP insert failed:", xpErr);
       return jsonResponse({ error: "XP processing failed" }, 500);
     }
+
+    // Performance leaderboard recomputation is best-effort: workout sync and XP
+    // persistence stay successful even if this derived aggregate refresh fails.
+    await recomputeMachinePerformance(supabase, body.session.id);
   }
 
   return jsonResponse({
@@ -411,6 +415,19 @@ async function insertXpEvents(
     .upsert(events, { onConflict: "idempotency_key", ignoreDuplicates: true });
 
   return error?.message ?? null;
+}
+
+async function recomputeMachinePerformance(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  sessionId: string,
+): Promise<void> {
+  const { error } = await supabase.rpc("recompute_machine_performance_for_session", {
+    p_session_id: sessionId,
+  });
+  if (error) {
+    console.warn("[sync-workout] machine performance recompute failed:", error.message);
+  }
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

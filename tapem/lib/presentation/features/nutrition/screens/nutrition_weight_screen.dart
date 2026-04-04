@@ -13,6 +13,7 @@ import '../../../../domain/entities/nutrition/nutrition_enums.dart';
 import '../../../../domain/entities/nutrition/nutrition_weight.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../providers/nutrition_weight_provider.dart';
+import '../../../widgets/common/tapem_skeleton.dart';
 
 class NutritionWeightScreen extends HookConsumerWidget {
   const NutritionWeightScreen({super.key});
@@ -23,9 +24,11 @@ class NutritionWeightScreen extends HookConsumerWidget {
 
     useEffect(() {
       if (uid.isNotEmpty) {
-        unawaited(Future.microtask(
-          () => ref.read(nutritionWeightNotifierProvider.notifier).load(uid),
-        ));
+        unawaited(
+          Future.microtask(
+            () => ref.read(nutritionWeightNotifierProvider.notifier).load(uid),
+          ),
+        );
       }
       return null;
     }, [uid]);
@@ -65,35 +68,44 @@ class NutritionWeightScreen extends HookConsumerWidget {
         onPressed: () => _showAddWeightSheet(context, ref, uid),
       ),
       body: state.isLoading
-          ? const Center(child: CircularProgressIndicator(color: AppColors.neonCyan))
+          ? ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                TapemSkeleton.card(height: 200),
+                const SizedBox(height: 16),
+                TapemSkeleton.listTiles(count: 4),
+              ],
+            )
           : state.error != null
-              ? _ErrorState(
-                  error: state.error!,
-                  onRetry: () =>
-                      ref.read(nutritionWeightNotifierProvider.notifier).load(uid),
-                )
-              : _WeightBody(state: state, uid: uid),
+          ? _ErrorState(
+              error: state.error!,
+              onRetry: () =>
+                  ref.read(nutritionWeightNotifierProvider.notifier).load(uid),
+            )
+          : _WeightBody(state: state, uid: uid),
     );
   }
 
   void _showAddWeightSheet(BuildContext context, WidgetRef ref, String uid) {
-    unawaited(showModalBottomSheet(
-      context: context,
-      backgroundColor: AppColors.surface800,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+    unawaited(
+      showModalBottomSheet(
+        context: context,
+        backgroundColor: AppColors.surface800,
+        isScrollControlled: true,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+        ),
+        builder: (_) => _AddWeightSheet(
+          currentKg: ref.read(nutritionWeightNotifierProvider).todayKg,
+          onSave: (kg) async {
+            Navigator.of(context).pop();
+            await ref
+                .read(nutritionWeightNotifierProvider.notifier)
+                .saveWeight(uid, kg, DateTime.now());
+          },
+        ),
       ),
-      builder: (_) => _AddWeightSheet(
-        currentKg: ref.read(nutritionWeightNotifierProvider).todayKg,
-        onSave: (kg) async {
-          Navigator.of(context).pop();
-          await ref
-              .read(nutritionWeightNotifierProvider.notifier)
-              .saveWeight(uid, kg, DateTime.now());
-        },
-      ),
-    ));
+    );
   }
 }
 
@@ -120,7 +132,11 @@ class _WeightBody extends HookConsumerWidget {
         _RangeTabs(
           current: state.range,
           onChanged: (r) {
-            unawaited(ref.read(nutritionWeightNotifierProvider.notifier).changeRange(uid, r));
+            unawaited(
+              ref
+                  .read(nutritionWeightNotifierProvider.notifier)
+                  .changeRange(uid, r),
+            );
           },
         ),
         const Gap(16),
@@ -165,7 +181,9 @@ class _CurrentWeightCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.surface800,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.neonCyanGlow.withValues(alpha: 0.5)),
+        border: Border.all(
+          color: AppColors.neonCyanGlow.withValues(alpha: 0.5),
+        ),
       ),
       child: Row(
         children: [
@@ -174,17 +192,23 @@ class _CurrentWeightCard extends StatelessWidget {
             children: [
               Text(
                 'AKTUELLES GEWICHT',
-                style: AppTextStyles.labelSm.copyWith(color: AppColors.textSecondary),
+                style: AppTextStyles.labelSm.copyWith(
+                  color: AppColors.textSecondary,
+                ),
               ),
               const Gap(8),
               kg != null
                   ? Text(
                       '${kg.toStringAsFixed(1)} kg',
-                      style: AppTextStyles.displayMd.copyWith(color: AppColors.neonCyan),
+                      style: AppTextStyles.displayMd.copyWith(
+                        color: AppColors.neonCyan,
+                      ),
                     )
                   : Text(
                       '— kg',
-                      style: AppTextStyles.displayMd.copyWith(color: AppColors.textDisabled),
+                      style: AppTextStyles.displayMd.copyWith(
+                        color: AppColors.textDisabled,
+                      ),
                     ),
               const Gap(4),
               Text(
@@ -252,7 +276,9 @@ class _RangeTabs extends StatelessWidget {
                 child: Text(
                   _labels[r]!,
                   style: AppTextStyles.labelMd.copyWith(
-                    color: isSelected ? AppColors.textOnAction : AppColors.textSecondary,
+                    color: isSelected
+                        ? AppColors.textOnAction
+                        : AppColors.textSecondary,
                   ),
                 ),
               ),
@@ -282,7 +308,9 @@ class _WeightChart extends HookWidget {
     }).toList();
 
     final allKg = buckets.map((b) => b.avgKg).toList();
-    final minY = (allKg.reduce((a, b) => a < b ? a : b) - 2).floorToDouble().clamp(0.0, double.infinity);
+    final minY = (allKg.reduce((a, b) => a < b ? a : b) - 2)
+        .floorToDouble()
+        .clamp(0.0, double.infinity);
     final maxY = (allKg.reduce((a, b) => a > b ? a : b) + 2).ceilToDouble();
 
     return Container(
@@ -301,15 +329,17 @@ class _WeightChart extends HookWidget {
             show: true,
             drawHorizontalLine: true,
             drawVerticalLine: false,
-            getDrawingHorizontalLine: (_) => const FlLine(
-              color: AppColors.surface500,
-              strokeWidth: 0.5,
-            ),
+            getDrawingHorizontalLine: (_) =>
+                const FlLine(color: AppColors.surface500, strokeWidth: 0.5),
           ),
           borderData: FlBorderData(show: false),
           titlesData: FlTitlesData(
-            topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-            rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            topTitles: const AxisTitles(
+              sideTitles: SideTitles(showTitles: false),
+            ),
+            rightTitles: const AxisTitles(
+              sideTitles: SideTitles(showTitles: false),
+            ),
             leftTitles: AxisTitles(
               sideTitles: SideTitles(
                 showTitles: true,
@@ -327,7 +357,9 @@ class _WeightChart extends HookWidget {
                 interval: _labelInterval(buckets.length),
                 getTitlesWidget: (value, meta) {
                   final i = value.toInt();
-                  if (i < 0 || i >= buckets.length) return const SizedBox.shrink();
+                  if (i < 0 || i >= buckets.length) {
+                    return const SizedBox.shrink();
+                  }
                   return Padding(
                     padding: const EdgeInsets.only(top: 4),
                     child: Text(
@@ -342,7 +374,8 @@ class _WeightChart extends HookWidget {
           ),
           lineTouchData: LineTouchData(
             touchCallback: (event, response) {
-              if (response?.lineBarSpots != null && response!.lineBarSpots!.isNotEmpty) {
+              if (response?.lineBarSpots != null &&
+                  response!.lineBarSpots!.isNotEmpty) {
                 touchedIndex.value = response.lineBarSpots!.first.spotIndex;
               }
             },
@@ -415,16 +448,9 @@ class _EmptyChart extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              Icons.show_chart,
-              color: AppColors.textDisabled,
-              size: 40,
-            ),
+            Icon(Icons.show_chart, color: AppColors.textDisabled, size: 40),
             Gap(10),
-            Text(
-              'Noch keine Gewichtsdaten.',
-              style: AppTextStyles.bodySm,
-            ),
+            Text('Noch keine Gewichtsdaten.', style: AppTextStyles.bodySm),
             Gap(4),
             Text(
               'Füge dein erstes Gewicht hinzu.',
@@ -499,6 +525,8 @@ class _AddWeightSheet extends HookWidget {
           TextField(
             controller: kgCtrl,
             autofocus: true,
+            autocorrect: false,
+            enableSuggestions: false,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             inputFormatters: [
               FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
@@ -507,9 +535,13 @@ class _AddWeightSheet extends HookWidget {
             textAlign: TextAlign.center,
             decoration: InputDecoration(
               hintText: '70.0',
-              hintStyle: AppTextStyles.displayMd.copyWith(color: AppColors.textDisabled),
+              hintStyle: AppTextStyles.displayMd.copyWith(
+                color: AppColors.textDisabled,
+              ),
               suffixText: 'kg',
-              suffixStyle: AppTextStyles.h3.copyWith(color: AppColors.textSecondary),
+              suffixStyle: AppTextStyles.h3.copyWith(
+                color: AppColors.textSecondary,
+              ),
               errorText: errorMsg.value,
               filled: true,
               fillColor: AppColors.surface700,
@@ -588,13 +620,19 @@ class _ErrorState extends StatelessWidget {
               style: AppTextStyles.h3.copyWith(color: AppColors.error),
             ),
             const Gap(8),
-            Text(error, style: AppTextStyles.bodySm, textAlign: TextAlign.center),
+            Text(
+              error,
+              style: AppTextStyles.bodySm,
+              textAlign: TextAlign.center,
+            ),
             const Gap(16),
             TextButton(
               onPressed: onRetry,
               child: Text(
                 'ERNEUT VERSUCHEN',
-                style: AppTextStyles.buttonMd.copyWith(color: AppColors.neonCyan),
+                style: AppTextStyles.buttonMd.copyWith(
+                  color: AppColors.neonCyan,
+                ),
               ),
             ),
           ],

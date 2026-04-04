@@ -56,3 +56,9 @@ verify_jwt = false
 
 [functions.process-xp-event]
 verify_jwt = false
+
+[functions.dsr-export-account-data]
+verify_jwt = false
+
+[functions.dsr-delete-account]
+verify_jwt = false

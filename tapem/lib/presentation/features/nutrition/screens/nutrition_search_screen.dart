@@ -11,6 +11,7 @@ import '../../../../core/theme/app_text_styles.dart';
 import '../../../../domain/entities/nutrition/nutrition_product.dart';
 import '../../../../domain/entities/nutrition/nutrition_recent_item.dart';
 import '../providers/nutrition_providers.dart';
+import '../../../widgets/common/tapem_skeleton.dart';
 
 class NutritionSearchScreen extends HookConsumerWidget {
   const NutritionSearchScreen({super.key, required this.extra});
@@ -31,12 +32,11 @@ class NutritionSearchScreen extends HookConsumerWidget {
     // Debounce
     useEffect(() {
       final text = queryCtrl.text.trim();
-      unawaited(Future.delayed(
-        const Duration(milliseconds: 400),
-        () {
+      unawaited(
+        Future.delayed(const Duration(milliseconds: 400), () {
           debouncedQuery.value = text;
-        },
-      ));
+        }),
+      );
       return null;
     }, [query.text]);
 
@@ -46,25 +46,32 @@ class NutritionSearchScreen extends HookConsumerWidget {
       if (returnProduct) {
         context.pop<NutritionProduct>(product);
       } else {
-        unawaited(context.push('/nutrition/entry', extra: {
-          'meal': meal,
-          'dateKey': dateKey,
-          'uid': uid,
-          'product': product,
-        }));
+        unawaited(
+          context.push(
+            '/nutrition/entry',
+            extra: {
+              'meal': meal,
+              'dateKey': dateKey,
+              'uid': uid,
+              'product': product,
+            },
+          ),
+        );
       }
     }
 
     void selectRecent(NutritionRecentItem item) {
-      selectProduct(NutritionProduct(
-        name: item.name,
-        kcalPer100: item.kcalPer100,
-        proteinPer100: item.proteinPer100,
-        carbsPer100: item.carbsPer100,
-        fatPer100: item.fatPer100,
-        barcode: item.barcode,
-        updatedAt: DateTime.now(),
-      ));
+      selectProduct(
+        NutritionProduct(
+          name: item.name,
+          kcalPer100: item.kcalPer100,
+          proteinPer100: item.proteinPer100,
+          carbsPer100: item.carbsPer100,
+          fatPer100: item.fatPer100,
+          barcode: item.barcode,
+          updatedAt: DateTime.now(),
+        ),
+      );
     }
 
     return Scaffold(
@@ -96,16 +103,24 @@ class NutritionSearchScreen extends HookConsumerWidget {
             child: TextField(
               controller: queryCtrl,
               autofocus: true,
+              autocorrect: false,
+              enableSuggestions: false,
               style: AppTextStyles.bodyLg,
               decoration: InputDecoration(
                 hintText: 'Produktname eingeben...',
                 hintStyle: AppTextStyles.bodySm,
                 filled: true,
                 fillColor: AppColors.surface600,
-                prefixIcon: const Icon(Icons.search, color: AppColors.textSecondary),
+                prefixIcon: const Icon(
+                  Icons.search,
+                  color: AppColors.textSecondary,
+                ),
                 suffixIcon: query.text.isNotEmpty
                     ? IconButton(
-                        icon: const Icon(Icons.close, color: AppColors.textSecondary),
+                        icon: const Icon(
+                          Icons.close,
+                          color: AppColors.textSecondary,
+                        ),
                         onPressed: () => queryCtrl.clear(),
                       )
                     : null,
@@ -156,15 +171,9 @@ class _RecentsList extends StatelessWidget {
           children: [
             Icon(Icons.history, color: AppColors.textDisabled, size: 48),
             Gap(12),
-            Text(
-              'Noch keine Produkte geloggt.',
-              style: AppTextStyles.bodySm,
-            ),
+            Text('Noch keine Produkte geloggt.', style: AppTextStyles.bodySm),
             Gap(4),
-            Text(
-              'Suche nach einem Produkt oben.',
-              style: AppTextStyles.bodySm,
-            ),
+            Text('Suche nach einem Produkt oben.', style: AppTextStyles.bodySm),
           ],
         ),
       );
@@ -205,9 +214,7 @@ class _SearchResults extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final results = ref.watch(nutritionProductSearchProvider(query));
     return results.when(
-      loading: () => const Center(
-        child: CircularProgressIndicator(color: AppColors.neonCyan),
-      ),
+      loading: () => TapemSkeleton.listTiles(count: 6),
       error: (e, _) => Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -227,7 +234,11 @@ class _SearchResults extends ConsumerWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.search_off, color: AppColors.textDisabled, size: 48),
+                const Icon(
+                  Icons.search_off,
+                  color: AppColors.textDisabled,
+                  size: 48,
+                ),
                 const Gap(12),
                 Text(
                   'Kein Ergebnis für "$query".',
@@ -326,9 +337,6 @@ class _MacroLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Text(
-      label,
-      style: AppTextStyles.labelSm.copyWith(color: color),
-    );
+    return Text(label, style: AppTextStyles.labelSm.copyWith(color: color));
   }
 }

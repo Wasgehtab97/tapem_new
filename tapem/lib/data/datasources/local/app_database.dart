@@ -17,11 +17,32 @@ class LocalGymEquipment extends Table {
   TextColumn get canonicalExerciseKey => text().nullable()();
   BoolColumn get rankingEligibleOverride => boolean().nullable()();
   TextColumn get manufacturer => text().nullable()();
+  // Normalised floor-plan coordinates (0.0–1.0). NULL = not yet positioned.
+  RealColumn get posX => real().nullable()();
+  RealColumn get posY => real().nullable()();
   BoolColumn get isActive => boolean().withDefault(const Constant(true))();
   DateTimeColumn get cachedAt => dateTime().withDefault(currentDateAndTime)();
 
   @override
   Set<Column> get primaryKey => {id};
+}
+
+/// Per-user equipment display-name overrides (alias layer on top of canonical
+/// [LocalGymEquipment.name]). Tombstones are represented via [isDeleted] so
+/// offline "reset" actions can sync as remote DELETE later.
+class LocalEquipmentNameOverrides extends Table {
+  TextColumn get userId => text()();
+  TextColumn get gymId => text()();
+  TextColumn get equipmentId => text()();
+  TextColumn get displayName => text()();
+  BoolColumn get isDeleted => boolean().withDefault(const Constant(false))();
+  TextColumn get syncStatus =>
+      text().withDefault(const Constant('local_saved'))();
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column> get primaryKey => {userId, equipmentId};
 }
 
 /// Cached exercise templates — refreshed from server per gym.
@@ -34,8 +55,7 @@ class LocalExerciseTemplates extends Table {
   TextColumn get primaryMuscleGroup => text().nullable()();
   // Muscle group assignments serialized as JSON: [{"g":"chest","r":"primary"},...]
   // Legacy format [{"g":"chest","w":0.7},...] is accepted during migration.
-  TextColumn get muscleGroupsJson =>
-      text().withDefault(const Constant('[]'))();
+  TextColumn get muscleGroupsJson => text().withDefault(const Constant('[]'))();
   BoolColumn get isActive => boolean().withDefault(const Constant(true))();
   DateTimeColumn get cachedAt => dateTime().withDefault(currentDateAndTime)();
 
@@ -46,9 +66,10 @@ class LocalExerciseTemplates extends Table {
 /// Muscle group assignments for user-created open-station exercises.
 /// Stored locally, synced to [user_custom_exercise_muscle_groups] on the server.
 class LocalUserCustomExerciseMuscleGroups extends Table {
-  TextColumn get customExerciseId => text()(); // FK → LocalUserCustomExercises.id
-  TextColumn get muscleGroup => text()();       // MuscleGroup.value
-  TextColumn get role => text()();              // 'primary' | 'secondary'
+  TextColumn get customExerciseId =>
+      text()(); // FK → LocalUserCustomExercises.id
+  TextColumn get muscleGroup => text()(); // MuscleGroup.value
+  TextColumn get role => text()(); // 'primary' | 'secondary'
 
   @override
   Set<Column> get primaryKey => {customExerciseId, muscleGroup};
@@ -174,11 +195,31 @@ class LocalSetEntries extends Table {
   Set<Column> get primaryKey => {id};
 }
 
+/// One joined row for performance trend computation.
+class FinishedExerciseSetRow {
+  const FinishedExerciseSetRow({
+    required this.sessionId,
+    required this.sessionDayAnchor,
+    required this.exerciseKey,
+    required this.displayName,
+    required this.reps,
+    required this.weightKg,
+  });
+
+  final String sessionId;
+  final String sessionDayAnchor; // 'yyyy-MM-dd'
+  final String exerciseKey;
+  final String displayName;
+  final int? reps;
+  final double? weightKg;
+}
+
 // ─── Database ─────────────────────────────────────────────────────────────────
 
 @DriftDatabase(
   tables: [
     LocalGymEquipment,
+    LocalEquipmentNameOverrides,
     LocalExerciseTemplates,
     LocalUserCustomExercises,
     LocalUserCustomExerciseMuscleGroups,
@@ -192,9 +233,10 @@ class LocalSetEntries extends Table {
 )
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
+  AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 6;
+  int get schemaVersion => 8;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -236,6 +278,13 @@ class AppDatabase extends _$AppDatabase {
         // New table for user-assigned muscle groups on custom exercises.
         await migrator.createTable(localUserCustomExerciseMuscleGroups);
       }
+      if (from < 7) {
+        await migrator.createTable(localEquipmentNameOverrides);
+      }
+      if (from < 8) {
+        await migrator.addColumn(localGymEquipment, localGymEquipment.posX);
+        await migrator.addColumn(localGymEquipment, localGymEquipment.posY);
+      }
     },
   );
 
@@ -246,6 +295,23 @@ class AppDatabase extends _$AppDatabase {
             ..where((t) => t.gymId.equals(gymId) & t.isActive.equals(true))
             ..orderBy([(t) => OrderingTerm(expression: t.name)]))
           .get();
+
+  /// Number of active fixed machines in [gymId] that share [exerciseKey].
+  Future<int> countActiveFixedEquipmentForExerciseKey(
+    String gymId,
+    String exerciseKey,
+  ) async {
+    final rows =
+        await (select(localGymEquipment)..where(
+              (t) =>
+                  t.gymId.equals(gymId) &
+                  t.isActive.equals(true) &
+                  t.equipmentType.equals('fixed_machine') &
+                  t.canonicalExerciseKey.equals(exerciseKey),
+            ))
+            .get();
+    return rows.length;
+  }
 
   Future<LocalGymEquipmentData?> getEquipmentByNfc(
     String gymId,
@@ -267,6 +333,173 @@ class AppDatabase extends _$AppDatabase {
   Future<void> updateNfcTagUid(String equipmentId, String? uid) async {
     await (update(localGymEquipment)..where((t) => t.id.equals(equipmentId)))
         .write(LocalGymEquipmentCompanion(nfcTagUid: Value(uid)));
+  }
+
+  Future<void> updateEquipmentPosition(
+    String equipmentId,
+    double posX,
+    double posY,
+  ) async {
+    await (update(
+      localGymEquipment,
+    )..where((t) => t.id.equals(equipmentId))).write(
+      LocalGymEquipmentCompanion(posX: Value(posX), posY: Value(posY)),
+    );
+  }
+
+  Future<void> clearEquipmentPosition(String equipmentId) async {
+    await (update(
+      localGymEquipment,
+    )..where((t) => t.id.equals(equipmentId))).write(
+      const LocalGymEquipmentCompanion(posX: Value(null), posY: Value(null)),
+    );
+  }
+
+  // ─── Equipment name overrides ───────────────────────────────────────────────
+
+  Future<List<LocalEquipmentNameOverride>> getEquipmentNameOverrides(
+    String userId,
+    String gymId, {
+    bool includeDeleted = false,
+  }) {
+    final q = select(localEquipmentNameOverrides)
+      ..where((t) => t.userId.equals(userId) & t.gymId.equals(gymId));
+    if (!includeDeleted) {
+      q.where((t) => t.isDeleted.equals(false));
+    }
+    return q.get();
+  }
+
+  Future<LocalEquipmentNameOverride?> getEquipmentNameOverride(
+    String userId,
+    String equipmentId,
+  ) =>
+      (select(localEquipmentNameOverrides)
+            ..where(
+              (t) =>
+                  t.userId.equals(userId) & t.equipmentId.equals(equipmentId),
+            )
+            ..limit(1))
+          .getSingleOrNull();
+
+  Future<List<LocalEquipmentNameOverride>> getPendingEquipmentNameOverrides(
+    String userId,
+    String gymId,
+  ) =>
+      (select(localEquipmentNameOverrides)..where(
+            (t) =>
+                t.userId.equals(userId) &
+                t.gymId.equals(gymId) &
+                t.syncStatus.isIn(['sync_pending', 'sync_failed']),
+          ))
+          .get();
+
+  Future<void> upsertEquipmentNameOverride(
+    LocalEquipmentNameOverridesCompanion row,
+  ) => into(localEquipmentNameOverrides).insertOnConflictUpdate(row);
+
+  Future<void> markEquipmentNameOverrideSynced(
+    String userId,
+    String equipmentId, {
+    required String displayName,
+    required DateTime createdAt,
+    required DateTime updatedAt,
+    required String gymId,
+  }) async {
+    await upsertEquipmentNameOverride(
+      LocalEquipmentNameOverridesCompanion(
+        userId: Value(userId),
+        gymId: Value(gymId),
+        equipmentId: Value(equipmentId),
+        displayName: Value(displayName),
+        isDeleted: const Value(false),
+        syncStatus: const Value('sync_confirmed'),
+        createdAt: Value(createdAt),
+        updatedAt: Value(updatedAt),
+      ),
+    );
+  }
+
+  Future<void> setEquipmentNameOverrideLocal({
+    required String userId,
+    required String gymId,
+    required String equipmentId,
+    required String displayName,
+    required DateTime updatedAt,
+  }) async {
+    final existing = await getEquipmentNameOverride(userId, equipmentId);
+    await upsertEquipmentNameOverride(
+      LocalEquipmentNameOverridesCompanion(
+        userId: Value(userId),
+        gymId: Value(gymId),
+        equipmentId: Value(equipmentId),
+        displayName: Value(displayName),
+        isDeleted: const Value(false),
+        syncStatus: const Value('sync_pending'),
+        createdAt: Value(existing?.createdAt ?? updatedAt),
+        updatedAt: Value(updatedAt),
+      ),
+    );
+  }
+
+  Future<void> markEquipmentNameOverrideDeletedLocal({
+    required String userId,
+    required String gymId,
+    required String equipmentId,
+    required DateTime updatedAt,
+  }) async {
+    final existing = await getEquipmentNameOverride(userId, equipmentId);
+    await upsertEquipmentNameOverride(
+      LocalEquipmentNameOverridesCompanion(
+        userId: Value(userId),
+        gymId: Value(gymId),
+        equipmentId: Value(equipmentId),
+        displayName: const Value(''),
+        isDeleted: const Value(true),
+        syncStatus: const Value('sync_pending'),
+        createdAt: Value(existing?.createdAt ?? updatedAt),
+        updatedAt: Value(updatedAt),
+      ),
+    );
+  }
+
+  Future<void> markEquipmentNameOverrideSyncFailed(
+    String userId,
+    String equipmentId,
+  ) =>
+      (update(localEquipmentNameOverrides)..where(
+            (t) => t.userId.equals(userId) & t.equipmentId.equals(equipmentId),
+          ))
+          .write(
+            const LocalEquipmentNameOverridesCompanion(
+              syncStatus: Value('sync_failed'),
+            ),
+          );
+
+  Future<void> deleteEquipmentNameOverride(String userId, String equipmentId) =>
+      (delete(localEquipmentNameOverrides)..where(
+            (t) => t.userId.equals(userId) & t.equipmentId.equals(equipmentId),
+          ))
+          .go();
+
+  /// Removes stale remote-confirmed aliases that no longer exist on the server,
+  /// while preserving local pending rows.
+  Future<void> pruneSyncedEquipmentNameOverridesNotIn(
+    String userId,
+    String gymId,
+    Set<String> equipmentIds,
+  ) async {
+    final q = delete(localEquipmentNameOverrides)
+      ..where(
+        (t) =>
+            t.userId.equals(userId) &
+            t.gymId.equals(gymId) &
+            t.syncStatus.equals('sync_confirmed'),
+      );
+    if (equipmentIds.isNotEmpty) {
+      q.where((t) => t.equipmentId.isNotIn(equipmentIds));
+    }
+    await q.go();
   }
 
   // ─── Exercise templates ────────────────────────────────────────────────────
@@ -310,12 +543,10 @@ class AppDatabase extends _$AppDatabase {
 
   // ─── Custom exercise muscle groups ────────────────────────────────────────
 
-  Future<List<LocalUserCustomExerciseMuscleGroup>> getCustomExerciseMuscleGroups(
-    String customExerciseId,
-  ) =>
-      (select(localUserCustomExerciseMuscleGroups)
-            ..where((t) => t.customExerciseId.equals(customExerciseId)))
-          .get();
+  Future<List<LocalUserCustomExerciseMuscleGroup>>
+  getCustomExerciseMuscleGroups(String customExerciseId) => (select(
+    localUserCustomExerciseMuscleGroups,
+  )..where((t) => t.customExerciseId.equals(customExerciseId))).get();
 
   /// Replaces all muscle group assignments for [customExerciseId] atomically.
   Future<void> upsertCustomExerciseMuscleGroups(
@@ -323,11 +554,13 @@ class AppDatabase extends _$AppDatabase {
     List<LocalUserCustomExerciseMuscleGroupsCompanion> rows,
   ) async {
     await transaction(() async {
-      await (delete(localUserCustomExerciseMuscleGroups)
-            ..where((t) => t.customExerciseId.equals(customExerciseId)))
-          .go();
+      await (delete(
+        localUserCustomExerciseMuscleGroups,
+      )..where((t) => t.customExerciseId.equals(customExerciseId))).go();
       if (rows.isNotEmpty) {
-        await batch((b) => b.insertAll(localUserCustomExerciseMuscleGroups, rows));
+        await batch(
+          (b) => b.insertAll(localUserCustomExerciseMuscleGroups, rows),
+        );
       }
     });
   }
@@ -459,14 +692,14 @@ class AppDatabase extends _$AppDatabase {
     int year,
   ) async {
     final prefix = '$year-';
-    final sessions = await (select(localWorkoutSessions)
-          ..where(
-            (t) =>
-                t.userId.equals(userId) &
-                t.finishedAt.isNotNull() &
-                t.sessionDayAnchor.like('$prefix%'),
-          ))
-        .get();
+    final sessions =
+        await (select(localWorkoutSessions)..where(
+              (t) =>
+                  t.userId.equals(userId) &
+                  t.finishedAt.isNotNull() &
+                  t.sessionDayAnchor.like('$prefix%'),
+            ))
+            .get();
     return sessions.map((s) => s.sessionDayAnchor).toSet();
   }
 
@@ -485,6 +718,54 @@ class AppDatabase extends _$AppDatabase {
       ..orderBy([(t) => OrderingTerm.desc(t.startedAt)]);
     if (limit != null) query.limit(limit);
     return query.get();
+  }
+
+  /// Returns all set rows for finished sessions in a gym/user scope with
+  /// exercise metadata in a single joined query. Used for performance trends.
+  Future<List<FinishedExerciseSetRow>> getFinishedExerciseSetRows(
+    String gymId,
+    String userId,
+  ) async {
+    final query =
+        select(localSetEntries).join([
+            innerJoin(
+              localSessionExercises,
+              localSessionExercises.id.equalsExp(
+                localSetEntries.sessionExerciseId,
+              ),
+            ),
+            innerJoin(
+              localWorkoutSessions,
+              localWorkoutSessions.id.equalsExp(
+                localSessionExercises.sessionId,
+              ),
+            ),
+          ])
+          ..where(
+            localWorkoutSessions.gymId.equals(gymId) &
+                localWorkoutSessions.userId.equals(userId) &
+                localWorkoutSessions.finishedAt.isNotNull(),
+          )
+          ..orderBy([
+            OrderingTerm.asc(localWorkoutSessions.sessionDayAnchor),
+            OrderingTerm.asc(localSessionExercises.createdAt),
+            OrderingTerm.asc(localSetEntries.setNumber),
+          ]);
+
+    final rows = await query.get();
+    return rows.map((row) {
+      final set = row.readTable(localSetEntries);
+      final exercise = row.readTable(localSessionExercises);
+      final session = row.readTable(localWorkoutSessions);
+      return FinishedExerciseSetRow(
+        sessionId: session.id,
+        sessionDayAnchor: session.sessionDayAnchor,
+        exerciseKey: exercise.exerciseKey,
+        displayName: exercise.displayName,
+        reps: set.reps,
+        weightKg: set.weightKg,
+      );
+    }).toList();
   }
 
   /// Returns finished sessions in which [equipmentId] was used in any exercise.
@@ -598,13 +879,21 @@ class AppDatabase extends _$AppDatabase {
     String userId,
     String exerciseKey, {
     String? excludeSessionId,
+    String? equipmentId,
+    bool includeLegacyEquipmentless = false,
   }) async {
     final exercises =
         await (select(localSessionExercises)
-              ..where(
-                (t) =>
-                    t.gymId.equals(gymId) & t.exerciseKey.equals(exerciseKey),
-              )
+              ..where((t) {
+                final base =
+                    t.gymId.equals(gymId) & t.exerciseKey.equals(exerciseKey);
+                if (equipmentId == null) return base;
+                final scoped = t.equipmentId.equals(equipmentId);
+                if (includeLegacyEquipmentless) {
+                  return base & (scoped | t.equipmentId.isNull());
+                }
+                return base & scoped;
+              })
               ..orderBy([(t) => OrderingTerm.desc(t.createdAt)]))
             .get();
 
@@ -629,13 +918,20 @@ class AppDatabase extends _$AppDatabase {
     String userId,
     String exerciseKey, {
     String? excludeSessionId,
+    String? equipmentId,
+    bool includeLegacyEquipmentless = false,
   }) async {
     final exercises =
-        await (select(localSessionExercises)
-              ..where(
-                (t) =>
-                    t.gymId.equals(gymId) & t.exerciseKey.equals(exerciseKey),
-              ))
+        await (select(localSessionExercises)..where((t) {
+              final base =
+                  t.gymId.equals(gymId) & t.exerciseKey.equals(exerciseKey);
+              if (equipmentId == null) return base;
+              final scoped = t.equipmentId.equals(equipmentId);
+              if (includeLegacyEquipmentless) {
+                return base & (scoped | t.equipmentId.isNull());
+              }
+              return base & scoped;
+            }))
             .get();
 
     final allSets = <LocalSetEntry>[];
@@ -660,13 +956,20 @@ class AppDatabase extends _$AppDatabase {
     String userId,
     String exerciseKey, {
     String? excludeSessionId,
+    String? equipmentId,
+    bool includeLegacyEquipmentless = false,
   }) async {
     final exercises =
-        await (select(localSessionExercises)
-              ..where(
-                (t) =>
-                    t.gymId.equals(gymId) & t.exerciseKey.equals(exerciseKey),
-              ))
+        await (select(localSessionExercises)..where((t) {
+              final base =
+                  t.gymId.equals(gymId) & t.exerciseKey.equals(exerciseKey);
+              if (equipmentId == null) return base;
+              final scoped = t.equipmentId.equals(equipmentId);
+              if (includeLegacyEquipmentless) {
+                return base & (scoped | t.equipmentId.isNull());
+              }
+              return base & scoped;
+            }))
             .get();
 
     double? bestVolume;

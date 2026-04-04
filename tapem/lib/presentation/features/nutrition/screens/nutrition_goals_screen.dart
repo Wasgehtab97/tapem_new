@@ -117,6 +117,7 @@ class NutritionGoalsScreen extends HookConsumerWidget {
         key: formKey,
         child: ListView(
           padding: const EdgeInsets.all(16),
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           children: [
             Text(
               'TÄGLICHE ZIELE',
@@ -198,9 +199,7 @@ class NutritionGoalsScreen extends HookConsumerWidget {
                 ),
                 child: Text(
                   errorMsg.value!,
-                  style: AppTextStyles.bodySm.copyWith(
-                    color: AppColors.error,
-                  ),
+                  style: AppTextStyles.bodySm.copyWith(color: AppColors.error),
                 ),
               ),
               const Gap(16),
@@ -291,6 +290,8 @@ class _GoalField extends StatelessWidget {
   Widget build(BuildContext context) {
     return TextFormField(
       controller: controller,
+      autocorrect: false,
+      enableSuggestions: false,
       keyboardType: TextInputType.number,
       inputFormatters: [FilteringTextInputFormatter.digitsOnly],
       style: AppTextStyles.bodyLg,

@@ -10,7 +10,11 @@ import '../../../../core/utils/l10n_extension.dart';
 import '../../../../core/utils/xp_rules.dart';
 import '../../../../domain/entities/gym/muscle_group.dart';
 import '../../../../l10n/generated/app_localizations.dart';
+import '../../../widgets/charts/e1rm_progress_chart.dart';
+import '../../../widgets/common/tapem_empty_state.dart';
+import '../../../widgets/common/tapem_skeleton.dart';
 import '../../../router/route_names.dart';
+import '../providers/performance_provider.dart';
 import '../providers/xp_provider.dart';
 import '../widgets/muscle_body_map_widget.dart';
 import '../widgets/session_detail_sheet.dart';
@@ -21,16 +25,35 @@ class ProgressScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final exerciseXp = ref.watch(userExerciseXpProvider);
+    final performance = ref.watch(progressPerformanceExercisesProvider);
     final muscleXp = ref.watch(userMuscleGroupXpProvider);
     final l10n = context.l10n;
 
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.progressTitle)),
+      appBar: AppBar(
+        title: Text(l10n.progressTitle),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Container(
+            height: 1,
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  Colors.transparent,
+                  AppColors.neonMagenta,
+                  Colors.transparent,
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
       body: RefreshIndicator(
         onRefresh: () async {
           ref.invalidate(localXpBaseProvider);
           ref.invalidate(userGymXpProvider);
           ref.invalidate(userExerciseXpProvider);
+          ref.invalidate(progressPerformanceExercisesProvider);
           ref.invalidate(userMuscleGroupXpProvider);
           ref.invalidate(recentSessionsProvider);
         },
@@ -43,6 +66,10 @@ class ProgressScreen extends ConsumerWidget {
 
             // ── Equipment XP breakdown ────────────────────────────────────
             _EquipmentXpCard(exerciseXp: exerciseXp),
+            const SizedBox(height: 16),
+
+            // ── Performance (e1RM trend by exercise) ──────────────────────
+            _PerformanceTile(performance: performance),
             const SizedBox(height: 16),
 
             // ── Muscle group bar chart ────────────────────────────────────
@@ -156,32 +183,55 @@ class _XpAxisRow extends StatelessWidget {
               decoration: BoxDecoration(
                 color: color,
                 shape: BoxShape.circle,
-                boxShadow: [BoxShadow(color: color.withAlpha(120), blurRadius: 6)],
+                boxShadow: [
+                  BoxShadow(color: color.withAlpha(120), blurRadius: 6),
+                ],
               ),
             ),
             const SizedBox(width: 10),
-            Expanded(child: Text(label, style: AppTextStyles.labelMd.copyWith(fontSize: 13))),
+            Expanded(
+              child: Text(
+                label,
+                style: AppTextStyles.labelMd.copyWith(fontSize: 13),
+              ),
+            ),
             if (!isEmpty && !isLoading) ...[
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 3,
+                ),
                 decoration: BoxDecoration(
                   color: color.withAlpha(22),
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(color: color.withAlpha(80)),
-                  boxShadow: [BoxShadow(color: color.withAlpha(18), blurRadius: 8)],
+                  boxShadow: [
+                    BoxShadow(color: color.withAlpha(18), blurRadius: 8),
+                  ],
                 ),
                 child: Text(
                   'LVL $level',
-                  style: AppTextStyles.monoSm.copyWith(color: color, fontSize: 11),
+                  style: AppTextStyles.monoSm.copyWith(
+                    color: color,
+                    fontSize: 11,
+                  ),
                 ),
               ),
               const SizedBox(width: 10),
               Text(
                 '$totalXp XP',
-                style: AppTextStyles.monoSm.copyWith(fontSize: 12, color: AppColors.textSecondary),
+                style: AppTextStyles.monoSm.copyWith(
+                  fontSize: 12,
+                  color: AppColors.textSecondary,
+                ),
               ),
             ] else if (isEmpty && !isLoading) ...[
-              Text('—', style: AppTextStyles.bodySm.copyWith(color: AppColors.textDisabled)),
+              Text(
+                '—',
+                style: AppTextStyles.bodySm.copyWith(
+                  color: AppColors.textDisabled,
+                ),
+              ),
             ],
           ],
         ),
@@ -217,7 +267,9 @@ class _XpAxisRow extends StatelessWidget {
                         colors: [color, color.withAlpha(160)],
                       ),
                       borderRadius: BorderRadius.circular(3),
-                      boxShadow: [BoxShadow(color: color.withAlpha(100), blurRadius: 8)],
+                      boxShadow: [
+                        BoxShadow(color: color.withAlpha(100), blurRadius: 8),
+                      ],
                     ),
                   ),
                 ),
@@ -228,7 +280,10 @@ class _XpAxisRow extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             'noch $xpToNext XP bis Lvl ${level + 1}',
-            style: AppTextStyles.bodySm.copyWith(color: AppColors.textDisabled, fontSize: 10),
+            style: AppTextStyles.bodySm.copyWith(
+              color: AppColors.textDisabled,
+              fontSize: 10,
+            ),
           ),
         ],
       ],
@@ -264,7 +319,10 @@ class _EquipmentXpCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(20),
               border: Border.all(color: AppColors.neonMagenta.withAlpha(40)),
               boxShadow: [
-                BoxShadow(color: AppColors.neonMagenta.withAlpha(12), blurRadius: 20),
+                BoxShadow(
+                  color: AppColors.neonMagenta.withAlpha(12),
+                  blurRadius: 20,
+                ),
                 BoxShadow(color: Colors.black.withAlpha(50), blurRadius: 12),
               ],
             ),
@@ -317,10 +375,7 @@ class _EquipmentXpCard extends StatelessWidget {
                       ],
                     );
                   },
-                  loading: () => const LinearProgressIndicator(
-                    color: AppColors.neonMagenta,
-                    backgroundColor: AppColors.surface600,
-                  ),
+                  loading: () => TapemSkeleton.card(height: 80, radius: 8),
                   error: (_, __) => const Text('Error'),
                 ),
               ],
@@ -381,8 +436,9 @@ class _ExerciseSearchSheetState extends State<_ExerciseSearchSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final maxXp =
-        widget.exercises.isNotEmpty ? widget.exercises.first.totalXp : 1;
+    final maxXp = widget.exercises.isNotEmpty
+        ? widget.exercises.first.totalXp
+        : 1;
     final filtered = _filtered;
 
     return DraggableScrollableSheet(
@@ -460,6 +516,8 @@ class _ExerciseSearchSheetState extends State<_ExerciseSearchSheet> {
               child: TextField(
                 controller: _searchCtrl,
                 autofocus: false,
+                autocorrect: false,
+                enableSuggestions: false,
                 style: AppTextStyles.bodyMd,
                 decoration: InputDecoration(
                   hintText: 'Übung suchen…',
@@ -522,10 +580,8 @@ class _ExerciseSearchSheetState extends State<_ExerciseSearchSheet> {
                       controller: scrollCtrl,
                       padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
                       itemCount: filtered.length,
-                      itemBuilder: (_, index) => _EquipmentXpRow(
-                        entry: filtered[index],
-                        maxXp: maxXp,
-                      ),
+                      itemBuilder: (_, index) =>
+                          _EquipmentXpRow(entry: filtered[index], maxXp: maxXp),
                     ),
             ),
           ],
@@ -600,6 +656,652 @@ class _EquipmentXpRow extends StatelessWidget {
   }
 }
 
+// ─── Performance tile — trend by exercise key (e1RM) ─────────────────────────
+
+class _PerformanceTile extends StatelessWidget {
+  const _PerformanceTile({required this.performance});
+  final AsyncValue<List<ProgressPerformanceExercise>> performance;
+
+  static const int _previewCount = 3;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(20),
+      child: Material(
+        color: AppColors.surface800,
+        child: InkWell(
+          key: const Key('progress-performance-tile'),
+          onTap: performance.valueOrNull?.isNotEmpty == true
+              ? () => _openSheet(context, performance.requireValue)
+              : null,
+          splashColor: AppColors.neonCyan.withAlpha(15),
+          highlightColor: AppColors.neonCyan.withAlpha(8),
+          child: Container(
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: AppColors.neonCyan.withAlpha(45)),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.neonCyan.withAlpha(12),
+                  blurRadius: 20,
+                ),
+                BoxShadow(color: Colors.black.withAlpha(50), blurRadius: 12),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      l10n.performanceTileTitle,
+                      style: AppTextStyles.labelMd,
+                    ),
+                    const Spacer(),
+                    if (performance.valueOrNull?.isNotEmpty == true)
+                      const Icon(
+                        Icons.chevron_right,
+                        color: AppColors.textSecondary,
+                        size: 18,
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  l10n.performanceTileSubtitle,
+                  style: AppTextStyles.bodySm.copyWith(
+                    color: AppColors.textSecondary,
+                    fontSize: 11,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                performance.when(
+                  data: (list) {
+                    if (list.isEmpty) {
+                      return Text(
+                        l10n.noPerformanceData,
+                        style: AppTextStyles.bodySm.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
+                      );
+                    }
+
+                    final preview = list.take(_previewCount).toList();
+                    final remaining = list.length - _previewCount;
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        ...preview.asMap().entries.map(
+                          (e) => _PerformancePreviewRow(
+                            entry: e.value,
+                            rank: e.key + 1,
+                          ),
+                        ),
+                        if (remaining > 0) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            l10n.performanceMoreCount(remaining),
+                            style: AppTextStyles.bodySm.copyWith(
+                              color: AppColors.neonCyan,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ],
+                      ],
+                    );
+                  },
+                  loading: () => const LinearProgressIndicator(
+                    color: AppColors.neonCyan,
+                    backgroundColor: AppColors.surface600,
+                  ),
+                  error: (_, __) => Text(
+                    l10n.performanceLoadError,
+                    style: AppTextStyles.bodySm.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _openSheet(
+    BuildContext context,
+    List<ProgressPerformanceExercise> exercises,
+  ) {
+    unawaited(
+      showModalBottomSheet<void>(
+        context: context,
+        backgroundColor: Colors.transparent,
+        isScrollControlled: true,
+        builder: (_) => _PerformanceExercisesSheet(exercises: exercises),
+      ),
+    );
+  }
+}
+
+class _PerformancePreviewRow extends StatelessWidget {
+  const _PerformancePreviewRow({required this.entry, required this.rank});
+  final ProgressPerformanceExercise entry;
+  final int rank;
+
+  @override
+  Widget build(BuildContext context) {
+    final trendColor = _trendColor(entry.absoluteGainKg);
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 9),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 22,
+            child: Text(
+              '#$rank',
+              style: AppTextStyles.monoSm.copyWith(
+                color: AppColors.textSecondary,
+                fontSize: 11,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              entry.displayName,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTextStyles.bodyMd,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            entry.hasTrendData
+                ? _formatSignedPercent(entry.relativeGain)
+                : context.l10n.performanceInsufficientDataShort,
+            style: AppTextStyles.monoSm.copyWith(
+              color: entry.hasTrendData ? trendColor : AppColors.textDisabled,
+              fontSize: 11,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PerformanceExercisesSheet extends StatefulWidget {
+  const _PerformanceExercisesSheet({required this.exercises});
+  final List<ProgressPerformanceExercise> exercises;
+
+  @override
+  State<_PerformanceExercisesSheet> createState() =>
+      _PerformanceExercisesSheetState();
+}
+
+class _PerformanceExercisesSheetState
+    extends State<_PerformanceExercisesSheet> {
+  late final TextEditingController _searchCtrl;
+  String _query = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _searchCtrl = TextEditingController();
+    _searchCtrl.addListener(() {
+      setState(() => _query = _searchCtrl.text.trim().toLowerCase());
+    });
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  List<ProgressPerformanceExercise> get _filtered {
+    if (_query.isEmpty) return widget.exercises;
+    return widget.exercises
+        .where((e) => e.displayName.toLowerCase().contains(_query))
+        .toList();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final filtered = _filtered;
+
+    return DraggableScrollableSheet(
+      initialChildSize: 0.78,
+      minChildSize: 0.5,
+      maxChildSize: 0.95,
+      expand: false,
+      builder: (_, scrollCtrl) => Container(
+        key: const Key('progress-performance-list-sheet'),
+        decoration: const BoxDecoration(
+          color: AppColors.surface800,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(
+          children: [
+            const SizedBox(height: 12),
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.surface500,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Row(
+                children: [
+                  Text(l10n.performanceTileTitle, style: AppTextStyles.labelLg),
+                  const SizedBox(width: 10),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.neonCyan.withAlpha(20),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: AppColors.neonCyan.withAlpha(60),
+                      ),
+                    ),
+                    child: Text(
+                      '${widget.exercises.length}',
+                      style: AppTextStyles.labelSm.copyWith(
+                        color: AppColors.neonCyan,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    icon: const Icon(Icons.close, size: 20),
+                    color: AppColors.textSecondary,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  l10n.performanceSortedByTrend,
+                  style: AppTextStyles.bodySm.copyWith(
+                    color: AppColors.textSecondary,
+                    fontSize: 11,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: TextField(
+                key: const Key('progress-performance-search'),
+                controller: _searchCtrl,
+                autofocus: false,
+                autocorrect: false,
+                enableSuggestions: false,
+                style: AppTextStyles.bodyMd,
+                decoration: InputDecoration(
+                  hintText: l10n.performanceSearchHint,
+                  hintStyle: AppTextStyles.bodySm.copyWith(
+                    color: AppColors.textDisabled,
+                  ),
+                  prefixIcon: const Icon(
+                    Icons.search,
+                    color: AppColors.textSecondary,
+                    size: 20,
+                  ),
+                  suffixIcon: _query.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(
+                            Icons.clear,
+                            size: 18,
+                            color: AppColors.textSecondary,
+                          ),
+                          onPressed: () => _searchCtrl.clear(),
+                        )
+                      : null,
+                  filled: true,
+                  fillColor: AppColors.surface700,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 10,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(color: AppColors.surface500),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(color: AppColors.surface500),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(
+                      color: AppColors.neonCyan,
+                      width: 1.5,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const Divider(color: AppColors.surface500, height: 20),
+            Expanded(
+              child: filtered.isEmpty
+                  ? Center(
+                      child: Text(
+                        l10n.performanceNoSearchResults,
+                        style: AppTextStyles.bodySm.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    )
+                  : ListView.builder(
+                      controller: scrollCtrl,
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
+                      itemCount: filtered.length,
+                      itemBuilder: (_, index) {
+                        final entry = filtered[index];
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(10),
+                            child: Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                key: Key('progress-performance-row-$index'),
+                                onTap: () => _openDetail(context, entry),
+                                splashColor: AppColors.neonCyan.withAlpha(12),
+                                highlightColor: AppColors.neonCyan.withAlpha(8),
+                                child: _PerformanceExerciseRow(
+                                  entry: entry,
+                                  rank: index + 1,
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _openDetail(BuildContext context, ProgressPerformanceExercise entry) {
+    unawaited(
+      showModalBottomSheet<void>(
+        context: context,
+        backgroundColor: Colors.transparent,
+        isScrollControlled: true,
+        builder: (_) => _PerformanceExerciseDetailSheet(entry: entry),
+      ),
+    );
+  }
+}
+
+class _PerformanceExerciseRow extends StatelessWidget {
+  const _PerformanceExerciseRow({required this.entry, required this.rank});
+  final ProgressPerformanceExercise entry;
+  final int rank;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final trendColor = _trendColor(entry.absoluteGainKg);
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.surface900,
+        border: Border.all(color: AppColors.surface500),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 32,
+            child: Text(
+              '#$rank',
+              style: AppTextStyles.monoSm.copyWith(
+                color: AppColors.textSecondary,
+                fontSize: 11,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  entry.displayName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.bodyMd,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  entry.hasTrendData
+                      ? l10n.performanceTrendSummary(
+                          _formatSignedKg(entry.absoluteGainKg),
+                          _formatSignedPercent(entry.relativeGain),
+                        )
+                      : l10n.performanceInsufficientData,
+                  style: AppTextStyles.bodySm.copyWith(
+                    color: entry.hasTrendData
+                        ? trendColor
+                        : AppColors.textDisabled,
+                    fontSize: 10,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            _formatKg(entry.latestE1rm),
+            style: AppTextStyles.monoSm.copyWith(
+              color: AppColors.neonCyan,
+              fontSize: 11,
+            ),
+          ),
+          const SizedBox(width: 8),
+          const Icon(
+            Icons.chevron_right_rounded,
+            color: AppColors.textSecondary,
+            size: 18,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PerformanceExerciseDetailSheet extends StatelessWidget {
+  const _PerformanceExerciseDetailSheet({required this.entry});
+  final ProgressPerformanceExercise entry;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final trendColor = _trendColor(entry.absoluteGainKg);
+
+    return DraggableScrollableSheet(
+      initialChildSize: 0.8,
+      minChildSize: 0.45,
+      maxChildSize: 0.95,
+      expand: false,
+      builder: (_, scrollCtrl) => Container(
+        key: const Key('progress-performance-detail-sheet'),
+        decoration: const BoxDecoration(
+          color: AppColors.surface800,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: ListView(
+          controller: scrollCtrl,
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.surface500,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    l10n.performanceDetailTitle(entry.displayName),
+                    style: AppTextStyles.labelLg,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close, size: 20),
+                  color: AppColors.textSecondary,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _PerformanceMetricChip(
+                  label: l10n.performanceLatestE1rm,
+                  value: _formatKg(entry.latestE1rm),
+                  color: AppColors.neonCyan,
+                ),
+                _PerformanceMetricChip(
+                  label: l10n.performanceBestE1rm,
+                  value: _formatKg(entry.bestE1rm),
+                  color: AppColors.neonMagenta,
+                ),
+                _PerformanceMetricChip(
+                  label: l10n.performanceTrackedSessions,
+                  value: '${entry.trackedSessionsCount}',
+                  color: AppColors.neonYellow,
+                ),
+                _PerformanceMetricChip(
+                  label: l10n.performanceTrend,
+                  value: entry.hasTrendData
+                      ? l10n.performanceTrendSummary(
+                          _formatSignedKg(entry.absoluteGainKg),
+                          _formatSignedPercent(entry.relativeGain),
+                        )
+                      : l10n.performanceInsufficientDataShort,
+                  color: trendColor,
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            E1rmProgressChart(
+              points: entry.points,
+              emptyMessage: l10n.e1rmChartEmptyState,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PerformanceMetricChip extends StatelessWidget {
+  const _PerformanceMetricChip({
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  final String label;
+  final String value;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(minWidth: 140),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: color.withAlpha(12),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withAlpha(80)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: AppTextStyles.labelSm.copyWith(
+              color: AppColors.textSecondary,
+              fontSize: 9,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            value,
+            style: AppTextStyles.monoSm.copyWith(color: color, fontSize: 11),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+Color _trendColor(double gain) {
+  if (gain > 0.001) return AppColors.success;
+  if (gain < -0.001) return AppColors.error;
+  return AppColors.textSecondary;
+}
+
+String _formatKg(double? value) {
+  if (value == null) return '—';
+  return '${value.toStringAsFixed(1)} kg';
+}
+
+String _formatSignedKg(double value) {
+  final sign = value >= 0 ? '+' : '';
+  return '$sign${value.toStringAsFixed(1)} kg';
+}
+
+String _formatSignedPercent(double ratio) {
+  final pct = ratio * 100;
+  final sign = pct >= 0 ? '+' : '';
+  return '$sign${pct.toStringAsFixed(1)}%';
+}
+
 // ─── Muscle group card — body map + trained/neglected breakdown ───────────────
 
 class _MuscleGroupCard extends StatefulWidget {
@@ -632,8 +1334,7 @@ class _MuscleGroupCardState extends State<_MuscleGroupCard> {
                 if (!_expanded)
                   widget.muscleXp.maybeWhen(
                     data: (list) {
-                      final trained =
-                          list.where((m) => m.totalXp > 0).toList();
+                      final trained = list.where((m) => m.totalXp > 0).toList();
                       if (trained.isEmpty) return const SizedBox.shrink();
                       return Text(
                         _trainedPreview(trained),
@@ -856,10 +1557,7 @@ class _MuscleGroupBar extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 6),
-              Text(
-                xpLabel,
-                style: AppTextStyles.monoSm.copyWith(fontSize: 10),
-              ),
+              Text(xpLabel, style: AppTextStyles.monoSm.copyWith(fontSize: 10)),
             ],
           ),
           const SizedBox(height: 4),
@@ -969,7 +1667,9 @@ class _NavTile extends StatelessWidget {
                     ),
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(color: color.withAlpha(80)),
-                    boxShadow: [BoxShadow(color: color.withAlpha(20), blurRadius: 10)],
+                    boxShadow: [
+                      BoxShadow(color: color.withAlpha(20), blurRadius: 10),
+                    ],
                   ),
                   child: Icon(icon, color: color, size: 22),
                 ),
@@ -978,16 +1678,25 @@ class _NavTile extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(title, style: AppTextStyles.labelLg.copyWith(fontSize: 13)),
+                      Text(
+                        title,
+                        style: AppTextStyles.labelLg.copyWith(fontSize: 13),
+                      ),
                       const SizedBox(height: 3),
                       Text(
                         subtitle,
-                        style: AppTextStyles.bodySm.copyWith(color: AppColors.textSecondary),
+                        style: AppTextStyles.bodySm.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
                       ),
                     ],
                   ),
                 ),
-                Icon(Icons.chevron_right_rounded, color: color.withAlpha(180), size: 22),
+                Icon(
+                  Icons.chevron_right_rounded,
+                  color: color.withAlpha(180),
+                  size: 22,
+                ),
               ],
             ),
           ),
@@ -1008,13 +1717,7 @@ class _RecentSessionsCard extends ConsumerWidget {
     return sessions.when(
       loading: () => _shell(
         title: l10n.recentSessions,
-        child: const Padding(
-          padding: EdgeInsets.symmetric(vertical: 8),
-          child: LinearProgressIndicator(
-            color: AppColors.neonCyan,
-            backgroundColor: AppColors.surface600,
-          ),
-        ),
+        child: TapemSkeleton.listTiles(count: 2),
       ),
       error: (_, __) => _shell(
         title: l10n.recentSessions,
@@ -1027,26 +1730,10 @@ class _RecentSessionsCard extends ConsumerWidget {
         if (list.isEmpty) {
           return _shell(
             title: l10n.recentSessions,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              child: Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(
-                      Icons.fitness_center_outlined,
-                      color: AppColors.textDisabled,
-                      size: 28,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      l10n.noSessionsYetShort,
-                      style: AppTextStyles.bodySm,
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
-                ),
-              ),
+            child: TapemEmptyState(
+              icon: Icons.fitness_center_outlined,
+              title: l10n.noSessionsYetShort,
+              iconColor: AppColors.neonCyan,
             ),
           );
         }
@@ -1145,6 +1832,7 @@ class _SessionRowContent extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final duration = session.duration;
+    final exercisePreview = session.exerciseLabels.join('  •  ');
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(10),
@@ -1179,6 +1867,18 @@ class _SessionRowContent extends StatelessWidget {
                               '${l10n.exerciseCount(session.exerciseCount)}  ·  ${l10n.setCount(session.totalSets)}',
                               style: AppTextStyles.bodySm,
                             ),
+                            if (exercisePreview.isNotEmpty) ...[
+                              const SizedBox(height: 3),
+                              Text(
+                                exercisePreview,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: AppTextStyles.bodySm.copyWith(
+                                  color: AppColors.textSecondary,
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ],
                           ],
                         ),
                       ),
@@ -1357,7 +2057,11 @@ class _SectionCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: AppColors.surface500.withAlpha(150)),
         boxShadow: [
-          BoxShadow(color: Colors.black.withAlpha(50), blurRadius: 12, offset: const Offset(0, 3)),
+          BoxShadow(
+            color: Colors.black.withAlpha(50),
+            blurRadius: 12,
+            offset: const Offset(0, 3),
+          ),
         ],
       ),
       child: child,

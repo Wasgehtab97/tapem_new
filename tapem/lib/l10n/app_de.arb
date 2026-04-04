@@ -27,6 +27,9 @@
   "confirmPasswordLabel": "PASSWORT BEST\u00c4TIGEN",
   "passwordsNoMatch": "Passw\u00f6rter stimmen nicht \u00fcberein",
   "alreadyHaveAccount": "Bereits ein Konto? ",
+  "authLegalPrefix": "Mit der Nutzung akzeptierst du",
+  "privacyPolicyLabel": "Datenschutzerklärung",
+  "termsOfServiceLabel": "Nutzungsbedingungen",
 
   "chooseYourUsername": "W\u00c4HLE DEINEN\nBENUTZERNAMEN",
   "usernamePublicHint": "Dein Benutzername ist im Gym \u00f6ffentlich sichtbar. Du kannst ihn sp\u00e4ter \u00e4ndern.",
@@ -200,6 +203,23 @@
   "privacySummaryDescription": "Freunde sehen Trainingstage und Session-Zusammenfassungen",
   "signOut": "ABMELDEN",
   "languageSection": "SPRACHE",
+  "legalDataSection": "RECHT & DATEN",
+  "imprintLabel": "Impressum",
+  "supportLabel": "Support",
+  "exportMyDataLabel": "Meine Daten exportieren",
+  "exportingDataLabel": "Datenexport wird erstellt…",
+  "deleteAccountLabel": "Konto löschen",
+  "deletingAccountLabel": "Konto wird gelöscht…",
+  "deleteAccountConfirmTitle": "KONTO LÖSCHEN?",
+  "deleteAccountConfirmBody": "Dein Konto und alle damit verknüpften personenbezogenen Daten werden dauerhaft gelöscht.",
+  "typeDeletePrompt": "Zur Bestätigung DELETE eingeben",
+  "accountDeletedSuccess": "Konto gelöscht.",
+  "accountDeleteFailed": "Kontolöschung fehlgeschlagen: {error}",
+  "exportDataReadyTitle": "Datenexport bereit",
+  "exportDataReadyBody": "Dein Export wurde erstellt ({estimatedRows} Datensätze). Der Download-Link läuft in etwa {minutes} Minuten ab.",
+  "downloadExportLabel": "Export herunterladen",
+  "closeLabel": "SCHLIESSEN",
+  "exportDataFailed": "Datenexport fehlgeschlagen: {error}",
 
   "trainingPlansTitle": "TRAININGSPL\u00c4NE",
   "newPlanTooltip": "Neuer Plan",
@@ -234,6 +254,7 @@
 
   "myExercises": "MEINE \u00dcBUNGEN",
   "noExercisesAtStation": "Noch keine \u00dcbungen an dieser Station erstellt.",
+  "selectExerciseForHistory": "Wähle eine Übung aus, um ihre Historie zu sehen.",
   "myHistory": "MEINE HISTORIE",
   "historyFor": "HISTORIE \u2014 {name}",
   "noSessionsOnEquipment": "Noch keine Sessions an diesem Ger\u00e4t.",
@@ -319,6 +340,38 @@
   "equipmentAxisLabel": "GERÄTE",
   "muscleGroupAxisLabel": "MUSKELGRUPPEN",
   "equipmentXpTitle": "ÜBUNGEN",
+  "performanceTileTitle": "PERFORMANCE",
+  "performanceTileSubtitle": "Übungen nach deinem e1RM-Fortschritt sortiert",
+  "noPerformanceData": "Noch keine Performance-Daten.",
+  "performanceLoadError": "Performance-Daten konnten nicht geladen werden.",
+  "performanceMoreCount": "+ {count} weitere",
+  "@performanceMoreCount": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "performanceSortedByTrend": "Sortiert nach Performance-Anstieg über die Zeit.",
+  "performanceSearchHint": "Übung suchen…",
+  "performanceNoSearchResults": "Keine Übungen gefunden.",
+  "performanceInsufficientData": "Noch nicht genug Trend-Daten.",
+  "performanceInsufficientDataShort": "Noch kein Trend",
+  "performanceTrendSummary": "{kg} ({percent})",
+  "@performanceTrendSummary": {
+    "placeholders": {
+      "kg": { "type": "String" },
+      "percent": { "type": "String" }
+    }
+  },
+  "performanceDetailTitle": "PERFORMANCE — {name}",
+  "@performanceDetailTitle": {
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "performanceLatestE1rm": "LETZTER E1RM",
+  "performanceBestE1rm": "BESTER E1RM",
+  "performanceTrackedSessions": "GETRACKTE SESSIONS",
+  "performanceTrend": "TREND",
   "muscleGroupEmptyState": "Muskelgruppen-Tracking aktiviert sich, sobald das Equipment des Gyms konfiguriert wurde.",
   "showAllBtn": "ALLE ANZEIGEN",
   "collapseBtn": "WENIGER ANZEIGEN",

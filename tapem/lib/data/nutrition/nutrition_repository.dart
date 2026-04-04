@@ -20,7 +20,7 @@ class NutritionRepository {
     try {
       final row = await _supabase
           .from('nutrition_goals')
-          .select()
+          .select('date_key, kcal, protein, carbs, fat, source, updated_at')
           .eq('user_id', uid)
           .eq('date_key', dateKey)
           .maybeSingle();
@@ -35,7 +35,7 @@ class NutritionRepository {
     try {
       final row = await _supabase
           .from('nutrition_goal_defaults')
-          .select()
+          .select('kcal, protein, carbs, fat, updated_at')
           .eq('user_id', uid)
           .maybeSingle();
       if (row == null) return null;
@@ -77,7 +77,10 @@ class NutritionRepository {
     try {
       final row = await _supabase
           .from('nutrition_logs')
-          .select()
+          .select(
+            'date_key, total_kcal, total_protein, total_carbs, total_fat, '
+            'entries, status, updated_at',
+          )
           .eq('user_id', uid)
           .eq('date_key', dateKey)
           .maybeSingle();
@@ -101,17 +104,14 @@ class NutritionRepository {
     try {
       final row = await _supabase
           .from('nutrition_year_summaries')
-          .select()
+          .select('days')
           .eq('user_id', uid)
           .eq('year', year)
           .maybeSingle();
       if (row == null) return null;
       // days is stored as JSONB
       final rawDays = row['days'] as Map<String, dynamic>? ?? {};
-      return NutritionYearSummary.fromJson({
-        'year': year,
-        'days': rawDays,
-      });
+      return NutritionYearSummary.fromJson({'year': year, 'days': rawDays});
     } catch (e) {
       AppLogger.w('loadYearSummary failed', e);
       return null;
@@ -128,14 +128,17 @@ class NutritionRepository {
     final year = int.parse(dateKey.substring(0, 4));
     try {
       // Use Postgres jsonb_set to update a single day without overwriting others
-      await _supabase.rpc('nutrition_upsert_year_day', params: {
-        'p_user_id': uid,
-        'p_year': year,
-        'p_date_key': dateKey,
-        'p_status': status.value,
-        'p_total_kcal': totalKcal,
-        'p_goal_kcal': goalKcal,
-      });
+      await _supabase.rpc(
+        'nutrition_upsert_year_day',
+        params: {
+          'p_user_id': uid,
+          'p_year': year,
+          'p_date_key': dateKey,
+          'p_status': status.value,
+          'p_total_kcal': totalKcal,
+          'p_goal_kcal': goalKcal,
+        },
+      );
     } catch (e) {
       AppLogger.w('updateYearDay failed', e);
     }
@@ -147,7 +150,7 @@ class NutritionRepository {
     try {
       final rows = await _supabase
           .from('nutrition_recipes')
-          .select()
+          .select('id, name, ingredients, updated_at')
           .eq('user_id', uid)
           .order('updated_at', ascending: false);
       return rows.map((r) => NutritionRecipe.fromJson(r)).toList();
@@ -178,7 +181,7 @@ class NutritionRepository {
     try {
       final row = await _supabase
           .from('nutrition_weight_meta')
-          .select()
+          .select('kg, date_key, updated_at')
           .eq('user_id', uid)
           .maybeSingle();
       return row != null ? NutritionWeightMeta.fromJson(row) : null;
@@ -225,12 +228,15 @@ class NutritionRepository {
     // Merge-update year summary via RPC
     final year = int.parse(dateKey.substring(0, 4));
     try {
-      await _supabase.rpc('nutrition_upsert_weight_day', params: {
-        'p_user_id': uid,
-        'p_year': year,
-        'p_date_key': dateKey,
-        'p_kg': kg,
-      });
+      await _supabase.rpc(
+        'nutrition_upsert_weight_day',
+        params: {
+          'p_user_id': uid,
+          'p_year': year,
+          'p_date_key': dateKey,
+          'p_kg': kg,
+        },
+      );
     } catch (e) {
       AppLogger.w('nutrition_upsert_weight_day failed', e);
     }

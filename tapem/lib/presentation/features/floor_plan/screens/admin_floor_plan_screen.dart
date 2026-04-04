@@ -24,13 +24,14 @@ import '../providers/floor_plan_provider.dart';
 ///      "Ohne Position" (unplaced) and "Platziert" (placed).
 ///   4. Selecting equipment from "Ohne Position" shows a placement banner;
 ///      tapping the canvas places the dot.
-///   5. Dots on the canvas can be dragged to reposition or long-pressed
-///      to remove the position.
+///   5. Tapping a positioned dot arms "move mode"; the next tap on the map
+///      saves the new position. Dragging remains available for fine tuning.
 class AdminFloorPlanScreen extends HookConsumerWidget {
   const AdminFloorPlanScreen({super.key});
 
   static const double _kBottomPanelHeight = 260.0;
-  static const double _kDotRadius = 12.0;
+  static const double _kDotVisualRadius = 5.0;
+  static const double _kDotHitDiameter = 24.0;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -48,6 +49,8 @@ class AdminFloorPlanScreen extends HookConsumerWidget {
     final transformCtrl = useTransformationController();
     // Equipment selected for placement (tap on canvas to place).
     final selectedForPlacement = useState<GymEquipment?>(null);
+    // Equipment selected for tap-to-move repositioning.
+    final selectedForMove = useState<GymEquipment?>(null);
     // Local (pre-save) overrides while a dot is being dragged.
     final pendingPositions = useState<Map<String, Offset>>({});
     // Disables InteractiveViewer pan/scale while a dot drag is in progress.
@@ -73,6 +76,7 @@ class AdminFloorPlanScreen extends HookConsumerWidget {
               onUploaded: () {
                 pendingPositions.value = {};
                 selectedForPlacement.value = null;
+                selectedForMove.value = null;
               },
             ),
             orElse: () => const SizedBox.shrink(),
@@ -123,18 +127,26 @@ class AdminFloorPlanScreen extends HookConsumerWidget {
                         gymId: gymId,
                         transformCtrl: transformCtrl,
                         selectedForPlacement: selectedForPlacement,
+                        selectedForMove: selectedForMove,
                         pendingPositions: pendingPositions,
                         isDraggingDot: isDraggingDot,
                         isBusy: isBusy,
-                        dotRadius: _kDotRadius,
+                        visualRadius: _kDotVisualRadius,
+                        hitDiameter: _kDotHitDiameter,
                       ),
                     ),
 
                     // ── Placement banner or bottom panel ─────────────────
-                    if (selectedForPlacement.value != null)
-                      _PlacementBanner(
-                        equipment: selectedForPlacement.value!,
-                        onCancel: () => selectedForPlacement.value = null,
+                    if (selectedForPlacement.value != null ||
+                        selectedForMove.value != null)
+                      _MapActionBanner(
+                        equipment:
+                            selectedForPlacement.value ?? selectedForMove.value!,
+                        isMoveMode: selectedForMove.value != null,
+                        onCancel: () {
+                          selectedForPlacement.value = null;
+                          selectedForMove.value = null;
+                        },
                       )
                     else
                       _BottomPanel(
@@ -143,6 +155,7 @@ class AdminFloorPlanScreen extends HookConsumerWidget {
                         positioned: positioned,
                         onSelectForPlacement: (e) {
                           selectedForPlacement.value = e;
+                          selectedForMove.value = null;
                         },
                         onClearPosition: (e) => _clearPosition(
                           context,
@@ -350,10 +363,12 @@ class _FloorPlanCanvas extends HookConsumerWidget {
     required this.gymId,
     required this.transformCtrl,
     required this.selectedForPlacement,
+    required this.selectedForMove,
     required this.pendingPositions,
     required this.isDraggingDot,
     required this.isBusy,
-    required this.dotRadius,
+    required this.visualRadius,
+    required this.hitDiameter,
   });
 
   final GymFloorPlan floorPlan;
@@ -361,57 +376,64 @@ class _FloorPlanCanvas extends HookConsumerWidget {
   final String gymId;
   final TransformationController transformCtrl;
   final ValueNotifier<GymEquipment?> selectedForPlacement;
+  final ValueNotifier<GymEquipment?> selectedForMove;
   final ValueNotifier<Map<String, Offset>> pendingPositions;
   final ValueNotifier<bool> isDraggingDot;
   final ValueNotifier<bool> isBusy;
-  final double dotRadius;
+  final double visualRadius;
+  final double hitDiameter;
+  static const double _kSnapThreshold = 0.015;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final positioned = equipment.where((e) => e.isPositioned).toList();
 
-    return InteractiveViewer(
-      transformationController: transformCtrl,
-      panEnabled: !isDraggingDot.value,
-      scaleEnabled: !isDraggingDot.value,
-      minScale: 0.5,
-      maxScale: 8.0,
-      constrained: false,
-      child: AspectRatio(
-        aspectRatio: floorPlan.aspectRatio,
-        child: LayoutBuilder(
-          builder: (ctx, constraints) {
-            final w = constraints.maxWidth;
-            final h = constraints.maxHeight;
+    return ExcludeSemantics(
+      child: InteractiveViewer(
+        transformationController: transformCtrl,
+        panEnabled: !isDraggingDot.value,
+        scaleEnabled: !isDraggingDot.value,
+        minScale: 0.35,
+        maxScale: 16.0,
+        boundaryMargin: const EdgeInsets.all(240),
+        clipBehavior: Clip.hardEdge,
+        child: AspectRatio(
+          aspectRatio: floorPlan.aspectRatio,
+          child: LayoutBuilder(
+            builder: (ctx, constraints) {
+              final w = constraints.maxWidth;
+              final h = constraints.maxHeight;
 
-            return Stack(
-              clipBehavior: Clip.none,
-              children: [
-                // ── Floor plan image ────────────────────────────────────
-                Positioned.fill(
-                  child: _FloorPlanImage(url: floorPlan.imageUrl),
-                ),
-
-                // ── Tap handler (place selected equipment) ──────────────
-                if (selectedForPlacement.value != null)
+              return Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  // ── Floor plan image ──────────────────────────────────
                   Positioned.fill(
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.translucent,
-                      onTapUp: (details) => _placeEquipment(
-                        context,
-                        ref,
-                        details.localPosition,
-                        Size(w, h),
-                      ),
-                    ),
+                    child: _FloorPlanImage(url: floorPlan.imageUrl),
                   ),
 
-                // ── Equipment dots ──────────────────────────────────────
-                for (final eq in positioned)
-                  _buildDot(context, ref, eq, Size(w, h)),
-              ],
-            );
-          },
+                  // ── Tap handler (place/move selected equipment) ───────
+                  if (selectedForPlacement.value != null ||
+                      selectedForMove.value != null)
+                    Positioned.fill(
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.translucent,
+                        onTapUp: (details) => _commitCanvasTap(
+                          context,
+                          ref,
+                          details.localPosition,
+                          Size(w, h),
+                        ),
+                      ),
+                    ),
+
+                  // ── Equipment dots ────────────────────────────────────
+                  for (final eq in positioned)
+                    _buildDot(context, ref, eq, Size(w, h)),
+                ],
+              );
+            },
+          ),
         ),
       ),
     );
@@ -428,23 +450,31 @@ class _FloorPlanCanvas extends HookConsumerWidget {
     final posX = pending?.dx ?? equipment.posX!;
     final posY = pending?.dy ?? equipment.posY!;
 
-    final left = posX * canvasSize.width - dotRadius;
-    final top = posY * canvasSize.height - dotRadius;
+    final left = posX * canvasSize.width - hitDiameter / 2;
+    final top = posY * canvasSize.height - hitDiameter / 2;
 
     final color = switch (equipment.equipmentType) {
       EquipmentType.fixedMachine => AppColors.neonCyan,
       EquipmentType.openStation => AppColors.neonMagenta,
       EquipmentType.cardio => AppColors.neonYellow,
     };
+    final isSelected = selectedForMove.value?.id == equipment.id;
 
     return Positioned(
       left: left,
       top: top,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
+        onTap: () {
+          selectedForPlacement.value = null;
+          selectedForMove.value =
+              isSelected ? null : equipment;
+        },
         onLongPress: () => _onDotLongPress(context, ref, equipment),
         onPanStart: (_) {
           isDraggingDot.value = true;
+          selectedForPlacement.value = null;
+          selectedForMove.value = equipment;
           // Seed pending position from persisted value.
           pendingPositions.value = {
             ...pendingPositions.value,
@@ -457,16 +487,22 @@ class _FloorPlanCanvas extends HookConsumerWidget {
           final dy = details.delta.dy / scale / canvasSize.height;
           final current =
               pendingPositions.value[equipment.id] ?? Offset(posX, posY);
+          final unsnapped = Offset(
+            (current.dx + dx).clamp(0.0, 1.0).toDouble(),
+            (current.dy + dy).clamp(0.0, 1.0).toDouble(),
+          );
+          final snapped = _snapToNearbyAxes(
+            unsnapped,
+            movingEquipmentId: equipment.id,
+          );
           pendingPositions.value = {
             ...pendingPositions.value,
-            equipment.id: Offset(
-              (current.dx + dx).clamp(0.0, 1.0),
-              (current.dy + dy).clamp(0.0, 1.0),
-            ),
+            equipment.id: snapped,
           };
         },
         onPanEnd: (_) {
           isDraggingDot.value = false;
+          selectedForMove.value = null;
           final newPos = pendingPositions.value[equipment.id];
           if (newPos != null) {
             unawaited(
@@ -475,20 +511,31 @@ class _FloorPlanCanvas extends HookConsumerWidget {
           }
         },
         child: SizedBox(
-          width: dotRadius * 2,
-          height: dotRadius * 2,
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: color.withAlpha(220),
-              shape: BoxShape.circle,
-              border: Border.all(color: Colors.white, width: 1.5),
-              boxShadow: [
-                BoxShadow(
-                  color: color.withAlpha(120),
-                  blurRadius: 6,
-                  spreadRadius: 1,
+          width: hitDiameter,
+          height: hitDiameter,
+          child: Center(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: color.withAlpha(230),
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: isSelected ? AppColors.neonCyan : Colors.white,
+                  width: isSelected ? 1.8 : 1,
                 ),
-              ],
+                boxShadow: [
+                  BoxShadow(
+                    color: (isSelected ? AppColors.neonCyan : color).withAlpha(
+                      isSelected ? 130 : 90,
+                    ),
+                    blurRadius: isSelected ? 7 : 3,
+                    spreadRadius: isSelected ? 1.4 : 0.5,
+                  ),
+                ],
+              ),
+              child: SizedBox(
+                width: visualRadius * 2,
+                height: visualRadius * 2,
+              ),
             ),
           ),
         ),
@@ -496,24 +543,28 @@ class _FloorPlanCanvas extends HookConsumerWidget {
     );
   }
 
-  Future<void> _placeEquipment(
+  Future<void> _commitCanvasTap(
     BuildContext context,
     WidgetRef ref,
     Offset localPos,
     Size canvasSize,
   ) async {
-    final eq = selectedForPlacement.value;
+    final eq = selectedForMove.value ?? selectedForPlacement.value;
     if (eq == null) return;
 
-    final posX = (localPos.dx / canvasSize.width).clamp(0.0, 1.0);
-    final posY = (localPos.dy / canvasSize.height).clamp(0.0, 1.0);
+    final rawPos = Offset(
+      (localPos.dx / canvasSize.width).clamp(0.0, 1.0).toDouble(),
+      (localPos.dy / canvasSize.height).clamp(0.0, 1.0).toDouble(),
+    );
+    final snapped = _snapToNearbyAxes(rawPos, movingEquipmentId: eq.id);
 
     selectedForPlacement.value = null;
+    selectedForMove.value = null;
     isBusy.value = true;
     try {
       await ref
           .read(floorPlanServiceProvider)
-          .saveEquipmentPosition(gymId, eq.id, posX, posY);
+          .saveEquipmentPosition(gymId, eq.id, snapped.dx, snapped.dy);
     } catch (e, st) {
       AppLogger.e('[floor_plan] place equipment error', e, st);
       if (context.mounted) {
@@ -526,6 +577,39 @@ class _FloorPlanCanvas extends HookConsumerWidget {
     } finally {
       isBusy.value = false;
     }
+  }
+
+  Offset _snapToNearbyAxes(
+    Offset candidate, {
+    required String movingEquipmentId,
+  }) {
+    double snappedX = candidate.dx;
+    double snappedY = candidate.dy;
+    var bestXDistance = _kSnapThreshold;
+    var bestYDistance = _kSnapThreshold;
+
+    for (final eq in equipment) {
+      if (eq.id == movingEquipmentId) continue;
+
+      final other = pendingPositions.value[eq.id];
+      final otherX = other?.dx ?? eq.posX;
+      final otherY = other?.dy ?? eq.posY;
+      if (otherX == null || otherY == null) continue;
+
+      final xDistance = (candidate.dx - otherX).abs();
+      if (xDistance < bestXDistance) {
+        snappedX = otherX;
+        bestXDistance = xDistance;
+      }
+
+      final yDistance = (candidate.dy - otherY).abs();
+      if (yDistance < bestYDistance) {
+        snappedY = otherY;
+        bestYDistance = yDistance;
+      }
+    }
+
+    return Offset(snappedX, snappedY);
   }
 
   Future<void> _savePosition(
@@ -610,7 +694,10 @@ class _FloorPlanCanvas extends HookConsumerWidget {
         isBusy,
       );
     }
-    // _DotAction.move: user just dismisses and then drags the dot.
+    if (choice == _DotAction.move) {
+      selectedForPlacement.value = null;
+      selectedForMove.value = equipment;
+    }
   }
 }
 
@@ -624,29 +711,34 @@ class _FloorPlanImage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (_isSvg) {
-      return SvgPicture.network(
-        url,
-        fit: BoxFit.fill,
-        placeholderBuilder: (_) => const Center(
-          child: CircularProgressIndicator(),
+      return ExcludeSemantics(
+        child: SvgPicture.network(
+          url,
+          fit: BoxFit.fill,
+          placeholderBuilder: (_) => const Center(
+            child: CircularProgressIndicator(),
+          ),
         ),
       );
     }
 
-    return Image.network(
-      url,
-      fit: BoxFit.fill,
-      loadingBuilder: (_, child, progress) {
-        if (progress == null) return child;
-        return const Center(
-          child: CircularProgressIndicator(),
-        );
-      },
-      errorBuilder: (_, __, ___) => Center(
-        child: Text(
-          'Bild konnte nicht geladen werden',
-          style: AppTextStyles.bodyMd.copyWith(
-            color: AppColors.textSecondary,
+    return ExcludeSemantics(
+      child: Image.network(
+        url,
+        fit: BoxFit.fill,
+        excludeFromSemantics: true,
+        loadingBuilder: (_, child, progress) {
+          if (progress == null) return child;
+          return const Center(
+            child: CircularProgressIndicator(),
+          );
+        },
+        errorBuilder: (_, __, ___) => Center(
+          child: Text(
+            'Bild konnte nicht geladen werden',
+            style: AppTextStyles.bodyMd.copyWith(
+              color: AppColors.textSecondary,
+            ),
           ),
         ),
       ),
@@ -658,13 +750,15 @@ enum _DotAction { move, delete }
 
 // ─── Placement banner ─────────────────────────────────────────────────────────
 
-class _PlacementBanner extends StatelessWidget {
-  const _PlacementBanner({
+class _MapActionBanner extends StatelessWidget {
+  const _MapActionBanner({
     required this.equipment,
+    required this.isMoveMode,
     required this.onCancel,
   });
 
   final GymEquipment equipment;
+  final bool isMoveMode;
   final VoidCallback onCancel;
 
   @override
@@ -675,11 +769,17 @@ class _PlacementBanner extends StatelessWidget {
       color: AppColors.neonCyan.withAlpha(20),
       child: Row(
         children: [
-          const Icon(Icons.touch_app, color: AppColors.neonCyan, size: 18),
+          Icon(
+            isMoveMode ? Icons.open_with : Icons.touch_app,
+            color: AppColors.neonCyan,
+            size: 18,
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              'Tippe auf die Karte um "${equipment.displayName}" zu platzieren',
+              isMoveMode
+                  ? 'Tippe auf die Karte, um "${equipment.displayName}" neu zu platzieren. X- und Y-Achsen rasten automatisch an benachbarte Geräte an.'
+                  : 'Tippe auf die Karte, um "${equipment.displayName}" zu platzieren. X- und Y-Achsen rasten automatisch an benachbarte Geräte an.',
               style: AppTextStyles.bodyMd.copyWith(color: AppColors.neonCyan),
             ),
           ),

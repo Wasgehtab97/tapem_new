@@ -19,6 +19,8 @@ class GymEquipment extends Equatable {
     required this.id,
     required this.gymId,
     required this.name,
+    this.personalDisplayName,
+    this.hasPersonalNameOverride = false,
     required this.equipmentType,
     this.zoneName,
     this.nfcTagUid,
@@ -28,13 +30,21 @@ class GymEquipment extends Equatable {
     this.model,
     this.catalogId,
     this.equipmentExternalId,
+    this.posX,
+    this.posY,
     required this.isActive,
     required this.createdAt,
   });
 
   final String id;
   final String gymId;
+
+  /// Canonical admin-defined equipment name from `gym_equipment.name`.
   final String name;
+
+  /// Optional per-user alias. Never persisted to `gym_equipment`.
+  final String? personalDisplayName;
+  final bool hasPersonalNameOverride;
   final EquipmentType equipmentType;
   final String? zoneName;
   final String? nfcTagUid;
@@ -54,8 +64,21 @@ class GymEquipment extends Equatable {
   final String? catalogId;
 
   final String? equipmentExternalId;
+
+  /// Normalised floor-plan coordinates (0.0–1.0). Both null = not positioned.
+  final double? posX;
+  final double? posY;
+
   final bool isActive;
   final DateTime createdAt;
+
+  bool get isPositioned => posX != null && posY != null;
+
+  String get displayName {
+    final alias = personalDisplayName?.trim();
+    if (alias == null || alias.isEmpty) return name;
+    return alias;
+  }
 
   bool get supportsNfc => nfcTagUid != null;
 

@@ -75,7 +75,9 @@ class TrainingHeatmap extends StatelessWidget {
     // 0 = Monday offset for the first column
     final startOffset = (jan1.weekday - 1) % 7;
 
-    return LayoutBuilder(
+    return Semantics(
+      label: '${trainingDays.length} Trainingstage in $year',
+      child: LayoutBuilder(
       builder: (context, constraints) {
         // Dialog uses fixed 24 px cells; preview fills available width.
         const dialogCellSize = 24.0;
@@ -191,7 +193,8 @@ class TrainingHeatmap extends StatelessWidget {
         // Preview: no extra padding — the parent card handles all spacing.
         return content;
       },
-    );
+      ), // LayoutBuilder
+    ); // Semantics
   }
 
   // ─── Helpers ──────────────────────────────────────────────────────────────

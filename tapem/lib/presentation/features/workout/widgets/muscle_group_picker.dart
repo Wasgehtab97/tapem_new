@@ -165,11 +165,15 @@ class _MuscleGroupChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    return Semantics(
+      button: true,
+      selected: isSelected,
+      label: label,
+      child: GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
           color: isSelected
               ? AppColors.neonCyan.withAlpha(25)
@@ -190,6 +194,7 @@ class _MuscleGroupChip extends StatelessWidget {
           ),
         ),
       ),
-    );
+      ), // GestureDetector
+    ); // Semantics
   }
 }

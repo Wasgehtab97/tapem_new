@@ -28,7 +28,8 @@ class GymMapView extends HookConsumerWidget {
   /// All active equipment for the gym (already loaded by the parent screen).
   final List<GymEquipment> equipment;
 
-  static const double _kDotRadius = 11.0;
+  static const double _kDotVisualRadius = 4.5;
+  static const double _kDotHitDiameter = 22.0;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -43,37 +44,41 @@ class GymMapView extends HookConsumerWidget {
 
         final positioned = equipment.where((e) => e.isPositioned).toList();
 
-        return InteractiveViewer(
-          transformationController: transformCtrl,
-          minScale: 0.5,
-          maxScale: 8.0,
-          constrained: false,
-          child: AspectRatio(
-            aspectRatio: floorPlan.aspectRatio,
-            child: LayoutBuilder(
-              builder: (ctx, constraints) {
-                final w = constraints.maxWidth;
-                final h = constraints.maxHeight;
+        return ExcludeSemantics(
+          child: InteractiveViewer(
+            transformationController: transformCtrl,
+            minScale: 0.35,
+            maxScale: 16.0,
+            boundaryMargin: const EdgeInsets.all(240),
+            clipBehavior: Clip.hardEdge,
+            child: AspectRatio(
+              aspectRatio: floorPlan.aspectRatio,
+              child: LayoutBuilder(
+                builder: (ctx, constraints) {
+                  final w = constraints.maxWidth;
+                  final h = constraints.maxHeight;
 
-                return Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    // ── Floor plan image ──────────────────────────────────
-                    Positioned.fill(
-                      child: _FloorPlanImage(url: floorPlan.imageUrl),
-                    ),
-
-                    // ── Equipment dots ──────────────────────────────────────
-                    for (final eq in positioned)
-                      _EquipmentDot(
-                        equipment: eq,
-                        gymId: gymId,
-                        canvasSize: Size(w, h),
-                        dotRadius: _kDotRadius,
+                  return Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      // ── Floor plan image ────────────────────────────────
+                      Positioned.fill(
+                        child: _FloorPlanImage(url: floorPlan.imageUrl),
                       ),
-                  ],
-                );
-              },
+
+                      // ── Equipment dots ──────────────────────────────────
+                      for (final eq in positioned)
+                        _EquipmentDot(
+                          equipment: eq,
+                          gymId: gymId,
+                          canvasSize: Size(w, h),
+                          visualRadius: _kDotVisualRadius,
+                          hitDiameter: _kDotHitDiameter,
+                        ),
+                    ],
+                  );
+                },
+              ),
             ),
           ),
         );
@@ -92,29 +97,34 @@ class _FloorPlanImage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (_isSvg) {
-      return SvgPicture.network(
-        url,
-        fit: BoxFit.fill,
-        placeholderBuilder: (_) => const Center(
-          child: CircularProgressIndicator(),
+      return ExcludeSemantics(
+        child: SvgPicture.network(
+          url,
+          fit: BoxFit.fill,
+          placeholderBuilder: (_) => const Center(
+            child: CircularProgressIndicator(),
+          ),
         ),
       );
     }
 
-    return Image.network(
-      url,
-      fit: BoxFit.fill,
-      loadingBuilder: (_, child, progress) {
-        if (progress == null) return child;
-        return const Center(
-          child: CircularProgressIndicator(),
-        );
-      },
-      errorBuilder: (_, __, ___) => Center(
-        child: Text(
-          'Bild konnte nicht geladen werden',
-          style: AppTextStyles.bodyMd.copyWith(
-            color: AppColors.textSecondary,
+    return ExcludeSemantics(
+      child: Image.network(
+        url,
+        fit: BoxFit.fill,
+        excludeFromSemantics: true,
+        loadingBuilder: (_, child, progress) {
+          if (progress == null) return child;
+          return const Center(
+            child: CircularProgressIndicator(),
+          );
+        },
+        errorBuilder: (_, __, ___) => Center(
+          child: Text(
+            'Bild konnte nicht geladen werden',
+            style: AppTextStyles.bodyMd.copyWith(
+              color: AppColors.textSecondary,
+            ),
           ),
         ),
       ),
@@ -129,21 +139,23 @@ class _EquipmentDot extends StatelessWidget {
     required this.equipment,
     required this.gymId,
     required this.canvasSize,
-    required this.dotRadius,
+    required this.visualRadius,
+    required this.hitDiameter,
   });
 
   final GymEquipment equipment;
   final String gymId;
   final Size canvasSize;
-  final double dotRadius;
+  final double visualRadius;
+  final double hitDiameter;
 
   @override
   Widget build(BuildContext context) {
     final posX = equipment.posX!;
     final posY = equipment.posY!;
 
-    final left = posX * canvasSize.width - dotRadius;
-    final top = posY * canvasSize.height - dotRadius;
+    final left = posX * canvasSize.width - hitDiameter / 2;
+    final top = posY * canvasSize.height - hitDiameter / 2;
 
     final color = switch (equipment.equipmentType) {
       EquipmentType.fixedMachine => AppColors.neonCyan,
@@ -158,20 +170,26 @@ class _EquipmentDot extends StatelessWidget {
         behavior: HitTestBehavior.opaque,
         onTap: () => showEquipmentDetailSheet(context, equipment, gymId),
         child: SizedBox(
-          width: dotRadius * 2,
-          height: dotRadius * 2,
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: color.withAlpha(220),
-              shape: BoxShape.circle,
-              border: Border.all(color: Colors.white, width: 1.5),
-              boxShadow: [
-                BoxShadow(
-                  color: color.withAlpha(120),
-                  blurRadius: 6,
-                  spreadRadius: 1,
-                ),
-              ],
+          width: hitDiameter,
+          height: hitDiameter,
+          child: Center(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: color.withAlpha(230),
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 1),
+                boxShadow: [
+                  BoxShadow(
+                    color: color.withAlpha(90),
+                    blurRadius: 3,
+                    spreadRadius: 0.5,
+                  ),
+                ],
+              ),
+              child: SizedBox(
+                width: visualRadius * 2,
+                height: visualRadius * 2,
+              ),
             ),
           ),
         ),

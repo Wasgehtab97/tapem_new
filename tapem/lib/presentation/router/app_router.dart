@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -18,6 +19,19 @@ import '../features/community/screens/community_screen.dart';
 import '../features/profile/screens/profile_screen.dart';
 import '../features/admin/screens/admin_screen.dart';
 import '../features/admin/screens/admin_nfc_screen.dart';
+import '../features/admin/screens/admin_gym_settings_screen.dart';
+import '../features/admin/screens/admin_equipment_screen.dart';
+import '../features/admin/screens/admin_exercise_templates_screen.dart';
+import '../features/admin/screens/admin_members_screen.dart';
+import '../features/admin/screens/admin_roles_screen.dart';
+import '../features/admin/screens/admin_challenges_screen.dart';
+import '../features/admin/screens/admin_analytics_screen.dart';
+import '../features/admin/screens/admin_equipment_analytics_screen.dart';
+import '../features/admin/screens/admin_engagement_screen.dart';
+import '../features/admin/screens/admin_moderation_screen.dart';
+import '../features/admin/screens/admin_equipment_feedback_screen.dart';
+import '../features/admin/screens/admin_owner_overview_screen.dart';
+import '../features/floor_plan/screens/admin_floor_plan_screen.dart';
 import '../features/plans/screens/plan_builder_screen.dart';
 import '../features/plans/screens/plans_screen.dart';
 import '../widgets/common/scaffold_with_nav_bar.dart';
@@ -99,90 +113,113 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: RouteNames.login,
         name: 'login',
-        builder: (_, __) => const LoginScreen(),
+        pageBuilder: (c, s) => _fadeScalePage(c, s, const LoginScreen()),
       ),
       GoRoute(
         path: RouteNames.register,
         name: 'register',
-        builder: (_, __) => const RegisterScreen(),
+        pageBuilder: (c, s) => _slidePage(c, s, const RegisterScreen()),
       ),
       GoRoute(
         path: RouteNames.usernameSetup,
         name: 'username-setup',
-        builder: (_, __) => const UsernameSetupScreen(),
+        pageBuilder: (c, s) => _slidePage(c, s, const UsernameSetupScreen()),
       ),
       GoRoute(
         path: RouteNames.gymSetup,
         name: 'gym-setup',
-        builder: (_, __) => const GymSetupScreen(),
+        pageBuilder: (c, s) => _slidePage(c, s, const GymSetupScreen()),
       ),
 
       // ── Profile (full-screen overlay, not a tab) ─────────────────────────
       GoRoute(
         path: RouteNames.profile,
         name: 'profile',
-        builder: (_, __) => const ProfileScreen(),
+        pageBuilder: (c, s) => _fadeScalePage(c, s, const ProfileScreen()),
       ),
 
       // ── Nutrition (full-screen, not a tab) ──────────────────────────────
       GoRoute(
         path: RouteNames.nutrition,
         name: 'nutrition',
-        builder: (_, __) => const NutritionHomeScreen(),
+        pageBuilder: (c, s) => _slidePage(c, s, const NutritionHomeScreen()),
         routes: [
           GoRoute(
             path: 'day',
             name: 'nutrition-day',
-            builder: (_, __) => const NutritionDayScreen(),
+            pageBuilder: (c, s) => _slidePage(c, s, const NutritionDayScreen()),
           ),
           GoRoute(
             path: 'goals',
             name: 'nutrition-goals',
-            builder: (_, __) => const NutritionGoalsScreen(),
+            pageBuilder: (c, s) =>
+                _slidePage(c, s, const NutritionGoalsScreen()),
           ),
           GoRoute(
             path: 'entry',
             name: 'nutrition-entry',
-            builder: (_, __) => const NutritionEntryScreen(),
+            pageBuilder: (c, s) =>
+                _slidePage(c, s, const NutritionEntryScreen()),
           ),
           GoRoute(
             path: 'search',
             name: 'nutrition-search',
-            builder: (_, state) => NutritionSearchScreen(
-              extra: (state.extra as Map<String, dynamic>?) ?? {},
+            pageBuilder: (c, s) => _slidePage(
+              c,
+              s,
+              NutritionSearchScreen(
+                extra: (s.extra as Map<String, dynamic>?) ?? {},
+              ),
             ),
           ),
           GoRoute(
             path: 'scan',
             name: 'nutrition-scan',
-            builder: (_, state) => NutritionScanScreen(
-              extra: (state.extra as Map<String, dynamic>?) ?? {},
+            pageBuilder: (c, s) => _slidePage(
+              c,
+              s,
+              NutritionScanScreen(
+                extra: (s.extra as Map<String, dynamic>?) ?? {},
+              ),
             ),
           ),
           GoRoute(
             path: 'recipes',
             name: 'nutrition-recipes',
-            builder: (_, state) => NutritionRecipesScreen(
-              extra: (state.extra as Map<String, dynamic>?) ?? {},
+            pageBuilder: (c, s) => _slidePage(
+              c,
+              s,
+              NutritionRecipesScreen(
+                extra: (s.extra as Map<String, dynamic>?) ?? {},
+              ),
             ),
           ),
           GoRoute(
             path: 'recipe-edit',
             name: 'nutrition-recipe-edit',
-            builder: (_, state) => NutritionRecipeEditScreen(
-              extra: (state.extra as Map<String, dynamic>?) ?? {},
+            pageBuilder: (c, s) => _slidePage(
+              c,
+              s,
+              NutritionRecipeEditScreen(
+                extra: (s.extra as Map<String, dynamic>?) ?? {},
+              ),
             ),
           ),
           GoRoute(
             path: 'weight',
             name: 'nutrition-weight',
-            builder: (_, __) => const NutritionWeightScreen(),
+            pageBuilder: (c, s) =>
+                _slidePage(c, s, const NutritionWeightScreen()),
           ),
           GoRoute(
             path: 'calendar',
             name: 'nutrition-calendar',
-            builder: (_, state) => NutritionCalendarScreen(
-              extra: (state.extra as Map<String, dynamic>?) ?? {},
+            pageBuilder: (c, s) => _slidePage(
+              c,
+              s,
+              NutritionCalendarScreen(
+                extra: (s.extra as Map<String, dynamic>?) ?? {},
+              ),
             ),
           ),
         ],
@@ -241,19 +278,26 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                   GoRoute(
                     path: 'plans',
                     name: 'plans',
-                    builder: (_, __) => const PlansScreen(),
+                    pageBuilder: (c, s) => _slidePage(c, s, const PlansScreen()),
                     routes: [
                       GoRoute(
                         path: 'new',
                         name: 'plan-new',
-                        builder: (_, __) =>
-                            const PlanBuilderScreen(editPlanId: null),
+                        pageBuilder: (c, s) => _slidePage(
+                          c,
+                          s,
+                          const PlanBuilderScreen(editPlanId: null),
+                        ),
                       ),
                       GoRoute(
                         path: ':planId/edit',
                         name: 'plan-edit',
-                        builder: (_, state) => PlanBuilderScreen(
-                          editPlanId: state.pathParameters['planId'],
+                        pageBuilder: (c, s) => _slidePage(
+                          c,
+                          s,
+                          PlanBuilderScreen(
+                            editPlanId: s.pathParameters['planId'],
+                          ),
                         ),
                       ),
                     ],
@@ -284,18 +328,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                   return isAdmin ? null : RouteNames.home;
                 },
                 builder: (_, __) => const AdminScreen(),
-                routes: [
-                  GoRoute(
-                    path: 'nfc',
-                    name: 'admin-nfc',
-                    redirect: (_, __) {
-                      final isAdmin =
-                          ref.read(isGymAdminProvider).valueOrNull ?? false;
-                      return isAdmin ? null : RouteNames.home;
-                    },
-                    builder: (_, __) => const AdminNfcScreen(),
-                  ),
-                ],
+                routes: _adminSubRoutes(ref),
               ),
             ],
           ),
@@ -304,6 +337,166 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     ],
   );
 });
+
+// ─── Admin sub-route builder ──────────────────────────────────────────────────
+// All admin sub-routes share the same guard: caller must be gym admin/owner.
+// Extracted to keep the main route tree readable.
+
+List<GoRoute> _adminSubRoutes(Ref ref) {
+  GoRouterRedirect adminGuard() => (_, __) {
+        final isAdmin = ref.read(isGymAdminProvider).valueOrNull ?? false;
+        return isAdmin ? null : RouteNames.home;
+      };
+
+  return [
+    GoRoute(
+      path: 'nfc',
+      name: 'admin-nfc',
+      redirect: adminGuard(),
+      pageBuilder: (c, s) => _slidePage(c, s, const AdminNfcScreen()),
+    ),
+    GoRoute(
+      path: 'gym-settings',
+      name: 'admin-gym-settings',
+      redirect: adminGuard(),
+      pageBuilder: (c, s) => _slidePage(c, s, const AdminGymSettingsScreen()),
+    ),
+    GoRoute(
+      path: 'equipment',
+      name: 'admin-equipment',
+      redirect: adminGuard(),
+      pageBuilder: (c, s) => _slidePage(c, s, const AdminEquipmentScreen()),
+    ),
+    GoRoute(
+      path: 'exercises',
+      name: 'admin-exercises',
+      redirect: adminGuard(),
+      pageBuilder: (c, s) =>
+          _slidePage(c, s, const AdminExerciseTemplatesScreen()),
+    ),
+    GoRoute(
+      path: 'members',
+      name: 'admin-members',
+      redirect: adminGuard(),
+      pageBuilder: (c, s) => _slidePage(c, s, const AdminMembersScreen()),
+    ),
+    GoRoute(
+      path: 'roles',
+      name: 'admin-roles',
+      redirect: adminGuard(),
+      pageBuilder: (c, s) => _slidePage(c, s, const AdminRolesScreen()),
+    ),
+    GoRoute(
+      path: 'challenges',
+      name: 'admin-challenges',
+      redirect: adminGuard(),
+      pageBuilder: (c, s) => _slidePage(c, s, const AdminChallengesScreen()),
+    ),
+    GoRoute(
+      path: 'analytics',
+      name: 'admin-analytics',
+      redirect: adminGuard(),
+      pageBuilder: (c, s) => _slidePage(c, s, const AdminAnalyticsScreen()),
+    ),
+    GoRoute(
+      path: 'equipment-analytics',
+      name: 'admin-equipment-analytics',
+      redirect: adminGuard(),
+      pageBuilder: (c, s) =>
+          _slidePage(c, s, const AdminEquipmentAnalyticsScreen()),
+    ),
+    GoRoute(
+      path: 'engagement',
+      name: 'admin-engagement',
+      redirect: adminGuard(),
+      pageBuilder: (c, s) => _slidePage(c, s, const AdminEngagementScreen()),
+    ),
+    GoRoute(
+      path: 'moderation',
+      name: 'admin-moderation',
+      redirect: adminGuard(),
+      pageBuilder: (c, s) => _slidePage(c, s, const AdminModerationScreen()),
+    ),
+    GoRoute(
+      path: 'equipment-feedback',
+      name: 'admin-equipment-feedback',
+      redirect: adminGuard(),
+      pageBuilder: (c, s) =>
+          _slidePage(c, s, const AdminEquipmentFeedbackScreen()),
+    ),
+    GoRoute(
+      path: 'floor-plan',
+      name: 'admin-floor-plan',
+      redirect: adminGuard(),
+      pageBuilder: (c, s) => _slidePage(c, s, const AdminFloorPlanScreen()),
+    ),
+    GoRoute(
+      path: 'owner-overview',
+      name: 'admin-owner-overview',
+      redirect: adminGuard(),
+      pageBuilder: (c, s) =>
+          _slidePage(c, s, const AdminOwnerOverviewScreen()),
+    ),
+  ];
+}
+
+// ─── Transition helpers ───────────────────────────────────────────────────────
+
+/// Slide from right (standard detail push).
+CustomTransitionPage<void> _slidePage(
+  BuildContext context,
+  GoRouterState state,
+  Widget child,
+) {
+  return CustomTransitionPage<void>(
+    key: state.pageKey,
+    child: child,
+    transitionDuration: const Duration(milliseconds: 240),
+    reverseTransitionDuration: const Duration(milliseconds: 200),
+    transitionsBuilder: (_, animation, secondaryAnimation, child) {
+      final curve = CurvedAnimation(
+        parent: animation,
+        curve: Curves.easeOutCubic,
+        reverseCurve: Curves.easeInCubic,
+      );
+      return SlideTransition(
+        position: Tween<Offset>(
+          begin: const Offset(1, 0),
+          end: Offset.zero,
+        ).animate(curve),
+        child: FadeTransition(opacity: curve, child: child),
+      );
+    },
+  );
+}
+
+/// Fade + scale up (modal/overlay screens).
+CustomTransitionPage<void> _fadeScalePage(
+  BuildContext context,
+  GoRouterState state,
+  Widget child,
+) {
+  return CustomTransitionPage<void>(
+    key: state.pageKey,
+    child: child,
+    transitionDuration: const Duration(milliseconds: 220),
+    reverseTransitionDuration: const Duration(milliseconds: 180),
+    transitionsBuilder: (_, animation, secondaryAnimation, child) {
+      final curve = CurvedAnimation(
+        parent: animation,
+        curve: Curves.easeOutCubic,
+        reverseCurve: Curves.easeInCubic,
+      );
+      return FadeTransition(
+        opacity: curve,
+        child: ScaleTransition(
+          scale: Tween<double>(begin: 0.95, end: 1.0).animate(curve),
+          child: child,
+        ),
+      );
+    },
+  );
+}
 
 /// [ChangeNotifier] that fires whenever auth state, active gym, or admin role
 /// changes, triggering GoRouter to re-evaluate all redirect rules including

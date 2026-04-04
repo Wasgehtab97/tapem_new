@@ -5,20 +5,25 @@ import 'package:flutter/services.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'package:package_info_plus/package_info_plus.dart';
 
+import '../../../../core/config/app_config.dart';
 import '../../../../core/config/build_info.dart';
 import '../../../../core/providers/locale_provider.dart';
 import '../../../../core/services/gym_service.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/utils/l10n_extension.dart';
+import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../domain/entities/auth/user_profile.dart';
 import '../../../widgets/common/tapem_button.dart';
+import '../../../widgets/common/tapem_skeleton.dart';
 import '../../../widgets/common/tapem_text_field.dart';
 import '../../../widgets/common/user_avatar.dart';
 import '../../auth/providers/auth_provider.dart';
+import '../../auth/providers/account_compliance_provider.dart';
 import '../../auth/providers/profile_provider.dart';
 
 class ProfileScreen extends ConsumerWidget {
@@ -35,18 +40,58 @@ class ProfileScreen extends ConsumerWidget {
           IconButton(
             icon: const Icon(Icons.logout),
             tooltip: context.l10n.signOut,
-            onPressed: () =>
-                ref.read(authNotifierProvider.notifier).signOut(),
+            onPressed: () => ref.read(authNotifierProvider.notifier).signOut(),
           ),
         ],
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Container(
+            height: 1,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  Colors.transparent,
+                  AppColors.neonCyan.withAlpha(120),
+                  AppColors.neonMagenta.withAlpha(100),
+                  AppColors.neonCyan.withAlpha(120),
+                  Colors.transparent,
+                ],
+              ),
+            ),
+          ),
+        ),
       ),
       body: profile.when(
         data: (p) => p == null
             ? Center(child: Text(context.l10n.noProfile))
             : _ProfileBody(profile: p),
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => const _ProfileSkeleton(),
         error: (e, _) => Center(child: Text(e.toString())),
       ),
+    );
+  }
+}
+
+class _ProfileSkeleton extends StatelessWidget {
+  const _ProfileSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Center(child: TapemSkeleton.circle(size: 104)),
+        const SizedBox(height: 24),
+        TapemSkeleton.card(height: 72),
+        const SizedBox(height: 16),
+        TapemSkeleton.card(height: 88),
+        const SizedBox(height: 16),
+        TapemSkeleton.card(height: 72),
+        const SizedBox(height: 16),
+        TapemSkeleton.card(height: 72),
+        const SizedBox(height: 16),
+        TapemSkeleton.card(height: 120),
+      ],
     );
   }
 }
@@ -73,6 +118,13 @@ class _ProfileBody extends ConsumerWidget {
             color: AppColors.surface800,
             borderRadius: BorderRadius.circular(8),
             border: Border.all(color: AppColors.surface500),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.neonCyan.withAlpha(18),
+                blurRadius: 12,
+                offset: const Offset(0, 2),
+              ),
+            ],
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -95,6 +147,13 @@ class _ProfileBody extends ConsumerWidget {
             color: AppColors.surface800,
             borderRadius: BorderRadius.circular(8),
             border: Border.all(color: AppColors.surface500),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.neonCyan.withAlpha(18),
+                blurRadius: 12,
+                offset: const Offset(0, 2),
+              ),
+            ],
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -114,6 +173,13 @@ class _ProfileBody extends ConsumerWidget {
             color: AppColors.surface800,
             borderRadius: BorderRadius.circular(8),
             border: Border.all(color: AppColors.surface500),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.neonCyan.withAlpha(18),
+                blurRadius: 12,
+                offset: const Offset(0, 2),
+              ),
+            ],
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -126,6 +192,25 @@ class _ProfileBody extends ConsumerWidget {
         ),
         const SizedBox(height: 16),
 
+        // Machine performance leaderboard visibility
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppColors.surface800,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: AppColors.surface500),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.neonCyan.withAlpha(18),
+                blurRadius: 12,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: _MachinePerformanceLeaderboardSelector(profile: profile),
+        ),
+        const SizedBox(height: 16),
+
         // Language picker
         Container(
           padding: const EdgeInsets.all(16),
@@ -133,6 +218,13 @@ class _ProfileBody extends ConsumerWidget {
             color: AppColors.surface800,
             borderRadius: BorderRadius.circular(8),
             border: Border.all(color: AppColors.surface500),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.neonCyan.withAlpha(18),
+                blurRadius: 12,
+                offset: const Offset(0, 2),
+              ),
+            ],
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -147,6 +239,10 @@ class _ProfileBody extends ConsumerWidget {
 
         // Studios
         const _GymSection(),
+        const SizedBox(height: 16),
+
+        // Legal + privacy + account rights
+        const _LegalAndDataSection(),
         const SizedBox(height: 32),
 
         TapemButton(
@@ -158,6 +254,276 @@ class _ProfileBody extends ConsumerWidget {
         const _AppBuildInfo(),
         const SizedBox(height: 8),
       ],
+    );
+  }
+}
+
+class _LegalAndDataSection extends HookConsumerWidget {
+  const _LegalAndDataSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = context.l10n;
+    final isExporting = useState(false);
+    final isDeleting = useState(false);
+    final compliance = ref.read(accountComplianceServiceProvider);
+
+    Future<void> openExternal(String url) async {
+      final uri = Uri.tryParse(url);
+      if (uri == null) return;
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+
+    Future<void> exportData() async {
+      if (isExporting.value || isDeleting.value) return;
+      isExporting.value = true;
+      try {
+        final result = await compliance.exportMyData();
+        if (!context.mounted) return;
+        await showDialog<void>(
+          context: context,
+          builder: (_) => AlertDialog(
+            backgroundColor: AppColors.surface800,
+            title: Text(l10n.exportDataReadyTitle, style: AppTextStyles.h3),
+            content: Text(
+              l10n.exportDataReadyBody(
+                result.estimatedRows,
+                result.expiresInSeconds ~/ 60,
+              ),
+              style: AppTextStyles.bodyMd,
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: Text(l10n.closeLabel),
+              ),
+              TextButton(
+                onPressed: () async {
+                  await openExternal(result.downloadUrl);
+                  if (context.mounted) {
+                    Navigator.of(context).pop();
+                  }
+                },
+                child: Text(l10n.downloadExportLabel),
+              ),
+            ],
+          ),
+        );
+      } catch (e) {
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(l10n.exportDataFailed(e.toString())),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      } finally {
+        isExporting.value = false;
+      }
+    }
+
+    Future<void> deleteAccount() async {
+      if (isDeleting.value || isExporting.value) return;
+
+      final confirmed = await _confirmDeleteDialog(context, l10n);
+      if (!confirmed) return;
+
+      isDeleting.value = true;
+      try {
+        await compliance.deleteMyAccount(confirmationText: 'DELETE');
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(l10n.accountDeletedSuccess),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      } catch (e) {
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(l10n.accountDeleteFailed(e.toString())),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      } finally {
+        isDeleting.value = false;
+      }
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface800,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.surface500),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(l10n.legalDataSection, style: AppTextStyles.labelMd),
+          const SizedBox(height: 8),
+          _SettingsLinkTile(
+            icon: Icons.privacy_tip_outlined,
+            label: l10n.privacyPolicyLabel,
+            onTap: () => openExternal(AppConfig.privacyPolicyUrl),
+          ),
+          _SettingsLinkTile(
+            icon: Icons.description_outlined,
+            label: l10n.termsOfServiceLabel,
+            onTap: () => openExternal(AppConfig.termsOfServiceUrl),
+          ),
+          _SettingsLinkTile(
+            icon: Icons.business_outlined,
+            label: l10n.imprintLabel,
+            onTap: () => openExternal(AppConfig.imprintUrl),
+          ),
+          _SettingsLinkTile(
+            icon: Icons.support_agent_outlined,
+            label: l10n.supportLabel,
+            onTap: () => openExternal(AppConfig.supportUrl),
+          ),
+          const Divider(height: 24),
+          _SettingsLinkTile(
+            icon: Icons.download_outlined,
+            label: isExporting.value
+                ? l10n.exportingDataLabel
+                : l10n.exportMyDataLabel,
+            onTap: exportData,
+            trailing: isExporting.value
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : null,
+          ),
+          _SettingsLinkTile(
+            icon: Icons.delete_forever_outlined,
+            label: isDeleting.value
+                ? l10n.deletingAccountLabel
+                : l10n.deleteAccountLabel,
+            onTap: deleteAccount,
+            danger: true,
+            trailing: isDeleting.value
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : null,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<bool> _confirmDeleteDialog(
+    BuildContext context,
+    AppLocalizations l10n,
+  ) async {
+    final controller = TextEditingController();
+    bool canDelete = false;
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (_) => StatefulBuilder(
+        builder: (context, setState) {
+          return AlertDialog(
+            backgroundColor: AppColors.surface800,
+            title: Text(
+              l10n.deleteAccountConfirmTitle,
+              style: AppTextStyles.h3,
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  l10n.deleteAccountConfirmBody,
+                  style: AppTextStyles.bodyMd,
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: controller,
+                  style: AppTextStyles.bodyMd,
+                  decoration: InputDecoration(
+                    labelText: l10n.typeDeletePrompt,
+                    labelStyle: AppTextStyles.bodySm,
+                    enabledBorder: OutlineInputBorder(
+                      borderSide: const BorderSide(color: AppColors.surface500),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderSide: const BorderSide(color: AppColors.neonCyan),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                  ),
+                  onChanged: (value) {
+                    final next = value.trim().toUpperCase() == 'DELETE';
+                    if (next != canDelete) {
+                      setState(() => canDelete = next);
+                    }
+                  },
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: Text(l10n.cancel),
+              ),
+              TextButton(
+                onPressed: canDelete
+                    ? () => Navigator.of(context).pop(true)
+                    : null,
+                child: Text(
+                  l10n.deleteAccountLabel,
+                  style: const TextStyle(color: AppColors.error),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+
+    controller.dispose();
+    return result == true;
+  }
+}
+
+class _SettingsLinkTile extends StatelessWidget {
+  const _SettingsLinkTile({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.trailing,
+    this.danger = false,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final Widget? trailing;
+  final bool danger;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = danger ? AppColors.error : AppColors.textPrimary;
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      dense: true,
+      leading: Icon(icon, color: color),
+      title: Text(label, style: AppTextStyles.bodyMd.copyWith(color: color)),
+      trailing:
+          trailing ??
+          const Icon(
+            Icons.open_in_new,
+            size: 18,
+            color: AppColors.textSecondary,
+          ),
+      onTap: onTap,
     );
   }
 }
@@ -335,7 +701,9 @@ class _ThemePicker extends ConsumerWidget {
           child: GestureDetector(
             onTap: () =>
                 ref.read(profileNotifierProvider.notifier).updateTheme(key),
-            child: Container(
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeOutCubic,
               margin: const EdgeInsets.only(right: 8),
               padding: const EdgeInsets.symmetric(vertical: 12),
               decoration: BoxDecoration(
@@ -345,6 +713,9 @@ class _ThemePicker extends ConsumerWidget {
                   color: isSelected ? color : AppColors.surface500,
                   width: isSelected ? 1.5 : 1,
                 ),
+                boxShadow: isSelected
+                    ? [BoxShadow(color: color.withAlpha(60), blurRadius: 8)]
+                    : null,
               ),
               child: Column(
                 children: [
@@ -451,6 +822,146 @@ class _PrivacySelector extends ConsumerWidget {
           ),
         );
       }).toList(),
+    );
+  }
+}
+
+class _MachinePerformanceLeaderboardSelector extends ConsumerWidget {
+  const _MachinePerformanceLeaderboardSelector({required this.profile});
+
+  final UserProfile profile;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final notifier = ref.read(profileNotifierProvider.notifier);
+    final selectedSex = profile.machinePerformanceSex;
+    final isOptedIn = profile.machinePerformanceOptIn;
+
+    Future<void> save({
+      required bool nextOptIn,
+      required MachinePerformanceSex? nextSex,
+    }) async {
+      try {
+        await notifier.updateMachinePerformanceVisibility(
+          isOptedIn: nextOptIn,
+          sex: nextSex,
+        );
+      } catch (e) {
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Update failed: $e')));
+      }
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'MACHINE PERFORMANCE LEADERBOARD',
+          style: AppTextStyles.labelMd,
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Opt in to appear in sex-separated machine strength rankings (best-set e1RM).',
+          style: AppTextStyles.bodySm.copyWith(color: AppColors.textSecondary),
+        ),
+        const SizedBox(height: 12),
+        SwitchListTile.adaptive(
+          value: isOptedIn,
+          contentPadding: EdgeInsets.zero,
+          activeColor: AppColors.neonCyan,
+          title: Text(
+            isOptedIn ? 'Visible in leaderboard' : 'Not visible in leaderboard',
+            style: AppTextStyles.bodyMd,
+          ),
+          subtitle: Text(
+            'Requires sex selection',
+            style: AppTextStyles.bodySm.copyWith(
+              color: AppColors.textSecondary,
+            ),
+          ),
+          onChanged: (enabled) async {
+            if (enabled && selectedSex == null) {
+              if (!context.mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Select sex before enabling opt-in.'),
+                ),
+              );
+              return;
+            }
+            await save(nextOptIn: enabled, nextSex: selectedSex);
+          },
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              child: _SexChoiceChip(
+                label: 'Male',
+                selected: selectedSex == MachinePerformanceSex.male,
+                onTap: () => save(
+                  nextOptIn: isOptedIn,
+                  nextSex: MachinePerformanceSex.male,
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _SexChoiceChip(
+                label: 'Female',
+                selected: selectedSex == MachinePerformanceSex.female,
+                onTap: () => save(
+                  nextOptIn: isOptedIn,
+                  nextSex: MachinePerformanceSex.female,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _SexChoiceChip extends StatelessWidget {
+  const _SexChoiceChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        alignment: Alignment.center,
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+        decoration: BoxDecoration(
+          color: selected
+              ? AppColors.neonCyan.withAlpha(18)
+              : AppColors.surface700,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: selected ? AppColors.neonCyan : AppColors.surface500,
+            width: selected ? 1.5 : 1,
+          ),
+        ),
+        child: Text(
+          label.toUpperCase(),
+          style: AppTextStyles.labelSm.copyWith(
+            color: selected ? AppColors.neonCyan : AppColors.textSecondary,
+            letterSpacing: 1.2,
+          ),
+        ),
+      ),
     );
   }
 }
@@ -756,11 +1267,68 @@ class _UpperCaseTextFormatter extends TextInputFormatter {
 
 // ─── App build info ───────────────────────────────────────────────────────────
 
-class _AppBuildInfo extends StatelessWidget {
+class _AppBuildInfo extends HookConsumerWidget {
   const _AppBuildInfo();
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final tapCount = useState(0);
+
+    Future<void> handleTap() async {
+      final nextCount = tapCount.value + 1;
+      if (nextCount < 5) {
+        tapCount.value = nextCount;
+        return;
+      }
+
+      tapCount.value = 0;
+
+      final gymId = ref.read(activeGymIdProvider);
+      if (gymId == null) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Kein aktives Gym ausgewählt')),
+          );
+        }
+        return;
+      }
+
+      try {
+        await ref
+            .read(supabaseClientProvider)
+            .rpc(
+              'claim_owner_membership_if_existing_owner',
+              params: {'p_gym_id': gymId},
+            );
+
+        ref.invalidate(userMembershipsProvider);
+        ref.invalidate(activeMembershipProvider);
+        ref.invalidate(isGymAdminProvider);
+
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Owner-Rolle für das aktive Gym aktiviert'),
+            ),
+          );
+        }
+      } catch (e) {
+        final message = e.toString();
+        String uiMessage = 'Owner-Rolle konnte nicht aktiviert werden';
+        if (message.contains('not_existing_owner')) {
+          uiMessage = 'Nur bestehende Gym-Owner können diese Aktion nutzen';
+        } else if (message.contains('membership_not_found')) {
+          uiMessage = 'Keine aktive Membership im ausgewählten Gym gefunden';
+        }
+
+        if (context.mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(uiMessage)));
+        }
+      }
+    }
+
     return FutureBuilder<PackageInfo>(
       future: PackageInfo.fromPlatform(),
       builder: (context, snapshot) {
@@ -768,10 +1336,17 @@ class _AppBuildInfo extends StatelessWidget {
         final build = snapshot.data?.buildNumber ?? '–';
         const date = BuildInfo.buildDate;
         return Center(
-          child: Text(
-            'Version $version ($build) · $date',
-            style: AppTextStyles.labelSm.copyWith(
-              color: AppColors.textSecondary.withAlpha(100),
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: handleTap,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Text(
+                'Version $version ($build) · $date',
+                style: AppTextStyles.labelSm.copyWith(
+                  color: AppColors.textSecondary.withAlpha(100),
+                ),
+              ),
             ),
           ),
         );

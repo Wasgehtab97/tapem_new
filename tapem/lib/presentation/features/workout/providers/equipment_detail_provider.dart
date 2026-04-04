@@ -1,9 +1,11 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../../core/services/gym_service.dart';
 import '../../../../core/services/sync_service.dart';
 import '../../../../core/utils/xp_rules.dart';
+import '../../../../data/datasources/local/app_database.dart';
 import '../../auth/providers/auth_provider.dart';
 
 // ─── Models ───────────────────────────────────────────────────────────────────
@@ -11,6 +13,8 @@ import '../../auth/providers/auth_provider.dart';
 class EquipmentHistorySummary {
   const EquipmentHistorySummary({
     required this.sessionId,
+    this.sessionExerciseId,
+    this.exerciseName,
     required this.sessionDayAnchor,
     required this.startedAt,
     this.finishedAt,
@@ -21,6 +25,8 @@ class EquipmentHistorySummary {
   });
 
   final String sessionId;
+  final String? sessionExerciseId;
+  final String? exerciseName;
   final String sessionDayAnchor;
   final DateTime startedAt;
   final DateTime? finishedAt;
@@ -29,6 +35,33 @@ class EquipmentHistorySummary {
   final double totalVolumeKg;
   final int totalXp;
 
+  Duration? get duration => finishedAt?.difference(startedAt);
+}
+
+class EquipmentHistoryDetail {
+  const EquipmentHistoryDetail({
+    required this.sessionId,
+    required this.sessionDayAnchor,
+    required this.startedAt,
+    this.finishedAt,
+    required this.exerciseName,
+    required this.sets,
+    required this.totalReps,
+    required this.totalVolumeKg,
+    required this.totalXp,
+  });
+
+  final String sessionId;
+  final String sessionDayAnchor;
+  final DateTime startedAt;
+  final DateTime? finishedAt;
+  final String exerciseName;
+  final List<LocalSetEntry> sets;
+  final int totalReps;
+  final double totalVolumeKg;
+  final int totalXp;
+
+  int get setCount => sets.length;
   Duration? get duration => finishedAt?.difference(startedAt);
 }
 
@@ -54,6 +87,59 @@ class EquipmentRankingEntry {
   final bool isCurrentUser;
 }
 
+enum PerformanceScopeKind { fixedEquipment, exerciseOnStation }
+
+/// Explicit identity used for performance/history queries.
+///
+/// Root-cause note:
+/// Prior implementations keyed chart/history only by `exerciseKey`, which
+/// merged multiple physical fixed machines sharing one canonical key
+/// (e.g. several bench-press variants). This scope enforces machine isolation.
+@immutable
+class PerformanceScope {
+  const PerformanceScope._({
+    required this.kind,
+    required this.exerciseKey,
+    required this.equipmentId,
+  });
+
+  const PerformanceScope.fixedEquipment({
+    required String exerciseKey,
+    required String equipmentId,
+  }) : this._(
+         kind: PerformanceScopeKind.fixedEquipment,
+         exerciseKey: exerciseKey,
+         equipmentId: equipmentId,
+       );
+
+  const PerformanceScope.exerciseOnStation({
+    required String exerciseKey,
+    required String equipmentId,
+  }) : this._(
+         kind: PerformanceScopeKind.exerciseOnStation,
+         exerciseKey: exerciseKey,
+         equipmentId: equipmentId,
+       );
+
+  final PerformanceScopeKind kind;
+  final String exerciseKey;
+  final String equipmentId;
+
+  bool get isFixedEquipment => kind == PerformanceScopeKind.fixedEquipment;
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is PerformanceScope &&
+        other.kind == kind &&
+        other.exerciseKey == exerciseKey &&
+        other.equipmentId == equipmentId;
+  }
+
+  @override
+  int get hashCode => Object.hash(kind, exerciseKey, equipmentId);
+}
+
 // ─── E1RM data point ─────────────────────────────────────────────────────────
 
 class E1rmDataPoint {
@@ -70,22 +156,100 @@ class E1rmDataPoint {
   final int reps;
 }
 
-typedef _E1rmArgs = ({String gymId, String userId, String exerciseKey});
+@visibleForTesting
+class ScopedSetSample {
+  const ScopedSetSample({
+    required this.exerciseKey,
+    required this.equipmentId,
+    required this.sessionDayAnchor,
+    required this.reps,
+    required this.weightKg,
+  });
+
+  final String exerciseKey;
+  final String? equipmentId;
+  final String sessionDayAnchor;
+  final int? reps;
+  final double? weightKg;
+}
+
+@visibleForTesting
+bool includeLegacyFixedRows({required int fixedVariantCount}) {
+  // Legacy rows without equipmentId can only be attributed safely when one
+  // fixed machine exists for this canonical key in the gym.
+  return fixedVariantCount <= 1;
+}
+
+@visibleForTesting
+List<E1rmDataPoint> aggregateScopedE1rmPoints({
+  required Iterable<ScopedSetSample> samples,
+  required PerformanceScope scope,
+  required bool includeLegacyEquipmentlessRows,
+}) {
+  final byDate = <String, double>{};
+  final byDateMeta = <String, ({double weightKg, int reps})>{};
+
+  bool matchesScope(ScopedSetSample s) {
+    if (s.exerciseKey != scope.exerciseKey) return false;
+    if (s.equipmentId == scope.equipmentId) return true;
+    if (scope.isFixedEquipment &&
+        includeLegacyEquipmentlessRows &&
+        s.equipmentId == null) {
+      return true;
+    }
+    return false;
+  }
+
+  for (final s in samples) {
+    if (!matchesScope(s)) continue;
+    final w = s.weightKg;
+    final r = s.reps;
+    if (w == null || r == null || r <= 0 || w <= 0) continue;
+    final e1rm = w * (1 + r / 30);
+    final key = s.sessionDayAnchor;
+    if (!byDate.containsKey(key) || e1rm > byDate[key]!) {
+      byDate[key] = e1rm;
+      byDateMeta[key] = (weightKg: w, reps: r);
+    }
+  }
+
+  return byDate.entries.map((e) {
+    final meta = byDateMeta[e.key]!;
+    return E1rmDataPoint(
+      sessionDayAnchor: e.key,
+      e1rm: e.value,
+      weightKg: meta.weightKg,
+      reps: meta.reps,
+    );
+  }).toList()..sort((a, b) => a.sessionDayAnchor.compareTo(b.sessionDayAnchor));
+}
+
+typedef _E1rmArgs = ({String gymId, String userId, PerformanceScope scope});
 
 final e1rmChartProvider = FutureProvider.family<List<E1rmDataPoint>, _E1rmArgs>(
   (ref, args) async {
-    if (args.exerciseKey.isEmpty) return [];
-    if (args.exerciseKey.startsWith('cardio:')) return [];
+    if (args.scope.exerciseKey.isEmpty) return [];
+    if (args.scope.exerciseKey.startsWith('cardio:')) return [];
 
     final db = ref.watch(appDatabaseProvider);
     final sessionExercises = await db.getSessionExercisesForKey(
       args.gymId,
-      args.exerciseKey,
+      args.scope.exerciseKey,
     );
 
-    // Best E1RM per session day (Epley: w × (1 + r/30))
-    final byDate = <String, double>{};
-    final byDateMeta = <String, ({double weightKg, int reps})>{};
+    var includeLegacy = false;
+    if (args.scope.isFixedEquipment) {
+      final fixedVariantCount = await db
+          .countActiveFixedEquipmentForExerciseKey(
+            args.gymId,
+            args.scope.exerciseKey,
+          );
+      includeLegacy = includeLegacyFixedRows(
+        fixedVariantCount: fixedVariantCount,
+      );
+    }
+
+    final samples = <ScopedSetSample>[];
 
     for (final ex in sessionExercises) {
       final session = await db.getSessionById(ex.sessionId);
@@ -97,31 +261,23 @@ final e1rmChartProvider = FutureProvider.family<List<E1rmDataPoint>, _E1rmArgs>(
 
       final sets = await db.getSetsForExercise(ex.id);
       for (final s in sets) {
-        final w = s.weightKg;
-        final r = s.reps;
-        if (w == null || r == null || r <= 0 || w <= 0) continue;
-        final e1rm = w * (1 + r / 30);
-        final key = session.sessionDayAnchor;
-        if (!byDate.containsKey(key) || e1rm > byDate[key]!) {
-          byDate[key] = e1rm;
-          byDateMeta[key] = (weightKg: w, reps: r);
-        }
+        samples.add(
+          ScopedSetSample(
+            exerciseKey: ex.exerciseKey,
+            equipmentId: ex.equipmentId,
+            sessionDayAnchor: session.sessionDayAnchor,
+            reps: s.reps,
+            weightKg: s.weightKg,
+          ),
+        );
       }
     }
 
-    final points =
-        byDate.entries.map((e) {
-            final meta = byDateMeta[e.key]!;
-            return E1rmDataPoint(
-              sessionDayAnchor: e.key,
-              e1rm: e.value,
-              weightKg: meta.weightKg,
-              reps: meta.reps,
-            );
-          }).toList()
-          ..sort((a, b) => a.sessionDayAnchor.compareTo(b.sessionDayAnchor));
-
-    return points;
+    return aggregateScopedE1rmPoints(
+      samples: samples,
+      scope: args.scope,
+      includeLegacyEquipmentlessRows: includeLegacy,
+    );
   },
 );
 
@@ -144,12 +300,17 @@ final equipmentHistoryProvider =
       final summaries = <EquipmentHistorySummary>[];
       for (final session in sessions) {
         final exercises = await db.getExercisesForSession(session.id);
+        final scopedExercises = exercises
+            .where((exercise) => exercise.equipmentId == args.equipmentId)
+            .toList();
+        if (scopedExercises.isEmpty) continue;
+
         var totalSets = 0;
         var totalReps = 0;
         var totalVolume = 0.0;
         var totalXp = 0;
 
-        for (final exercise in exercises) {
+        for (final exercise in scopedExercises) {
           final sets = await db.getSetsForExercise(exercise.id);
           for (final s in sets) {
             totalSets++;
@@ -166,6 +327,8 @@ final equipmentHistoryProvider =
         summaries.add(
           EquipmentHistorySummary(
             sessionId: session.id,
+            sessionExerciseId: null,
+            exerciseName: null,
             sessionDayAnchor: session.sessionDayAnchor,
             startedAt: session.startedAt,
             finishedAt: session.finishedAt,
@@ -214,6 +377,7 @@ typedef _ExerciseKeyHistoryArgs = ({
   String gymId,
   String userId,
   String exerciseKey,
+  String equipmentId,
 });
 
 final exerciseKeyHistoryProvider =
@@ -230,10 +394,10 @@ final exerciseKeyHistoryProvider =
       );
 
       final summaries = <EquipmentHistorySummary>[];
-      final seenSessions = <String>{};
+      final bySessionId = <String, EquipmentHistorySummary>{};
 
       for (final ex in sessionExercises) {
-        if (seenSessions.contains(ex.sessionId)) continue;
+        if (ex.equipmentId != args.equipmentId) continue;
 
         final session = await db.getSessionById(ex.sessionId);
         if (session == null ||
@@ -242,9 +406,9 @@ final exerciseKeyHistoryProvider =
           continue;
         }
 
-        seenSessions.add(session.id);
-
         final sets = await db.getSetsForExercise(ex.id);
+        if (sets.isEmpty) continue;
+
         var totalReps = 0;
         var totalVolume = 0.0;
 
@@ -254,9 +418,12 @@ final exerciseKeyHistoryProvider =
           if (s.weightKg != null && reps > 0) totalVolume += reps * s.weightKg!;
         }
 
-        summaries.add(
-          EquipmentHistorySummary(
+        final previous = bySessionId[session.id];
+        if (previous == null) {
+          bySessionId[session.id] = EquipmentHistorySummary(
             sessionId: session.id,
+            sessionExerciseId: ex.id,
+            exerciseName: ex.displayName,
             sessionDayAnchor: session.sessionDayAnchor,
             startedAt: session.startedAt,
             finishedAt: session.finishedAt,
@@ -264,13 +431,101 @@ final exerciseKeyHistoryProvider =
             totalReps: totalReps,
             totalVolumeKg: totalVolume,
             // Flat XP per session-exercise — same rule as XP accounting.
-            totalXp: sets.isNotEmpty ? XpRules.exerciseSessionBase : 0,
-          ),
+            totalXp: XpRules.exerciseSessionBase,
+          );
+          continue;
+        }
+
+        bySessionId[session.id] = EquipmentHistorySummary(
+          sessionId: previous.sessionId,
+          sessionExerciseId: previous.sessionExerciseId,
+          exerciseName: previous.exerciseName,
+          sessionDayAnchor: previous.sessionDayAnchor,
+          startedAt: previous.startedAt,
+          finishedAt: previous.finishedAt,
+          setCount: previous.setCount + sets.length,
+          totalReps: previous.totalReps + totalReps,
+          totalVolumeKg: previous.totalVolumeKg + totalVolume,
+          totalXp: previous.totalXp + XpRules.exerciseSessionBase,
         );
       }
 
+      summaries.addAll(bySessionId.values);
       summaries.sort((a, b) => b.startedAt.compareTo(a.startedAt));
       return summaries.take(20).toList();
+    });
+
+typedef _HistoryDetailArgs = ({
+  String gymId,
+  String userId,
+  String sessionId,
+  String equipmentId,
+  String exerciseKey,
+});
+
+final equipmentHistoryDetailProvider =
+    FutureProvider.family<EquipmentHistoryDetail?, _HistoryDetailArgs>((
+      ref,
+      args,
+    ) async {
+      final db = ref.watch(appDatabaseProvider);
+      final session = await db.getSessionById(args.sessionId);
+      if (session == null ||
+          session.userId != args.userId ||
+          session.gymId != args.gymId ||
+          session.finishedAt == null) {
+        return null;
+      }
+
+      final exercises = await db.getExercisesForSession(session.id);
+      final scopedExercises = exercises
+          .where(
+            (exercise) =>
+                exercise.exerciseKey == args.exerciseKey &&
+                exercise.equipmentId == args.equipmentId,
+          )
+          .toList();
+      if (scopedExercises.isEmpty) return null;
+
+      final sets = <LocalSetEntry>[];
+      var totalReps = 0;
+      var totalVolume = 0.0;
+      var totalXp = 0;
+
+      for (final exercise in scopedExercises) {
+        final exerciseSets = await db.getSetsForExercise(exercise.id);
+        if (exerciseSets.isEmpty) continue;
+        sets.addAll(exerciseSets);
+
+        for (final s in exerciseSets) {
+          final reps = s.reps ?? 0;
+          totalReps += reps;
+          if (s.weightKg != null && reps > 0) {
+            totalVolume += reps * s.weightKg!;
+          }
+        }
+        totalXp += XpRules.exerciseSessionBase;
+      }
+      if (sets.isEmpty) return null;
+
+      sets.sort((a, b) {
+        final byLoggedAt = a.loggedAt.compareTo(b.loggedAt);
+        if (byLoggedAt != 0) return byLoggedAt;
+        return a.setNumber.compareTo(b.setNumber);
+      });
+
+      final primaryName = scopedExercises.first.displayName;
+      return EquipmentHistoryDetail(
+        sessionId: session.id,
+        sessionDayAnchor: session.sessionDayAnchor,
+        startedAt: session.startedAt,
+        finishedAt: session.finishedAt,
+        exerciseName: primaryName,
+        sets: sets,
+        totalReps: totalReps,
+        totalVolumeKg: totalVolume,
+        totalXp: totalXp,
+      );
     });
 
 // ─── Exercise XP (server-confirmed) ──────────────────────────────────────────
@@ -351,7 +606,7 @@ class ExerciseMuscleGroupEntry {
   });
 
   final String muscleGroup; // e.g. 'chest'
-  final String role;        // 'primary' | 'secondary'
+  final String role; // 'primary' | 'secondary'
 }
 
 typedef _MgArgs = ({String gymId, String exerciseKey});

@@ -233,9 +233,9 @@ class WorkoutStartHubScreen extends HookConsumerWidget {
       case EquipmentType.fixedMachine:
         await notifier.startSession(
           equipmentId: equipment.id,
-          equipmentName: equipment.name,
+          equipmentName: equipment.displayName,
           canonicalExerciseKey: equipment.canonicalExerciseKey ?? '',
-          canonicalExerciseName: equipment.name,
+          canonicalExerciseName: equipment.displayName,
         );
 
       case EquipmentType.openStation:
@@ -252,14 +252,14 @@ class WorkoutStartHubScreen extends HookConsumerWidget {
                 builder: (_) => ExercisePickerSheet(
                   gymId: equipment.gymId,
                   equipmentId: equipment.id,
-                  equipmentName: equipment.name,
+                  equipmentName: equipment.displayName,
                 ),
               ),
             );
         if (exercise == null) return;
         await notifier.startSession(
           equipmentId: equipment.id,
-          equipmentName: equipment.name,
+          equipmentName: equipment.displayName,
           canonicalExerciseKey: exercise.exerciseKey,
           canonicalExerciseName: exercise.displayName,
         );
@@ -267,10 +267,9 @@ class WorkoutStartHubScreen extends HookConsumerWidget {
       case EquipmentType.cardio:
         await notifier.startSession(
           equipmentId: equipment.id,
-          equipmentName: equipment.name,
+          equipmentName: equipment.displayName,
           canonicalExerciseKey: 'cardio:${equipment.id}',
-          canonicalExerciseName: equipment.name,
-          isCardio: true,
+          canonicalExerciseName: equipment.displayName,
         );
     }
 
